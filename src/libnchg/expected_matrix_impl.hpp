@@ -31,13 +31,10 @@
 namespace nchg {
 
 template <typename PixelIt>
-inline auto ExpectedMatrix<PixelIt>::compute_stats(PixelIt first_pixel, PixelIt last_pixel,
-                                                   const hictk::Chromosome &chrom1,
-                                                   const hictk::Chromosome &chrom2,
-                                                   const hictk::BinTable &bins,
-                                                   const std::vector<double> &weights,
-                                                   double scaling_factor, std::uint64_t min_delta_,
-                                                   std::uint64_t max_delta_) {
+inline auto ExpectedMatrix<PixelIt>::compute_stats(
+    PixelIt first_pixel, PixelIt last_pixel, const hictk::Chromosome &chrom1,
+    const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
+    const std::vector<double> &weights, std::uint64_t min_delta_, std::uint64_t max_delta_) {
   struct Result {
     std::shared_ptr<std::vector<double>> marginals1{std::make_shared<std::vector<double>>()};
     std::shared_ptr<std::vector<double>> marginals2{std::make_shared<std::vector<double>>()};
@@ -74,8 +71,7 @@ inline auto ExpectedMatrix<PixelIt>::compute_stats(PixelIt first_pixel, PixelIt 
       return;
     }
 
-    auto count = intra_matrix ? weights.at(bin2.id() - bin1.id()) / scaling_factor
-                              : static_cast<double>(p.count);
+    auto count = intra_matrix ? weights.at(bin2.id() - bin1.id()) : static_cast<double>(p.count);
     if (std::isnan(count)) {
       count = 0.0;
     }
@@ -127,8 +123,11 @@ inline ExpectedMatrix<PixelIt>::ExpectedMatrix(PixelIt first_pixel, PixelIt last
       _weights(std::move(weights)),
       _min_delta(min_delta_),
       _max_delta(max_delta_) {
-  auto stats = compute_stats(_first, _last, _chrom1, _chrom2, _bins, _weights, scaling_factor,
-                             min_delta_, max_delta_);
+  std::transform(_weights.begin(), _weights.end(), _weights.begin(),
+                 [&](const auto n) { return n / scaling_factor; });
+
+  auto stats =
+      compute_stats(_first, _last, _chrom1, _chrom2, _bins, _weights, min_delta_, max_delta_);
   _marginals1 = std::move(stats.marginals1);
   _marginals2 = std::move(stats.marginals2);
   _nnz = stats.nnz;

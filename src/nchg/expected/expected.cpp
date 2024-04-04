@@ -17,7 +17,6 @@
 // <https://www.gnu.org/licenses/>.
 
 #include <parallel_hashmap/btree.h>
-#include "nchg/common.hpp"
 
 #include <cstdint>
 #include <hictk/chromosome.hpp>
@@ -26,6 +25,7 @@
 #include <highfive/H5File.hpp>
 #include <vector>
 
+#include "nchg/common.hpp"
 #include "nchg/expected_matrix.hpp"
 #include "nchg/expected_values.hpp"
 #include "nchg/nchg.hpp"

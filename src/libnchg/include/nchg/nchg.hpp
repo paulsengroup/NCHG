@@ -28,8 +28,8 @@
 #include <hictk/transformers/join_genomic_coords.hpp>
 #include <memory>
 
-#include "nchg/expected_values.hpp"
 #include "nchg/expected_matrix.hpp"
+#include "nchg/expected_values.hpp"
 #include "nchg/extrapolating_spline.hpp"
 #include "nchg/observed_matrix.hpp"
 
@@ -55,21 +55,26 @@ class NCHG {
       decltype(std::declval<hictk::transformers::JoinGenomicCoords<ThinPixelIt>>().begin());
 
   std::shared_ptr<const File> _fp;
-  std::uint64_t _min_delta;
-  std::uint64_t _max_delta;
-  std::uint64_t _num_quantiles;
+  std::uint64_t _min_delta{};
+  std::uint64_t _max_delta{std::numeric_limits<std::uint64_t>::max()};
 
   using Key = std::pair<hictk::Chromosome, hictk::Chromosome>;
   phmap::flat_hash_map<Key, std::shared_ptr<const ObservedMatrix<PixelIt>>> _obs_matrices{};
   phmap::flat_hash_map<Key, std::shared_ptr<const ExpectedMatrix<PixelIt>>> _exp_matrices{};
-  std::vector<double> _expected_weights{};
-  phmap::btree_map<hictk::Chromosome, double> _expected_scaling_factors{};
+  ExpectedValues<File> _expected_values{};
 
  public:
-  NCHG() = delete;
   explicit NCHG(std::shared_ptr<const File> f, std::uint64_t min_delta = 40'000,
-                std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max(),
-                std::uint64_t num_quantiles = 100);
+                std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
+
+  [[nodiscard]] static NCHG cis_only(
+      std::shared_ptr<const File> f, std::uint64_t min_delta = 40'000,
+      std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
+  [[nodiscard]] static NCHG trans_only(std::shared_ptr<const File> f);
+  [[nodiscard]] static NCHG chromosome_pair(
+      std::shared_ptr<const File> f, const hictk::Chromosome& chrom1,
+      const hictk::Chromosome& chrom2, std::uint64_t min_delta = 40'000,
+      std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
 
   [[nodiscard]] auto observed_matrix(const hictk::Chromosome& chrom) const
       -> const ObservedMatrix<PixelIt>&;

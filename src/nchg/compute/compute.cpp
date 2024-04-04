@@ -23,6 +23,7 @@
 #include <memory>
 #include <variant>
 
+#include "nchg/common.hpp"
 #include "nchg/config.hpp"
 #include "nchg/nchg.hpp"
 #include "nchg/tools.hpp"
@@ -46,7 +47,7 @@ static void print_header() {
 
 template <typename FilePtr>
 static void process_all_chromosomes(const FilePtr &f, const ComputePvalConfig &c) {
-  NCHG nchg(f, c.min_delta, c.max_delta, c.num_quantiles);
+  NCHG nchg(f, c.min_delta, c.max_delta);
 
   bool header_printed = false;
   for (std::uint32_t chrom1_id = 0; chrom1_id < f->chromosomes().size(); ++chrom1_id) {
@@ -72,7 +73,8 @@ static void process_all_chromosomes(const FilePtr &f, const ComputePvalConfig &c
 template <typename FilePtr>
 static void process_cis_only_chromosomes(const FilePtr &f, const ComputePvalConfig &c) {
   assert(c.cis_only);
-  NCHG nchg(f, c.min_delta, c.max_delta, c.num_quantiles);
+  using File = remove_cvref_t<decltype(*f)>;
+  auto nchg = NCHG<File>::cis_only(f, c.min_delta, c.max_delta);
 
   bool header_printed = false;
   for (const auto &chrom : f->chromosomes()) {
@@ -91,7 +93,8 @@ static void process_cis_only_chromosomes(const FilePtr &f, const ComputePvalConf
 template <typename FilePtr>
 static void process_trans_only(const FilePtr &f, const ComputePvalConfig &c) {
   assert(c.trans_only);
-  NCHG nchg(f, c.min_delta, c.max_delta, c.num_quantiles);
+  using File = remove_cvref_t<decltype(*f)>;
+  auto nchg = NCHG<File>::trans_only(f);
 
   bool header_printed = false;
   for (std::uint32_t chrom1_id = 0; chrom1_id < f->chromosomes().size(); ++chrom1_id) {
@@ -117,7 +120,12 @@ static void process_trans_only(const FilePtr &f, const ComputePvalConfig &c) {
 
 template <typename FilePtr>
 static void process_one_chromosome(const FilePtr &f, const ComputePvalConfig &c) {
-  NCHG nchg(f, c.min_delta, c.max_delta, c.num_quantiles);
+  const auto &chrom1 = f->chromosomes().at(c.chrom1);
+  const auto &chrom2 = f->chromosomes().at(c.chrom2);
+
+  using File = remove_cvref_t<decltype(*f)>;
+
+  auto nchg = NCHG<File>::chromosome_pair(f, chrom1, chrom2, c.min_delta, c.max_delta);
 
   nchg.init_matrix(f->chromosomes().at(c.chrom1), f->chromosomes().at(c.chrom2));
 

@@ -23,8 +23,10 @@
 #include <cstdint>
 #include <filesystem>
 #include <hictk/chromosome.hpp>
+#include <hictk/transformers/join_genomic_coords.hpp>
 #include <highfive/H5File.hpp>
 #include <memory>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -34,6 +36,10 @@ namespace nchg {
 
 template <typename File>
 class ExpectedValues {
+  using N = std::uint32_t;
+  using ThinPixelIt = decltype(std::declval<File>().fetch("chr1").template begin<N>());
+  using PixelIt =
+      decltype(std::declval<hictk::transformers::JoinGenomicCoords<ThinPixelIt>>().begin());
   std::shared_ptr<const File> _fp{};
 
   std::vector<double> _expected_weights{};
@@ -42,16 +48,20 @@ class ExpectedValues {
   using EVTKey = std::pair<hictk::Chromosome, hictk::Chromosome>;
   phmap::btree_map<EVTKey, double> _expected_values_trans{};
 
-  std::uint64_t _min_delta;
-  std::uint64_t _max_delta;
+  std::uint64_t _min_delta{};
+  std::uint64_t _max_delta{std::numeric_limits<std::uint64_t>::max()};
 
  public:
-  explicit ExpectedValues(std::shared_ptr<const File> file);
-  static ExpectedValues cis_only(std::shared_ptr<const File> file);
+  explicit ExpectedValues(std::shared_ptr<const File> file, std::uint64_t min_delta = 40'000,
+                          std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
+  static ExpectedValues cis_only(
+      std::shared_ptr<const File> file, std::uint64_t min_delta = 40'000,
+      std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
   static ExpectedValues trans_only(std::shared_ptr<const File> file);
-  static ExpectedValues chromosome_pair(std::shared_ptr<const File> file,
-                                        const hictk::Chromosome& chrom1,
-                                        const hictk::Chromosome& chrom2);
+  static ExpectedValues chromosome_pair(
+      std::shared_ptr<const File> file, const hictk::Chromosome& chrom1,
+      const hictk::Chromosome& chrom2, std::uint64_t min_delta = 40'000,
+      std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
 
   static ExpectedValues deserialize(const std::filesystem::path& path);
 
@@ -64,6 +74,12 @@ class ExpectedValues {
 
   [[nodiscard]] const phmap::btree_map<hictk::Chromosome, double>& scaling_factors() const noexcept;
   [[nodiscard]] double scaling_factor(const hictk::Chromosome& chrom) const;
+
+  [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom) const
+      -> ExpectedMatrix<PixelIt>;
+  [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom1,
+                                     const hictk::Chromosome& chrom2) const
+      -> ExpectedMatrix<PixelIt>;
 
   void serialize(const std::filesystem::path& path) const;
 

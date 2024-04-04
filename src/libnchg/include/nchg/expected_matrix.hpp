@@ -102,8 +102,7 @@ class ExpectedMatrix {
   static auto compute_stats(PixelIt first_pixel, PixelIt last_pixel,
                             const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
                             const hictk::BinTable &bins, const std::vector<double> &weights,
-                            double scaling_factor, std::uint64_t min_delta_,
-                            std::uint64_t max_delta_);
+                            std::uint64_t min_delta_, std::uint64_t max_delta_);
 
   template <typename PixelItGw>
   static std::vector<double> compute_weights(PixelItGw first_pixel, PixelItGw last_pixel,

@@ -34,15 +34,59 @@ namespace nchg {
 
 template <typename File>
 inline NCHG<File>::NCHG(std::shared_ptr<const File> f, std::uint64_t min_delta,
-                        std::uint64_t max_delta, std::uint64_t num_quantiles)
-    : _fp(std::move(f)),
-      _min_delta(min_delta),
-      _max_delta(max_delta),
-      _num_quantiles(num_quantiles) {
-  assert(_fp);
+                        std::uint64_t max_delta)
+    : _fp(std::move(f)), _min_delta(min_delta), _max_delta(max_delta), _expected_values(_fp) {
   if (_min_delta >= _max_delta) {
     throw std::logic_error("min_delta should be strictly less than max_delta");
   }
+}
+
+template <typename File>
+inline NCHG<File> NCHG<File>::cis_only(std::shared_ptr<const File> f, std::uint64_t min_delta,
+                                       std::uint64_t max_delta) {
+  assert(f);
+  if (min_delta >= max_delta) {
+    throw std::logic_error("min_delta should be strictly less than max_delta");
+  }
+
+  NCHG<File> nchg{nullptr};
+  nchg._fp = std::move(f);
+  nchg._min_delta = min_delta;
+  nchg._max_delta = max_delta;
+  nchg._expected_values = ExpectedValues<File>::cis_only(nchg._fp, min_delta, max_delta);
+
+  return nchg;
+}
+
+template <typename File>
+inline NCHG<File> NCHG<File>::trans_only(std::shared_ptr<const File> f) {
+  assert(f);
+
+  NCHG<File> nchg{nullptr};
+  nchg._fp = std::move(f);
+  nchg._expected_values = ExpectedValues<File>::trans_only(nchg._fp);
+
+  return nchg;
+}
+
+template <typename File>
+inline NCHG<File> NCHG<File>::chromosome_pair(std::shared_ptr<const File> f,
+                                              const hictk::Chromosome &chrom1,
+                                              const hictk::Chromosome &chrom2,
+                                              std::uint64_t min_delta, std::uint64_t max_delta) {
+  assert(f);
+  if (min_delta >= max_delta) {
+    throw std::logic_error("min_delta should be strictly less than max_delta");
+  }
+
+  NCHG<File> nchg{nullptr};
+  nchg._fp = std::move(f);
+  nchg._min_delta = min_delta;
+  nchg._max_delta = max_delta;
+  nchg._expected_values =
+      ExpectedValues<File>::chromosome_pair(nchg._fp, chrom1, chrom2, min_delta, max_delta);
+
+  return nchg;
 }
 
 template <typename File>
@@ -113,18 +157,10 @@ inline void NCHG<File>::init_matrix(const hictk::Chromosome &chrom1,
 
   assert(_exp_matrices.find(k) == _exp_matrices.end());
 
-  if (_expected_weights.empty()) {
-    auto [weights, scaling_factors] = compute_expected_profile();
-    _expected_weights = std::move(weights);
-    _expected_scaling_factors = std::move(scaling_factors);
-  }
-
   SPDLOG_INFO(FMT_STRING("[{}:{}] initializing expected matrix..."), chrom1.name(), chrom2.name());
 
-  _exp_matrices.emplace(k,
-                        std::make_shared<const ExpectedMatrix<PixelIt>>(
-                            first_pixel, last_pixel, chrom1, chrom2, _fp->bins(), _expected_weights,
-                            _expected_scaling_factors.at(chrom1), _min_delta, _max_delta));
+  _exp_matrices.emplace(k, std::make_shared<const ExpectedMatrix<PixelIt>>(
+                               _expected_values.expected_matrix(chrom1, chrom2)));
 }
 
 template <typename File>

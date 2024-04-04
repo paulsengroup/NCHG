@@ -25,46 +25,47 @@
 namespace nchg {
 
 template <typename File>
-inline ExpectedValues<File>::ExpectedValues(std::shared_ptr<const File> file)
-    : _fp(std::move(file)) {
-  compute_expected_values_cis();
-  compute_expected_values_trans();
+inline ExpectedValues<File>::ExpectedValues(std::shared_ptr<const File> file,
+                                            std::uint64_t min_delta, std::uint64_t max_delta)
+    : _fp(std::move(file)), _min_delta(min_delta), _max_delta(max_delta) {
+  if (_fp) {
+    compute_expected_values_cis();
+    compute_expected_values_trans();
+  }
 }
 
 template <typename File>
-inline ExpectedValues<File> ExpectedValues<File>::cis_only(std::shared_ptr<const File> file) {
-  ExpectedValues ev(std::move(file));
-  ev.compute_expected_values_cis();
+inline ExpectedValues<File> ExpectedValues<File>::cis_only(std::shared_ptr<const File> file,
+                                                           std::uint64_t min_delta,
+                                                           std::uint64_t max_delta) {
+  ExpectedValues ev(nullptr, min_delta, max_delta);
+  ev._fp = std::move(file);
+  if (ev._fp) {
+    ev.compute_expected_values_cis();
+  }
   return ev;
 }
 
 template <typename File>
 inline ExpectedValues<File> ExpectedValues<File>::trans_only(std::shared_ptr<const File> file) {
-  ExpectedValues ev(std::move(file));
-  ev.compute_expected_values_trans();
-  return ev;
-}
-
-template <typename File>
-inline ExpectedValues<File> ExpectedValues<File>::deserialize(const std::filesystem::path &path) {
-  ExpectedValues<hictk::File> ev{nullptr};
-  HighFive::File f(path);
-
-  auto [weights, scaling_factors] = deserialize_cis_profiles(f);
-  ev._expected_weights = std::move(weights);
-  ev._expected_scaling_factors = std::move(scaling_factors);
-  ev._expected_values_trans = deserialize_trans_profiles(f);
-
+  ExpectedValues ev(nullptr);
+  ev._fp = std::move(file);
+  if (ev._fp) {
+    ev.compute_expected_values_trans();
+  }
   return ev;
 }
 
 template <typename File>
 inline ExpectedValues<File> ExpectedValues<File>::chromosome_pair(std::shared_ptr<const File> file,
                                                                   const hictk::Chromosome &chrom1,
-                                                                  const hictk::Chromosome &chrom2) {
+                                                                  const hictk::Chromosome &chrom2,
+                                                                  std::uint64_t min_delta,
+                                                                  std::uint64_t max_delta) {
   SPDLOG_INFO(FMT_STRING("computing expected values for {}:{}..."), chrom1.name(), chrom2.name());
 
-  ExpectedValues ev(std::move(file));
+  ExpectedValues ev(nullptr, min_delta, max_delta);
+  ev._fp = std::move(file);
   if (chrom1 == chrom2) {
     ev.compute_expected_values_cis();
     return ev;
@@ -80,6 +81,19 @@ inline ExpectedValues<File> ExpectedValues<File>::chromosome_pair(std::shared_pt
                      std::vector<double>{}, 0, std::numeric_limits<std::uint64_t>::max()}
 
           .nnz_avg());
+
+  return ev;
+}
+
+template <typename File>
+inline ExpectedValues<File> ExpectedValues<File>::deserialize(const std::filesystem::path &path) {
+  ExpectedValues<hictk::File> ev{nullptr};
+  HighFive::File f(path);
+
+  auto [weights, scaling_factors] = deserialize_cis_profiles(f);
+  ev._expected_weights = std::move(weights);
+  ev._expected_scaling_factors = std::move(scaling_factors);
+  ev._expected_values_trans = deserialize_trans_profiles(f);
 
   return ev;
 }
@@ -127,6 +141,38 @@ inline double ExpectedValues<File>::scaling_factor(const hictk::Chromosome &chro
 }
 
 template <typename File>
+inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom) const
+    -> ExpectedMatrix<PixelIt> {
+  const auto sel = _fp->fetch(chrom.name());
+  const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<N>(), sel.template end<N>(),
+                                                    _fp->bins_ptr());
+  return {jsel.begin(),
+          jsel.end(),
+          chrom,
+          chrom,
+          _fp->bins(),
+          _expected_weights,
+          _expected_scaling_factors.at(chrom),
+          _min_delta,
+          _max_delta};
+}
+
+template <typename File>
+inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom1,
+                                                  const hictk::Chromosome &chrom2) const
+    -> ExpectedMatrix<PixelIt> {
+  if (chrom1 == chrom2) {
+    return expected_matrix(chrom1);
+  }
+
+  const auto sel = _fp->fetch(chrom1.name(), chrom2.name());
+  const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<N>(), sel.template end<N>(),
+                                                    _fp->bins_ptr());
+  return {jsel.begin(),          jsel.end(), chrom1,     chrom2,    _fp->bins(),
+          std::vector<double>{}, 1.0,        _min_delta, _max_delta};
+}
+
+template <typename File>
 inline void ExpectedValues<File>::serialize(const std::filesystem::path &path) const {
   SPDLOG_INFO(FMT_STRING("writing expected value profiles to {}..."), path);
 
@@ -145,9 +191,7 @@ template <typename File>
 inline void ExpectedValues<File>::compute_expected_values_cis() {
   SPDLOG_INFO(FMT_STRING("initializing expected matrix weights from genome-wide interactions..."));
 
-  using N = std::uint32_t;
   using PixelSel = decltype(std::declval<File>().fetch("chr1"));
-  using ThinPixelIt = decltype(std::declval<PixelSel>().template begin<N>());
 
   std::vector<ThinPixelIt> heads{};
   std::vector<ThinPixelIt> tails{};
@@ -198,6 +242,7 @@ inline void ExpectedValues<File>::compute_expected_values_cis() {
   const auto &chrom = _fp->chromosomes().longest_chromosome();
   const auto num_bins = (chrom.size() + _fp->resolution() - 1) / _fp->resolution();
   _expected_weights.resize(num_bins, std::numeric_limits<double>::quiet_NaN());
+  _expected_scaling_factors = aggr.scaling_factors();
 }
 
 template <typename File>

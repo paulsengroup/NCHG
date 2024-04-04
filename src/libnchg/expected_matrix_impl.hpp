@@ -111,7 +111,7 @@ inline ExpectedMatrix<PixelIt>::ExpectedMatrix(PixelIt first_pixel, PixelIt last
     : ExpectedMatrix(std::move(first_pixel), std::move(last_pixel), chrom1, chrom2, bins,
                      compute_weights(std::move(first_pixel_gw), std::move(last_pixel_gw), chrom1,
                                      chrom2, bins, min_delta_, max_delta_),
-                     min_delta_, max_delta_) {}
+                     1.0, min_delta_, max_delta_) {}
 
 template <typename PixelIt>
 inline ExpectedMatrix<PixelIt>::ExpectedMatrix(PixelIt first_pixel, PixelIt last_pixel,

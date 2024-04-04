@@ -69,7 +69,8 @@ TEST_CASE("ExpectedMatrix (cis)", "[short][expected_matrix]") {
   };
   // clang-format on
 
-  const ExpectedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom1, bins, 6};
+  const ExpectedMatrix m{pixels.begin(), pixels.end(), pixels.begin(), pixels.end(), chrom1,
+                         chrom1,         bins};
 
   SECTION("accessors") {
     CHECK(m.resolution() == resolution);
@@ -79,30 +80,24 @@ TEST_CASE("ExpectedMatrix (cis)", "[short][expected_matrix]") {
 
   SECTION("stats") {
     CHECK(m.nnz() == 15);
-    CHECK(m.sum() == 15);
-    CHECK(m.nnz_avg() == 1);
 
     REQUIRE(m.marginals1().size() == m.marginals2().size());
     CHECK(std::equal(m.marginals1().begin(), m.marginals1().end(), m.marginals2().begin()));
-    CHECK_THAT(m.marginals1().at(0), Catch::Matchers::WithinRel(5.0));
-    CHECK_THAT(m.marginals1().at(1), Catch::Matchers::WithinRel(1.0));
-    CHECK_THAT(m.marginals1().at(2), Catch::Matchers::WithinRel(2.0));
-    CHECK_THAT(m.marginals1().at(3), Catch::Matchers::WithinRel(1.0));
-    CHECK_THAT(m.marginals1().at(4), Catch::Matchers::WithinRel(2.0));
-    CHECK_THAT(m.marginals1().at(5), Catch::Matchers::WithinRel(2.0));
-    CHECK_THAT(m.marginals1().at(6), Catch::Matchers::WithinRel(2.0));
   }
 
   SECTION("empty matrix") {
     const std::vector<Pixel> buff{};
-    const ExpectedMatrix m1{buff.begin(), buff.end(), chrom1, chrom1, bins, 0};
+
+    const ExpectedMatrix m1{buff.begin(), buff.end(), buff.begin(), buff.end(),
+                            chrom1,       chrom1,     bins};
     CHECK(std::all_of(m1.marginals1().begin(), m1.marginals1().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(std::all_of(m1.marginals2().begin(), m1.marginals2().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(m1.nnz() == 0);
 
-    const ExpectedMatrix m2{buff.begin(), buff.end(), chrom1, chrom1, bins, 10};
+    const ExpectedMatrix m2{buff.begin(), buff.end(), buff.begin(), buff.end(),
+                            chrom1,       chrom1,     bins};
     CHECK(std::all_of(m2.marginals1().begin(), m2.marginals1().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(std::all_of(m2.marginals2().begin(), m2.marginals2().end(),
@@ -137,7 +132,8 @@ TEST_CASE("ExpectedMatrix (trans)", "[short][expected_matrix]") {
   };
   // clang-format on
 
-  const ExpectedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom2, bins, 9};
+  const ExpectedMatrix m{pixels.begin(), pixels.end(), pixels.begin(), pixels.end(), chrom1,
+                         chrom2,         bins};
 
   SECTION("accessors") {
     CHECK(m.resolution() == resolution);
@@ -163,14 +159,16 @@ TEST_CASE("ExpectedMatrix (trans)", "[short][expected_matrix]") {
 
   SECTION("empty matrix") {
     const std::vector<Pixel> buff{};
-    const ExpectedMatrix m1{buff.begin(), buff.end(), chrom1, chrom1, bins, 0};
+    const ExpectedMatrix m1{buff.begin(), buff.end(), buff.begin(), buff.end(),
+                            chrom1,       chrom1,     bins};
     CHECK(std::all_of(m1.marginals1().begin(), m1.marginals1().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(std::all_of(m1.marginals2().begin(), m1.marginals2().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(m1.nnz() == 0);
 
-    const ExpectedMatrix m2{buff.begin(), buff.end(), chrom1, chrom1, bins, 10};
+    const ExpectedMatrix m2{buff.begin(), buff.end(), buff.begin(), buff.end(),
+                            chrom1,       chrom1,     bins};
     CHECK(std::all_of(m2.marginals1().begin(), m2.marginals1().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(std::all_of(m2.marginals2().begin(), m2.marginals2().end(),

@@ -236,7 +236,7 @@ int run_nchg_filter(const FilterConfig& c) {
                  s.omega);
     }
   }
-  return 1;
+  return 0;
 }
 
 }  // namespace nchg

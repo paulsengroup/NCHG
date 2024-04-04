@@ -170,6 +170,6 @@ int run_nchg_compute(const ComputePvalConfig &c) {
       },
       f);
 
-  return 1;
+  return 0;
 }
 }  // namespace nchg

@@ -166,7 +166,7 @@ inline void NCHG<File>::print_pvalues(const hictk::Chromosome &chrom) {
 
 [[nodiscard]] static double compute_odds_ratio(double n, double total_sum, double sum1,
                                                double sum2) {
-  if (sum1 == 0 || sum2 == 0) {
+  if (std::isnan(n) || sum1 == 0 || sum2 == 0) {
     return std::numeric_limits<double>::quiet_NaN();
   }
 

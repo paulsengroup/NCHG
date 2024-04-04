@@ -27,6 +27,7 @@
 namespace nchg {
 struct ComputePvalConfig {
   std::filesystem::path path{};
+  std::uint32_t resolution{};
   std::string chrom1{"all"};
   std::string chrom2{"all"};
 

@@ -136,7 +136,7 @@ int run_nchg_compute(const ComputePvalConfig &c) {
   // clang-format on
 
   const auto f = [&]() -> FilePtr {
-    hictk::File ff(c.path.string());
+    hictk::File ff(c.path.string(), c.resolution);
     return {std::visit(
         [&](auto &&ff) {
           using FileT = std::remove_reference_t<decltype(ff)>;

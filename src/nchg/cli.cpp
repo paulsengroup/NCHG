@@ -24,6 +24,8 @@
 #include <CLI/CLI.hpp>
 #include <cassert>
 #include <exception>
+#include <hictk/cooler/validation.hpp>
+#include <hictk/hic/validation.hpp>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -122,6 +124,10 @@ void Cli::make_compute_subcommand() {
     "Path to a matrix in .hic, .cool or .mcool file with interactions to be processed.")
     ->check(IsValidHiCFile | IsValidCoolerFile | IsValidMultiresCoolerFile)
     ->required();
+  sc.add_option(
+    "--resolution",
+    c.resolution,
+    "File resolution. Required when the input file is in .hic or .mcool format.");
   sc.add_option(
     "--chrom1",
     c.chrom1,
@@ -243,6 +249,15 @@ void Cli::validate_compute_subcommand() const {
 
   std::vector<std::string> warnings;
   std::vector<std::string> errors;
+
+  const auto is_mcool = hictk::cooler::utils::is_multires_file(c.path.string());
+  const auto is_hic = hictk::hic::utils::is_hic_file(c.path.string());
+  const auto resolution_parsed = !sc.get_option("--resolution")->empty();
+
+  if ((is_mcool || is_hic) && !resolution_parsed) {
+    errors.emplace_back(
+        "--resolution is a mandatory argument when the input file is in .hic or .mcool format.");
+  }
 
   if (c.min_delta >= c.max_delta) {
     errors.emplace_back("--min-delta should be less than --max-delta.");

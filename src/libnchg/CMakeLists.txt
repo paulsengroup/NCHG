@@ -51,5 +51,3 @@ target_link_libraries(
             phmap
             spdlog::spdlog_header_only
             stocc)
-
-target_compile_features(libnchg INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")

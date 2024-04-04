@@ -19,6 +19,7 @@
 find_package(CLI11 REQUIRED)
 find_package(FMT REQUIRED)
 find_package(hictk REQUIRED)
+find_package(spdlog REQUIRED)
 
 add_executable(NCHG)
 
@@ -35,6 +36,5 @@ target_link_libraries(
   PUBLIC libnchg
          CLI11::CLI11
          fmt::fmt-header-only
-         hictk::libhictk)
-
-target_compile_features(NCHG INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
+         hictk::libhictk
+         spdlog::spdlog_header_only)

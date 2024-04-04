@@ -212,6 +212,7 @@ class Cli {
   enum subcommand : std::uint8_t {
     help,
     compute,
+    expected,
     filter,
   };
 
@@ -232,14 +233,17 @@ class Cli {
   subcommand _subcommand{subcommand::help};
 
   void make_compute_subcommand();
+  void make_expected_subcommand();
   void make_filter_subcommand();
   void make_cli();
 
   void validate_compute_subcommand() const;
+  void validate_expected_subcommand() const;
   void validate_filter_subcommand() const;
   void validate_args() const;
 
   void transform_args_compute_subcommand();
+  void transform_args_expected_subcommand();
   void transform_args_filter_subcommand();
   void transform_args();
 };

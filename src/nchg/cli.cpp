@@ -49,6 +49,8 @@ auto Cli::parse_arguments() -> Config {
 
     if (_cli.get_subcommand("compute")->parsed()) {
       _subcommand = subcommand::compute;
+    } else if (_cli.get_subcommand("expected")->parsed()) {
+      _subcommand = subcommand::expected;
     } else if (_cli.get_subcommand("filter")->parsed()) {
       _subcommand = subcommand::filter;
     } else {
@@ -86,6 +88,8 @@ std::string_view Cli::subcommand_to_str(subcommand s) noexcept {
   switch (s) {
     case compute:
       return "compute";
+    case expected:
+      return "expected";
     case filter:
       return "filter";
     default:
@@ -101,6 +105,7 @@ void Cli::make_cli() {
   _cli.require_subcommand(1);
 
   make_compute_subcommand();
+  make_expected_subcommand();
   make_filter_subcommand();
 }
 
@@ -127,7 +132,7 @@ void Cli::make_compute_subcommand() {
   sc.add_option(
     "--resolution",
     c.resolution,
-    "File resolution. Required when the input file is in .hic or .mcool format.");
+    "Matrix resolution. Required when the input file is in .hic or .mcool format.");
   sc.add_option(
     "--chrom1",
     c.chrom1,
@@ -177,6 +182,58 @@ void Cli::make_compute_subcommand() {
 
   sc.get_option("--trans-only")->excludes("--chrom1");
   sc.get_option("--trans-only")->excludes("--chrom2");
+
+  _config = std::monostate{};
+}
+
+void Cli::make_expected_subcommand() {
+  [[maybe_unused]] auto &sc =
+      *_cli.add_subcommand("expected", "Compute the expected profile for a given Hi-C matrix.")
+           ->fallthrough()
+           ->preparse_callback([this]([[maybe_unused]] std::size_t i) {
+             assert(_config.index() == 0);
+             _config = ExpectedConfig{};
+           });
+
+  _config = ExpectedConfig{};
+  [[maybe_unused]] auto &c = std::get<ExpectedConfig>(_config);
+
+  // clang-format off
+  sc.add_option(
+      "hic-matrix",
+      c.input_path,
+      "Path to a matrix in .hic, .cool or .mcool file with interactions to be processed.")
+      ->check(IsValidHiCFile | IsValidCoolerFile | IsValidMultiresCoolerFile)
+      ->required();
+  sc.add_option(
+      "--output",
+      c.output_path,
+      "Path where to store the expected profiles.")
+      ->required();
+  sc.add_option(
+      "--resolution",
+      c.resolution,
+      "Matrix resolution. Required when the input file is in .hic or .mcool format.");
+  sc.add_option(
+      "--chrom1",
+      c.chrom1,
+      "Name of the first chromosome.\n"
+      "Used to compute p-values only for a chromosome-chromosome matrix of interest.")
+      ->capture_default_str();
+  sc.add_option(
+      "--chrom2",
+      c.chrom2,
+      "Name of the second chromosome.\n"
+      "Used to compute p-values only for a chromosome-chromosome matrix of interest.")
+      ->capture_default_str();
+  sc.add_flag(
+      "--force",
+      c.force,
+      "Force overwrite existing output file(s).")
+      ->capture_default_str();
+  // clang-format on
+
+  sc.get_option("--chrom2")->needs("--chrom1");
 
   _config = std::monostate{};
 }
@@ -236,6 +293,8 @@ void Cli::validate_args() const {
   switch (get_subcommand()) {
     case compute:
       return validate_compute_subcommand();  // NOLINT
+    case expected:
+      return validate_expected_subcommand();  // NOLINT
     case filter:
       return validate_filter_subcommand();  // NOLINT
     case help:
@@ -283,17 +342,54 @@ void Cli::validate_compute_subcommand() const {
   }
 }
 
+void Cli::validate_expected_subcommand() const {
+  const auto &c = std::get<ExpectedConfig>(_config);
+  const auto &sc = *_cli.get_subcommand("expected");
+
+  [[maybe_unused]] std::vector<std::string> warnings;
+  std::vector<std::string> errors;
+
+  if (!c.force && std::filesystem::exists(c.output_path)) {
+    errors.emplace_back(fmt::format(
+        FMT_STRING("Refusing to overwrite file {}. Pass --force to overwrite."), c.output_path));
+  }
+
+  for (const auto &w : warnings) {
+    SPDLOG_WARN(FMT_STRING("{}"), w);
+  }
+
+  if (!errors.empty()) {
+    throw std::runtime_error(
+        fmt::format(FMT_STRING("the following error(s) where encountered while validating CLI "
+                               "arguments and input file(s):\n - {}"),
+                    fmt::join(errors, "\n - ")));
+  }
+}
+
 void Cli::validate_filter_subcommand() const {}
 
 void Cli::transform_args() {
   switch (get_subcommand()) {
     case compute:
       return transform_args_compute_subcommand();  // NOLINT
+    case expected:
+      return transform_args_expected_subcommand();  // NOLINT
     case filter:
       return transform_args_filter_subcommand();  // NOLINT
     case help:
       return;
   }
+}
+
+void Cli::transform_args_expected_subcommand() {
+  auto &c = std::get<ExpectedConfig>(_config);
+  if (c.chrom1 != "all" && c.chrom2 == "all") {
+    c.chrom2 = c.chrom1;
+  }
+
+  // in spdlog, high numbers correspond to low log levels
+  assert(c.verbosity > 0 && c.verbosity < 5);
+  c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
 }
 
 void Cli::transform_args_compute_subcommand() {

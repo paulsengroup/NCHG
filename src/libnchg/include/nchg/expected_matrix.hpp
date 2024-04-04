@@ -95,10 +95,8 @@ class ExpectedMatrix {
 
   template <typename PixelItGw>
   [[nodiscard]] static std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>
-  build_expected_vector(PixelItGw first_pixel, PixelItGw last_pixel,
-                        const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
-                        const hictk::BinTable &bins, std::uint64_t min_delta_,
-                        std::uint64_t max_delta_);
+  build_expected_vector(PixelItGw first_pixel, PixelItGw last_pixel, const hictk::BinTable &bins,
+                        std::uint64_t min_delta_, std::uint64_t max_delta_);
 
  private:
   static auto compute_stats(PixelIt first_pixel, PixelIt last_pixel,
@@ -111,8 +109,7 @@ class ExpectedMatrix {
   static std::vector<double> compute_weights(PixelItGw first_pixel, PixelItGw last_pixel,
                                              const hictk::Chromosome &chrom1,
                                              const hictk::Chromosome &chrom2,
-                                             const hictk::BinTable &bins,
-                                             std::uint64_t min_delta_,
+                                             const hictk::BinTable &bins, std::uint64_t min_delta_,
                                              std::uint64_t max_delta_);
 };
 

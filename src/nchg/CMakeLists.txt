@@ -19,6 +19,7 @@
 find_package(CLI11 REQUIRED)
 find_package(FMT REQUIRED)
 find_package(hictk REQUIRED)
+find_package(HighFive REQUIRED)
 find_package(spdlog REQUIRED)
 
 add_executable(NCHG)
@@ -26,6 +27,7 @@ add_executable(NCHG)
 target_sources(
   NCHG
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/compute/compute.cpp"
+          "${CMAKE_CURRENT_SOURCE_DIR}/expected/expected.cpp"
           "${CMAKE_CURRENT_SOURCE_DIR}/filter/filter.cpp"
           "${CMAKE_CURRENT_SOURCE_DIR}/cli.cpp"
           "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
@@ -37,4 +39,5 @@ target_link_libraries(
          CLI11::CLI11
          fmt::fmt-header-only
          hictk::libhictk
+         HighFive
          spdlog::spdlog_header_only)

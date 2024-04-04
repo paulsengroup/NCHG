@@ -34,9 +34,9 @@ struct ComputePvalConfig {
   bool cis_only{false};
   bool trans_only{false};
 
-  std::uint64_t max_delta{std::numeric_limits<std::uint64_t>::max()};
   std::uint64_t min_delta{40'000};
-  std::uint64_t num_quantiles{0};
+  std::uint64_t max_delta{std::numeric_limits<std::uint64_t>::max()};
+  std::uint64_t num_quantiles{100};
 
   bool write_header{true};
 
@@ -55,6 +55,23 @@ struct FilterConfig {
   std::uint8_t verbosity{4};
 };
 
-using Config = std::variant<std::monostate, ComputePvalConfig, FilterConfig>;
+struct ExpectedConfig {
+  std::filesystem::path input_path{};
+  std::uint32_t resolution{};
+
+  std::filesystem::path output_path{};
+  bool force{false};
+
+  std::string chrom1{"all"};
+  std::string chrom2{"all"};
+
+  std::uint64_t min_delta{40'000};
+  std::uint64_t max_delta{std::numeric_limits<std::uint64_t>::max()};
+  std::uint64_t num_quantiles{100};
+
+  std::uint8_t verbosity{4};
+};
+
+using Config = std::variant<std::monostate, ComputePvalConfig, ExpectedConfig, FilterConfig>;
 
 }  // namespace nchg

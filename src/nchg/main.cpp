@@ -99,6 +99,9 @@ int main(int argc, char **argv) noexcept {
       case sc::compute: {
         return run_nchg_compute(std::get<ComputePvalConfig>(config));
       }
+      case sc::expected: {
+        return run_nchg_expected(std::get<ExpectedConfig>(config));
+      }
       case sc::filter: {
         return run_nchg_filter(std::get<FilterConfig>(config));
       }

@@ -216,16 +216,8 @@ template <typename PixelIt>
 template <typename PixelItGw>
 inline std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>
 ExpectedMatrix<PixelIt>::build_expected_vector(PixelItGw first_pixel, PixelItGw last_pixel,
-                                               const hictk::Chromosome &chrom1,
-                                               const hictk::Chromosome &chrom2,
                                                const hictk::BinTable &bins,
                                                std::uint64_t min_delta_, std::uint64_t max_delta_) {
-  if (chrom1 != chrom2) {
-    return {};
-  }
-
-  SPDLOG_INFO(FMT_STRING("building expected value vector using hictk..."));
-
   if (first_pixel == last_pixel) {
     phmap::btree_map<hictk::Chromosome, double> scaling_factors{};
     std::transform(bins.chromosomes().begin(), bins.chromosomes().end(),
@@ -268,7 +260,7 @@ inline std::vector<double> ExpectedMatrix<PixelIt>::compute_weights(
   }
 
   auto [weights, scaling_factors] = build_expected_vector(
-      std::move(first_pixel), std::move(last_pixel), chrom1, chrom2, bins, min_delta_, max_delta_);
+      std::move(first_pixel), std::move(last_pixel), bins, min_delta_, max_delta_);
 
   weights.resize((chrom1.size() + bins.resolution() - 1) / bins.resolution(),
                  std::numeric_limits<double>::quiet_NaN());

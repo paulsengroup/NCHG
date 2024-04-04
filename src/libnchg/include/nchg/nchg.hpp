@@ -107,6 +107,9 @@ class NCHG {
   [[nodiscard]] auto end(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2) const
       -> iterator;
 
+  [[nodiscard]] auto compute_expected_profile() const
+      -> std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>;
+
  private:
   [[nodiscard]] static double compute_cumulative_nchg(std::vector<double>& buffer,
                                                       std::uint64_t obs, std::uint64_t N1,
@@ -124,9 +127,6 @@ class NCHG {
                                                   std::uint64_t N2, std::uint64_t N, double odds,
                                                   double precision = 1.0e-20,
                                                   double min_omega = 0.1);
-
-  [[nodiscard]] auto init_expected_matrix_weights()
-      -> std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>;
 
  public:
   class iterator {

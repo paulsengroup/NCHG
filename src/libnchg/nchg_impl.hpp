@@ -114,7 +114,7 @@ inline void NCHG<File>::init_matrix(const hictk::Chromosome &chrom1,
   assert(_exp_matrices.find(k) == _exp_matrices.end());
 
   if (_expected_weights.empty()) {
-    auto [weights, scaling_factors] = init_expected_matrix_weights();
+    auto [weights, scaling_factors] = compute_expected_profile();
     _expected_weights = std::move(weights);
     _expected_scaling_factors = std::move(scaling_factors);
   }
@@ -486,7 +486,7 @@ inline double NCHG<File>::compute_pvalue_nchg(std::vector<double> &buffer, std::
 }
 
 template <typename File>
-inline auto NCHG<File>::init_expected_matrix_weights()
+inline auto NCHG<File>::compute_expected_profile() const
     -> std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>> {
   SPDLOG_INFO(FMT_STRING("initializing expected matrix weights from genome-wide interactions..."));
   std::vector<ThinPixelIt> heads{};
@@ -523,11 +523,9 @@ inline auto NCHG<File>::init_expected_matrix_weights()
   hictk::transformers::PixelMerger merger(std::move(heads), std::move(tails));
   const hictk::transformers::JoinGenomicCoords mjsel(merger.begin(), merger.end(), _fp->bins_ptr());
 
-  const auto chrom = _fp->chromosomes().longest_chromosome();
-
   using PixelItMerged = decltype(mjsel.begin());
-  return ExpectedMatrix<PixelItMerged>::build_expected_vector(
-      mjsel.begin(), mjsel.end(), chrom, chrom, _fp->bins(), _min_delta, _max_delta);
+  return ExpectedMatrix<PixelItMerged>::build_expected_vector(mjsel.begin(), mjsel.end(),
+                                                              _fp->bins(), _min_delta, _max_delta);
 }
 
 }  // namespace nchg

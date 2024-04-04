@@ -28,6 +28,7 @@
 #include <hictk/transformers/join_genomic_coords.hpp>
 #include <memory>
 
+#include "nchg/expected_values.hpp"
 #include "nchg/expected_matrix.hpp"
 #include "nchg/extrapolating_spline.hpp"
 #include "nchg/observed_matrix.hpp"

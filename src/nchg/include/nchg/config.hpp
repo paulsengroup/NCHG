@@ -42,7 +42,7 @@ struct ComputePvalConfig {
   std::uint8_t verbosity{4};
 };
 
-struct CorrectConfig {
+struct FilterConfig {
   std::filesystem::path path{};
 
   double fdr{0.01};
@@ -54,6 +54,6 @@ struct CorrectConfig {
   std::uint8_t verbosity{4};
 };
 
-using Config = std::variant<std::monostate, ComputePvalConfig, CorrectConfig>;
+using Config = std::variant<std::monostate, ComputePvalConfig, FilterConfig>;
 
 }  // namespace nchg

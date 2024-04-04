@@ -99,8 +99,8 @@ int main(int argc, char **argv) noexcept {
       case sc::compute: {
         return run_nchg_compute(std::get<ComputePvalConfig>(config));
       }
-      case sc::correct: {
-        return run_nchg_correct(std::get<CorrectConfig>(config));
+      case sc::filter: {
+        return run_nchg_filter(std::get<FilterConfig>(config));
       }
       case sc::help:  // NOLINT
         break;

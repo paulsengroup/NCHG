@@ -47,8 +47,8 @@ auto Cli::parse_arguments() -> Config {
 
     if (_cli.get_subcommand("compute")->parsed()) {
       _subcommand = subcommand::compute;
-    } else if (_cli.get_subcommand("correct")->parsed()) {
-      _subcommand = subcommand::correct;
+    } else if (_cli.get_subcommand("filter")->parsed()) {
+      _subcommand = subcommand::filter;
     } else {
       _subcommand = subcommand::help;
     }
@@ -84,8 +84,8 @@ std::string_view Cli::subcommand_to_str(subcommand s) noexcept {
   switch (s) {
     case compute:
       return "compute";
-    case correct:
-      return "correct";
+    case filter:
+      return "filter";
     default:
       assert(s == help);
       return "--help";
@@ -99,7 +99,7 @@ void Cli::make_cli() {
   _cli.require_subcommand(1);
 
   make_compute_subcommand();
-  make_correct_subcommand();
+  make_filter_subcommand();
 }
 
 void Cli::make_compute_subcommand() {
@@ -175,19 +175,19 @@ void Cli::make_compute_subcommand() {
   _config = std::monostate{};
 }
 
-void Cli::make_correct_subcommand() {
+void Cli::make_filter_subcommand() {
   [[maybe_unused]] auto &sc =
-      *_cli.add_subcommand("correct",
+      *_cli.add_subcommand("filter",
                            "Filter statistically significant interactions and correct "
                            "p-values for multiple hypothesis testing.")
            ->fallthrough()
            ->preparse_callback([this]([[maybe_unused]] std::size_t i) {
              assert(_config.index() == 0);
-             _config = CorrectConfig{};
+             _config = FilterConfig{};
            });
 
-  _config = CorrectConfig{};
-  [[maybe_unused]] auto &c = std::get<CorrectConfig>(_config);
+  _config = FilterConfig{};
+  [[maybe_unused]] auto &c = std::get<FilterConfig>(_config);
 
   // clang-format off
   sc.add_option(
@@ -230,8 +230,8 @@ void Cli::validate_args() const {
   switch (get_subcommand()) {
     case compute:
       return validate_compute_subcommand();  // NOLINT
-    case correct:
-      return validate_correct_subcommand();  // NOLINT
+    case filter:
+      return validate_filter_subcommand();  // NOLINT
     case help:
       return;
   }
@@ -268,14 +268,14 @@ void Cli::validate_compute_subcommand() const {
   }
 }
 
-void Cli::validate_correct_subcommand() const {}
+void Cli::validate_filter_subcommand() const {}
 
 void Cli::transform_args() {
   switch (get_subcommand()) {
     case compute:
       return transform_args_compute_subcommand();  // NOLINT
-    case correct:
-      return transform_args_correct_subcommand();  // NOLINT
+    case filter:
+      return transform_args_filter_subcommand();  // NOLINT
     case help:
       return;
   }
@@ -292,6 +292,6 @@ void Cli::transform_args_compute_subcommand() {
   c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
 }
 
-void Cli::transform_args_correct_subcommand() {}
+void Cli::transform_args_filter_subcommand() {}
 
 }  // namespace nchg

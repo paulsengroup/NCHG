@@ -25,7 +25,7 @@ add_executable(NCHG)
 target_sources(
   NCHG
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/compute/compute.cpp"
-          "${CMAKE_CURRENT_SOURCE_DIR}/correct/correct.cpp"
+          "${CMAKE_CURRENT_SOURCE_DIR}/filter/filter.cpp"
           "${CMAKE_CURRENT_SOURCE_DIR}/cli.cpp"
           "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
 

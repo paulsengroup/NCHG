@@ -186,7 +186,7 @@ struct Stats {
   }
 };
 
-int run_nchg_correct(const CorrectConfig& c) {
+int run_nchg_filter(const FilterConfig& c) {
   std::vector<Stats> records{};
   std::ifstream fs{};
   std::size_t i = 1;

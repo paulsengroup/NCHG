@@ -212,7 +212,7 @@ class Cli {
   enum subcommand : std::uint8_t {
     help,
     compute,
-    correct,
+    filter,
   };
 
   Cli(int argc, char** argv);
@@ -232,15 +232,15 @@ class Cli {
   subcommand _subcommand{subcommand::help};
 
   void make_compute_subcommand();
-  void make_correct_subcommand();
+  void make_filter_subcommand();
   void make_cli();
 
   void validate_compute_subcommand() const;
-  void validate_correct_subcommand() const;
+  void validate_filter_subcommand() const;
   void validate_args() const;
 
   void transform_args_compute_subcommand();
-  void transform_args_correct_subcommand();
+  void transform_args_filter_subcommand();
   void transform_args();
 };
 

@@ -23,6 +23,6 @@
 namespace nchg {
 
 [[nodiscard]] int run_nchg_compute(const ComputePvalConfig& c);
-[[nodiscard]] int run_nchg_correct(const CorrectConfig& c);
+[[nodiscard]] int run_nchg_filter(const FilterConfig& c);
 
 }  // namespace nchg

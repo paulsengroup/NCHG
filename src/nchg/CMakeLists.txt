@@ -41,3 +41,18 @@ target_link_libraries(
          hictk::libhictk
          HighFive
          spdlog::spdlog_header_only)
+
+include(GNUInstallDirs)
+install(
+        TARGETS NCHG
+        COMPONENT Runtime
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        PUBLIC_HEADER DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/scratch/
+        PRIVATE_HEADER DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/scratch/)
+
+install(
+        FILES "${PROJECT_SOURCE_DIR}/LICENSE"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/nchg/"
+        COMPONENT Runtime)

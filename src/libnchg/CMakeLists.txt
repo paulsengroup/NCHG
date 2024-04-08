@@ -27,26 +27,29 @@ include(FetchContent)
 FetchContent_Declare(
   stocc
   URL "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc-20240322.tar.xz"
-  URL_HASH SHA256=c35afbd5c34f868086561f8342d723b0570ad412864f0f136a3c93c55f9564a8
+  URL_HASH SHA256=c31c61a8236245546ce5fe3615e8a0dfeb089aa141ec1c500ed397a32778bba6
+  EXCLUDE_FROM_ALL
   SYSTEM)
 
+set(NCHG_BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS}")
+set(BUILD_SHARED_LIBS OFF)
 FetchContent_MakeAvailable(stocc)
-
-if(CMAKE_CXX_COMPILER_ID STREQUAL Clang OR CMAKE_CXX_COMPILER_ID STREQUAL AppleClang)
-  target_compile_options(stocc PRIVATE "-Wno-c++11-narrowing")
-endif()
+set(BUILD_SHARED_LIBS "${NCHG_BUILD_SHARED_LIBS}")
+unset(NCHG_BUILD_SHARED_LIBS)
 
 add_library(libnchg INTERFACE)
 add_library(nchg::libnchg ALIAS libnchg)
 
 target_sources(
-  libnchg
-  INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/expected_matrix_impl.hpp"
-            "${CMAKE_CURRENT_SOURCE_DIR}/extrapolating_spline_impl.hpp"
-            "${CMAKE_CURRENT_SOURCE_DIR}/nchg_impl.hpp"
-            "${CMAKE_CURRENT_SOURCE_DIR}/observed_matrix_impl.hpp")
+        libnchg
+        INTERFACE FILE_SET
+        HEADERS
+        BASE_DIRS
+        "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-target_include_directories(libnchg INTERFACE include/)
+target_include_directories(libnchg INTERFACE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+        "$<INSTALL_INTERFACE:include>")
+
 target_link_libraries(
   libnchg
   INTERFACE Boost::headers

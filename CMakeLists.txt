@@ -152,4 +152,4 @@ if(NCHG_ENABLE_TESTING)
   add_subdirectory(test)
 endif()
 
-# include(cmake/Install.cmake)
+include(cmake/Install.cmake)

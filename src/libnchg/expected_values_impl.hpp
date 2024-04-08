@@ -105,7 +105,7 @@ inline ExpectedValues<File> ExpectedValues<File>::chromosome_pair(std::shared_pt
 template <typename File>
 inline ExpectedValues<File> ExpectedValues<File>::deserialize(const std::filesystem::path &path) {
   ExpectedValues<File> ev{nullptr};
-  HighFive::File f(path);
+  HighFive::File f(path.string());
 
   auto [weights, scaling_factors] = deserialize_cis_profiles(f);
   ev._expected_weights = std::move(weights);

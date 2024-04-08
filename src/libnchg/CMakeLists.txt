@@ -27,7 +27,7 @@ include(FetchContent)
 FetchContent_Declare(
   stocc
   URL "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc-20240322.tar.xz"
-  URL_HASH SHA256=06ca370cfa93b3619d379adc8e016f28a0dce0dd644fbce6d28118b8ce889059
+  URL_HASH SHA256=a7eaa1a1a5d1d4f3ddbe94b7662e3ccb22c4be5efbc309e4348370cb97aaedfe
   SYSTEM)
 
 set(NCHG_BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS}")

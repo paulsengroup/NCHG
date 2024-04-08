@@ -27,7 +27,6 @@
 #include <hictk/transformers/pixel_merger.hpp>
 
 #include "nchg/expected_matrix.hpp"
-#include "nchg/extrapolating_spline.hpp"
 #include "nchg/observed_matrix.hpp"
 
 namespace nchg {

@@ -30,7 +30,6 @@
 
 #include "nchg/expected_matrix.hpp"
 #include "nchg/expected_values.hpp"
-#include "nchg/extrapolating_spline.hpp"
 #include "nchg/observed_matrix.hpp"
 
 namespace nchg {

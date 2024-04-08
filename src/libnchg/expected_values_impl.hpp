@@ -18,9 +18,28 @@
 
 #pragma once
 
+#include <parallel_hashmap/btree.h>
+#include <spdlog/spdlog.h>
+
+#include <algorithm>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <hictk/chromosome.hpp>
+#include <hictk/hic/expected_values_aggregator.hpp>
+#include <hictk/pixel.hpp>
+#include <hictk/transformers/join_genomic_coords.hpp>
 #include <hictk/transformers/pixel_merger.hpp>
+#include <highfive/H5File.hpp>
+#include <limits>
 #include <memory>
+#include <string>
+#include <type_traits>
 #include <utility>
+#include <vector>
+
+#include "nchg/expected_matrix.hpp"
 
 namespace nchg {
 

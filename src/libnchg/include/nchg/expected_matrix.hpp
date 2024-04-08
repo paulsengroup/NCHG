@@ -29,8 +29,6 @@
 #include <type_traits>
 #include <vector>
 
-#include "nchg/extrapolating_spline.hpp"
-
 namespace nchg {
 
 template <typename PixelIt>

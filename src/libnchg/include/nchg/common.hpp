@@ -47,10 +47,3 @@ struct remove_cvref {
 
 template <typename T>
 using remove_cvref_t = typename remove_cvref<T>::type;
-
-template <typename T>
-struct is_string
-    : public std::disjunction<std::is_same<char *, typename std::decay_t<T>>,
-                              std::is_same<const char *, typename std::decay_t<T>>,
-                              std::is_same<std::string, typename std::decay_t<T>>,
-                              std::is_same<std::string_view, typename std::decay_t<T>>> {};

@@ -32,6 +32,8 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(stocc)
 
+set_property(TARGET stocc PROPERTY COMPILE_WARNING_AS_ERROR OFF)
+
 add_library(libnchg INTERFACE)
 add_library(nchg::libnchg ALIAS libnchg)
 

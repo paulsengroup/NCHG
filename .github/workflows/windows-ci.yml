@@ -1,0 +1,204 @@
+# Copyright (C) 2023 Roberto Rossini (roberros@uio.no)
+# SPDX-License-Identifier: MIT
+
+name: Windows CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - ".github/workflows/windows-ci.yml"
+      - "cmake/**"
+      - "src/**"
+      - "test/**"
+      - "CMakeLists.txt"
+      - "conanfile.txt"
+    tags:
+      - 'v*.*.*'
+
+  pull_request:
+    paths:
+      - ".github/workflows/windows-ci.yml"
+      - "cmake/**"
+      - "src/**"
+      - "test/**"
+      - "CMakeLists.txt"
+      - "conanfile.txt"
+
+# https://stackoverflow.com/a/72408109
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CCACHE_DIR: "${{ github.workspace }}/.ccache-cache"
+  CCACHE_COMPILERCHECK: "content"
+  CCACHE_COMPRESSLEVEL: "1"
+  CCACHE_MAXSIZE: "250M"
+  CONAN_HOME: "${{ github.workspace }}/.conan2"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-project:
+    needs: cache-test-dataset
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { compiler-name: msvc, os: 'windows-2022', conan-ver: '2.1.*', cmake-ver: '3.28.*', build_type: Debug,   developer_mode: OFF }
+          - { compiler-name: msvc, os: 'windows-2022', conan-ver: '2.1.*', cmake-ver: '3.28.*', build_type: Release, developer_mode: OFF }
+
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate requirements.txt for pip
+        run: |
+          echo 'conan==${{ matrix.conan-ver }}' > requirements.txt
+          echo 'cmake==${{ matrix.cmake-ver }}' >> requirements.txt
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Detect number available CPUs
+        run: |
+          ncpus=$(python -c 'import multiprocessing as mp; print(mp.cpu_count())')
+
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$ncpus" >> $GITHUB_ENV
+          echo "CTEST_PARALLEL_LEVEL=$ncpus" >> $GITHUB_ENV
+
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
+          choco install ccache
+
+      - name: Generate cache key
+        id: cache-key
+        run: |
+          set -u
+
+          os="${{ matrix.os }}"
+          compiler="${{ matrix.compiler-name }}"
+          build_type="${{ matrix.build_type }}"
+
+          conanfile_hash="${{ hashFiles('conanfile.txt') }}"
+          workflow_hash="${{ hashFiles('.github/workflows/windows-ci.yml') }}"
+          combined_hash="${{ hashFiles('conanfile.txt', '.github/workflows/windows-ci.yml') }}"
+
+          # This can be used by to always update a cache entry (useful e.g. for ccache)
+          current_date="$(date '+%s')"
+
+          conan_key_prefix="conan-$os-$compiler-$conanfile_hash-$build_type"
+          ccache_key_prefix="ccache-$os-$compiler-$conanfile_hash-$build_type"
+
+          echo "conan-key=$conan_key_prefix" | tee -a $GITHUB_OUTPUT
+          echo "conan-restore-key=$conan_key_prefix" | tee -a $GITHUB_OUTPUT
+
+          echo "ccache-key=${ccache_key_prefix}-${current_date}" | tee -a $GITHUB_OUTPUT
+          echo "ccache-restore-key=$ccache_key_prefix" | tee -a $GITHUB_OUTPUT
+
+      - name: Restore Conan cache
+        id: cache-conan
+        uses: actions/cache/restore@v4
+        with:
+          key: conan-${{ steps.cache-key.outputs.conan-restore-key }}
+          path: ${{ env.CONAN_HOME }}
+
+      - name: Configure Conan
+        if: steps.cache-conan.outputs.cache-hit != 'true'
+        run: |
+          conan profile detect --force
+          conan_profile="$(conan profile path default)"
+
+          sed -i 's/build_type=Release/build_type=${{ matrix.build_type }}/' "$conan_profile"
+          sed -i 's/compiler\.cppstd=.*/compiler.cppstd=17/' "$conan_profile"
+
+      - name: Clean Conan cache (pre-build)
+        if: steps.cache-conan.outputs.cache-hit != 'true'
+        run: |
+          conan cache clean "*" --build
+          conan cache clean "*" --download
+          conan cache clean "*" --source
+          conan remove --confirm "*"
+
+      - name: Install build dependencies
+        run: |
+          conan install .                                           \
+             --build=missing                                        \
+             --build="catch2/*"                                     \
+             -pr:h default                                          \
+             -pr:b default                                          \
+             -s:h "compiler=${{ matrix.compiler-name }}"            \
+             -s:h "build_type=${{ matrix.build_type }}"             \
+             -s:h "compiler.runtime_type=${{ matrix.build_type }}"  \
+             -s:h compiler.cppstd=17                                \
+             -s:b "compiler=${{ matrix.compiler-name }}"            \
+             -s:b "build_type=${{ matrix.build_type }}"             \
+             -s:b "compiler.runtime_type=${{ matrix.build_type }}"  \
+             -s:b compiler.cppstd=17                                \
+             --output-folder=build
+
+      - name: Clean Conan cache (post-build)
+        if: steps.cache-conan.outputs.cache-hit != 'true'
+        run: |
+          conan cache clean "*" --build
+          conan cache clean "*" --download
+          conan cache clean "*" --source
+
+      - name: Save Conan cache
+        uses: actions/cache/save@v4
+        if: steps.cache-conan.outputs.cache-hit != 'true'
+        with:
+          key: conan-${{ steps.cache-key.outputs.conan-key }}
+          path: ${{ env.CONAN_HOME }}
+
+      - name: Cache Ccache folder
+        uses: actions/cache@v4
+        with:
+          key: ${{ steps.cache-key.outputs.ccache-key }}
+          restore-keys: ${{ steps.cache-key.outputs.ccache-restore-key }}
+          path: ${{ env.CCACHE_DIR }}
+
+      - name: Configure project
+        run: |
+          cmake -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}          \
+                -DCMAKE_PREFIX_PATH="${{ github.workspace }}/build"  \
+                -DENABLE_DEVELOPER_MODE=${{ matrix.developer_mode }} \
+                -DNCHG_ENABLE_TESTING=ON                             \
+                -DOPT_ENABLE_CLANG_TIDY=OFF                          \
+                -DOPT_ENABLE_CPPCHECK=OFF                            \
+                -S .                                                 \
+                -B build
+
+      - name: Build project
+        run: cmake --build build --config ${{ matrix.build_type }}
+
+      - name: Print Ccache statistics
+        run: ccache -s
+
+      - name: Run unit tests
+        run: |
+          ctest --test-dir build    \
+                --schedule-random   \
+                --output-on-failure \
+                --no-tests=error    \
+                --timeout 30        |&
+          tail -n 1000
+
+  windows-ci-status-check:
+    name: Status Check (Windows CI)
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    needs:
+      - build-project
+
+    steps:
+      - name: Collect job results
+        if: needs.build-project.result != 'success'
+        run: exit 1

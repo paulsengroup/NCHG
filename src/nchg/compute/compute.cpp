@@ -138,7 +138,7 @@ static void process_one_chromosome(const FilePtr &f, const ComputePvalConfig &c)
 int run_nchg_compute(const ComputePvalConfig &c) {
   // clang-format off
   using FilePtr =
-      std::variant<std::shared_ptr<const hictk::File>,
+      std::variant<
           std::shared_ptr<const hictk::cooler::File>,
           std::shared_ptr<const hictk::hic::File>>;
   // clang-format on

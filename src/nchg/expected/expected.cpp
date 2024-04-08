@@ -59,7 +59,7 @@ static void process_one_chromosome_pair(FilePtr f, const ExpectedConfig &c) {
 int run_nchg_expected(const ExpectedConfig &c) {
   // clang-format off
   using FilePtr =
-      std::variant<std::shared_ptr<const hictk::File>,
+      std::variant<
           std::shared_ptr<const hictk::cooler::File>,
           std::shared_ptr<const hictk::hic::File>>;
   // clang-format on

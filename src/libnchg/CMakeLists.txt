@@ -16,7 +16,6 @@
 # License along with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
-find_package(Boost REQUIRED)
 find_package(FMT REQUIRED)
 find_package(hictk REQUIRED)
 find_package(phmap REQUIRED)
@@ -51,8 +50,7 @@ target_include_directories(libnchg INTERFACE "$<BUILD_INTERFACE:${CMAKE_CURRENT_
 
 target_link_libraries(
   libnchg
-  INTERFACE Boost::headers
-            fmt::fmt-header-only
+  INTERFACE fmt::fmt-header-only
             hictk::libhictk
             phmap
             spdlog::spdlog_header_only

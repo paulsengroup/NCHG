@@ -17,7 +17,6 @@
 # <https://www.gnu.org/licenses/>.
 
 [requires]
-boost/1.84.0#5cc9767cd47ba6b5e1b53ab4670f07fc
 catch2/3.5.3#2178a424c7c53da1e7df5fef1a051f1f
 cli11/2.4.1#afacffd31f631bbb8b7c7d6425fe7a66
 fmt/10.2.1#9199a7a0611866dea5c8849a77467b25

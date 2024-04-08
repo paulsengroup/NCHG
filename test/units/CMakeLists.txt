@@ -18,5 +18,4 @@
 
 add_subdirectory(fdr)
 add_subdirectory(expected_matrix)
-add_subdirectory(extrapolating_spline)
 add_subdirectory(observed_matrix)

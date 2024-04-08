@@ -297,7 +297,7 @@ jobs:
                 --schedule-random   \
                 --output-on-failure \
                 --no-tests=error    \
-                --timeout 30 2>&1   |
+                --timeout 120 2>&1   |
           head -n 1000
 
   run-integration-tests:

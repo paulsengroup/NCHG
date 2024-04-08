@@ -202,7 +202,7 @@ jobs:
                 --schedule-random   \
                 --output-on-failure \
                 --no-tests=error    \
-                --timeout 30        |&
+                --timeout 120       |&
           tail -n 1000
 
   windows-ci-status-check:

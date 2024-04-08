@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <hictk/file.hpp>
+#include <hictk/fmt/pixel.hpp>
 #include <memory>
 #include <variant>
 
@@ -64,7 +65,10 @@ static void process_all_chromosomes(const FilePtr &f, const ComputePvalConfig &c
         header_printed = true;
       }
 
-      nchg.print_pvalues(chrom1, chrom2);
+      std::for_each(nchg.begin(chrom1, chrom2), nchg.end(chrom1, chrom2), [&](const auto &s) {
+        fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval,
+                   s.pixel.count, s.expected, s.odds_ratio, s.omega);
+      });
       nchg.erase_matrix(chrom1, chrom2);
     }
   }
@@ -85,7 +89,10 @@ static void process_cis_only_chromosomes(const FilePtr &f, const ComputePvalConf
       header_printed = true;
     }
 
-    nchg.print_pvalues(chrom);
+    std::for_each(nchg.begin(chrom, chrom), nchg.end(chrom, chrom), [&](const auto &s) {
+      fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval, s.pixel.count,
+                 s.expected, s.odds_ratio, s.omega);
+    });
     nchg.erase_matrix(chrom);
   }
 }
@@ -112,7 +119,10 @@ static void process_trans_only(const FilePtr &f, const ComputePvalConfig &c) {
         header_printed = true;
       }
 
-      nchg.print_pvalues(chrom1, chrom2);
+      std::for_each(nchg.begin(chrom1, chrom2), nchg.end(chrom1, chrom2), [&](const auto &s) {
+        fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval,
+                   s.pixel.count, s.expected, s.odds_ratio, s.omega);
+      });
       nchg.erase_matrix(chrom1, chrom2);
     }
   }
@@ -127,12 +137,16 @@ static void process_one_chromosome(const FilePtr &f, const ComputePvalConfig &c)
 
   auto nchg = NCHG<File>::chromosome_pair(f, chrom1, chrom2, c.min_delta, c.max_delta);
 
-  nchg.init_matrix(f->chromosomes().at(c.chrom1), f->chromosomes().at(c.chrom2));
+  nchg.init_matrix(chrom1, chrom2);
 
   if (c.write_header) {
     print_header();
   }
-  nchg.print_pvalues(f->chromosomes().at(c.chrom1), f->chromosomes().at(c.chrom2));
+
+  std::for_each(nchg.begin(chrom1, chrom2), nchg.end(chrom1, chrom2), [&](const auto &s) {
+    fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval, s.pixel.count,
+               s.expected, s.odds_ratio, s.omega);
+  });
 }
 
 int run_nchg_compute(const ComputePvalConfig &c) {

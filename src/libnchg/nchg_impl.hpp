@@ -16,12 +16,13 @@
 // License along with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
+#include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <stocc.h>
 
 #include <cassert>
 #include <hictk/file.hpp>
-#include <hictk/fmt/pixel.hpp>
+#include <hictk/fmt/genomic_interval.hpp>
 #include <hictk/hic/expected_values_aggregator.hpp>
 #include <hictk/transformers/join_genomic_coords.hpp>
 #include <hictk/transformers/pixel_merger.hpp>
@@ -185,18 +186,6 @@ inline void NCHG<File>::erase_matrix(const hictk::Chromosome &chrom1,
 
   _obs_matrices.erase(k);
   _exp_matrices.erase(k);
-}
-
-template <typename File>
-inline void NCHG<File>::print_pvalues() {
-  for (const auto &[k, _] : _obs_matrices) {
-    print_pvalues(k.first, *k.second);
-  }
-}
-
-template <typename File>
-inline void NCHG<File>::print_pvalues(const hictk::Chromosome &chrom) {
-  print_pvalues(chrom, chrom);
 }
 
 [[nodiscard]] static double compute_odds_ratio(double n, double total_sum, double sum1,
@@ -372,39 +361,91 @@ inline auto NCHG<File>::iterator::operator++(int) -> iterator {
 }
 
 template <typename File>
-inline void NCHG<File>::print_pvalues(const hictk::Chromosome &chrom1,
-                                      const hictk::Chromosome &chrom2) {
-  std::for_each(begin(chrom1, chrom2), end(chrom1, chrom2), [&](const Stats &s) {
-    fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval, s.pixel.count,
-               s.expected, s.odds_ratio, s.omega);
-  });
+inline auto NCHG<File>::compute(const hictk::GenomicInterval &range) const -> Stats {
+  return compute(range, range);
 }
 
 template <typename File>
-inline void NCHG<File>::print_expected_curves() {
-  for (const auto &chrom : _fp->chromosomes()) {
-    if (chrom.is_all()) {
-      continue;
+inline auto NCHG<File>::compute(const hictk::GenomicInterval &range1,
+                                const hictk::GenomicInterval &range2) const -> Stats {
+  const auto &chrom1 = range1.chrom();
+  const auto &chrom2 = range2.chrom();
+
+  const auto &obs_matrix = *_obs_matrices.at(Key{chrom1, chrom2});
+  const auto &exp_matrix = *_exp_matrices.at(Key{chrom1, chrom2});
+
+  const auto &obs_marginals1 = obs_matrix.marginals1();
+  const auto &obs_marginals2 = obs_matrix.marginals2();
+  const auto &exp_marginals1 = exp_matrix.marginals1();
+  const auto &exp_marginals2 = exp_matrix.marginals2();
+
+  const auto intra_matrix = chrom1 == chrom2;
+
+  const auto obs_sum = obs_matrix.sum();
+  const auto exp_sum = exp_matrix.sum();
+
+  const double cutoff = 1.0e-20;
+
+  double N1 = 0.0;
+  double N2 = 0.0;
+  double L1 = 0.0;
+  double L2 = 0.0;
+
+  const auto resolution = _fp->resolution();
+
+  // TODO how do we handle partial overlaps?
+  const auto i11 = range1.start() / resolution;
+  const auto i12 = range1.end() / resolution;
+  const auto i21 = range2.start() / resolution;
+  const auto i22 = range2.end() / resolution;
+
+  for (auto i = i11; i < i12; ++i) {
+    N1 += static_cast<double>(obs_marginals1[i]);
+    L1 += exp_marginals1[i];
+  }
+  for (auto i = i21; i < i22; ++i) {
+    N2 += static_cast<double>(obs_marginals2[i]);
+    L2 += exp_marginals2[i];
+  }
+
+  const auto sel = _fp->fetch(range1.chrom().name(), range1.start(), range1.end(),
+                              range2.chrom().name(), range2.start(), range2.end());
+  const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<double>(),
+                                                    sel.template end<double>(), _fp->bins_ptr());
+
+  double obs = 0.0;
+  double exp = 0.0;
+
+  std::for_each(jsel.begin(), jsel.end(), [&](const hictk::Pixel<double> &p) {
+    const auto delta = intra_matrix ? p.coords.bin2.start() - p.coords.bin1.start() : _min_delta;
+    if (delta >= _min_delta && delta < _max_delta) {
+      obs += p.count;
+      exp += exp_matrix.at(p.coords.bin1.rel_id(), p.coords.bin2.rel_id());
     }
-    print_expected_curve(chrom);
-  }
-}
+  });
 
-template <typename File>
-inline void NCHG<File>::print_expected_curve(const hictk::Chromosome &chrom) {
-  if (_exp_matrices.find(Key{chrom, chrom}) == _exp_matrices.end()) {
-    throw std::runtime_error(
-        fmt::format(FMT_STRING("matrix for \"{}:{}\" has not yet been initialized"), chrom.name(),
-                    chrom.name()));
+  // clang-format off
+  const hictk::Pixel<std::uint32_t> p{
+      range1.chrom(), range1.start(), range1.end(),
+      range2.chrom(), range2.start(), range2.end(),
+      static_cast<std::uint32_t>(obs)};
+  // clang-format on
+
+  const auto odds_ratio = compute_odds_ratio(obs, static_cast<double>(obs_sum), N1, N2);
+  const auto omega = intra_matrix ? compute_odds_ratio(exp, exp_sum, L1, L2) : 1;
+
+  if ((L1 - exp) * (L2 - exp) <= cutoff) {
+    return {p, exp, 1.0, odds_ratio, omega};
   }
 
-  const auto &m = _exp_matrices.at(Key{chrom, chrom});
-  const auto &bins = _fp->bins().subset(chrom);
-  const auto bin_offset = (*bins.begin()).id();
-  for (const auto &bin : bins) {
-    fmt::print(FMT_COMPILE("{}\t{}\t{}\n"), chrom.name(), bin.end(),
-               m->at(0, bin.id() - bin_offset));
+  if (!std::isfinite(omega) || omega > odds_ratio) {
+    return {p, exp, 1.0, odds_ratio, omega};
   }
+
+  const auto pvalue = compute_pvalue_nchg(_nchg_pval_buffer, static_cast<std::uint64_t>(obs),
+                                          static_cast<std::uint64_t>(N1),
+                                          static_cast<std::uint64_t>(N2), obs_sum, omega);
+  return {p, exp, pvalue, odds_ratio, omega};
 }
 
 template <typename File>
@@ -472,31 +513,33 @@ inline double NCHG<File>::compute_cumulative_nchg(std::vector<double> &buffer, s
 
   const auto factor = 1.0 / nchg.MakeTable(buffer.data(), static_cast<std::int32_t>(buffer.size()),
                                            &params.x1, &params.x2, precision * 0.001);
-  const auto x_mean = static_cast<std::int32_t>(lround(nchg.mean()));
+  const auto x_mean = static_cast<std::uint64_t>(lround(nchg.mean()));
+  const auto x1 = static_cast<std::uint32_t>(params.x1);
+  const auto x2 = static_cast<std::uint32_t>(params.x2);
 
-  assert(x_mean >= params.x1);
-  assert(x_mean <= params.x2);
+  assert(x_mean >= x1);
+  assert(x_mean <= x2);
 
   double sum{};
   // Make left tail of table cumulative
-  for (std::size_t i = params.x1; i <= x_mean; ++i) {
-    sum = buffer[i - params.x1] += sum;
+  for (std::size_t i = x1; i <= x_mean; ++i) {
+    sum = buffer[i - x1] += sum;
   }
 
   sum = 0.0;
   // Make right tail of table cumulative from the right
-  for (std::size_t i = params.x2; i > x_mean; --i) {
-    sum = buffer[i - params.x1] += sum;
+  for (std::size_t i = x2; i > x_mean; --i) {
+    sum = buffer[i - x1] += sum;
   }
 
   if (obs <= x_mean) {  // Left tail
     // return 0 when value is outside of table
-    const auto pval = obs < params.x1 ? 0.0 : buffer[obs - params.x1] * factor;
+    const auto pval = obs < x1 ? 0.0 : buffer[obs - x1] * factor;
     return lower_tail ? pval : 1.0 - pval;
   }
 
   // Right tail, return 0 when value is outside of table
-  const auto pval = obs >= params.x2 ? 0.0 : buffer[obs - params.x1 + 1] * factor;
+  const auto pval = obs >= x2 ? 0.0 : buffer[obs - x1 + 1] * factor;
   return lower_tail ? 1.0 - pval : pval;
 }
 

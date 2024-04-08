@@ -58,3 +58,5 @@ target_link_libraries(
             phmap
             spdlog::spdlog_header_only
             stocc)
+
+set_target_properties(libnchg PROPERTIES OUTPUT_NAME libnchg)

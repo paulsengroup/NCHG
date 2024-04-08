@@ -69,20 +69,47 @@ TEST_CASE("ExpectedMatrix (cis)", "[short][expected_matrix]") {
   };
   // clang-format on
 
-  const ExpectedMatrix m{pixels.begin(), pixels.end(), pixels.begin(), pixels.end(), chrom1,
-                         chrom1,         bins};
+  SECTION("full matrix") {
+    const ExpectedMatrix m{pixels.begin(), pixels.end(), pixels.begin(), pixels.end(), chrom1,
+                           chrom1,         bins};
 
-  SECTION("accessors") {
-    CHECK(m.resolution() == resolution);
-    CHECK(m.num_rows() == 7);
-    CHECK(m.num_cols() == 7);
+    SECTION("accessors") {
+      CHECK(m.resolution() == resolution);
+      CHECK(m.num_rows() == 7);
+      CHECK(m.num_cols() == 7);
+    }
+
+    SECTION("stats") {
+      CHECK(m.nnz() == 15);
+
+      REQUIRE(m.marginals1().size() == m.marginals2().size());
+      CHECK(std::equal(m.marginals1().begin(), m.marginals1().end(), m.marginals2().begin()));
+    }
   }
 
-  SECTION("stats") {
-    CHECK(m.nnz() == 15);
+  SECTION("masked matrix") {
+    const ExpectedMatrix m{
+        pixels.begin(), pixels.end(), pixels.begin(), pixels.end(), chrom1, chrom1, bins, 1, 100};
 
-    REQUIRE(m.marginals1().size() == m.marginals2().size());
-    CHECK(std::equal(m.marginals1().begin(), m.marginals1().end(), m.marginals2().begin()));
+    SECTION("accessors") {
+      CHECK(m.resolution() == resolution);
+      CHECK(m.num_rows() == 7);
+      CHECK(m.num_cols() == 7);
+
+      CHECK(m.min_delta() == 1);
+      CHECK(m.max_delta() == 100);
+
+      // Value is 4 / 28 because there are 4 total interactions and 28 possible interactions
+      // When the sum of the matrix is below 400, the expected matrix assumes uniform distribution.
+      CHECK_THAT(m.at(0, 0), Catch::Matchers::WithinRel(4.0 / 28.0));
+    }
+
+    SECTION("stats") {
+      CHECK(m.nnz() == 8);
+
+      REQUIRE(m.marginals1().size() == m.marginals2().size());
+      CHECK(std::equal(m.marginals1().begin(), m.marginals1().end(), m.marginals2().begin()));
+    }
   }
 
   SECTION("empty matrix") {
@@ -132,29 +159,58 @@ TEST_CASE("ExpectedMatrix (trans)", "[short][expected_matrix]") {
   };
   // clang-format on
 
-  const ExpectedMatrix m{pixels.begin(), pixels.end(), pixels.begin(), pixels.end(), chrom1,
-                         chrom2,         bins};
+  SECTION("full matrix") {
+    const ExpectedMatrix m{pixels.begin(), pixels.end(), pixels.begin(), pixels.end(), chrom1,
+                           chrom2,         bins};
 
-  SECTION("accessors") {
-    CHECK(m.resolution() == resolution);
-    CHECK(m.num_rows() == 3);
-    CHECK(m.num_cols() == 2);
+    SECTION("accessors") {
+      CHECK(m.resolution() == resolution);
+      CHECK(m.num_rows() == 3);
+      CHECK(m.num_cols() == 2);
 
-    CHECK(m.at(bin1.id(), bin1.id()) == 4);
-    CHECK(m.at(bin1.id(), bin3.id()) == 4);
+      CHECK(m.at(bin1.id(), bin1.id()) == 4);
+      CHECK(m.at(bin1.id(), bin3.id()) == 4);
+    }
+
+    SECTION("stats") {
+      CHECK(m.nnz() == 3);
+      CHECK(m.sum() == 12);
+      CHECK(m.nnz_avg() == 4);
+
+      CHECK(m.marginals1().at(0) == 1);
+      CHECK(m.marginals1().at(1) == 11);
+      CHECK(m.marginals1().at(2) == 0);
+
+      CHECK(m.marginals2().at(0) == 11);
+      CHECK(m.marginals2().at(1) == 1);
+    }
   }
 
-  SECTION("stats") {
-    CHECK(m.nnz() == 3);
-    CHECK(m.sum() == 12);
-    CHECK(m.nnz_avg() == 4);
+  SECTION("masked matrix") {
+    const ExpectedMatrix m{
+        pixels.begin(), pixels.end(), pixels.begin(), pixels.end(), chrom1, chrom2, bins, 1, 100};
 
-    CHECK(m.marginals1().at(0) == 1);
-    CHECK(m.marginals1().at(1) == 11);
-    CHECK(m.marginals1().at(2) == 0);
+    SECTION("accessors") {
+      CHECK(m.resolution() == resolution);
+      CHECK(m.num_rows() == 3);
+      CHECK(m.num_cols() == 2);
 
-    CHECK(m.marginals2().at(0) == 11);
-    CHECK(m.marginals2().at(1) == 1);
+      CHECK(m.at(bin1.id(), bin1.id()) == 4);
+      CHECK(m.at(bin1.id(), bin3.id()) == 4);
+    }
+
+    SECTION("stats") {
+      CHECK(m.nnz() == 3);
+      CHECK(m.sum() == 12);
+      CHECK(m.nnz_avg() == 4);
+
+      CHECK(m.marginals1().at(0) == 1);
+      CHECK(m.marginals1().at(1) == 11);
+      CHECK(m.marginals1().at(2) == 0);
+
+      CHECK(m.marginals2().at(0) == 11);
+      CHECK(m.marginals2().at(1) == 1);
+    }
   }
 
   SECTION("empty matrix") {

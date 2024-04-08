@@ -141,12 +141,12 @@ inline std::uint32_t ExpectedMatrix<PixelIt>::resolution() const noexcept {
 
 template <typename PixelIt>
 inline std::size_t ExpectedMatrix<PixelIt>::num_rows() const noexcept {
-  return _bins.subset(_chrom1).size();
+  return _bins.subset(chrom1()).size();
 }
 
 template <typename PixelIt>
 inline std::size_t ExpectedMatrix<PixelIt>::num_cols() const noexcept {
-  return _bins.subset(_chrom2).size();
+  return _bins.subset(chrom2()).size();
 }
 
 template <typename PixelIt>
@@ -196,7 +196,7 @@ inline std::uint64_t ExpectedMatrix<PixelIt>::max_delta() const noexcept {
 
 template <typename PixelIt>
 inline double ExpectedMatrix<PixelIt>::at(std::uint64_t i, std::uint64_t j) const {
-  if (_chrom1 == _chrom2) {
+  if (chrom1() == chrom2()) {
     return _weights.at(j - i);
   }
   return nnz_avg();

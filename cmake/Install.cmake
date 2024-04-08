@@ -20,6 +20,8 @@ install(
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
   COMPONENT Libraries)
 
+install(TARGETS stocc randomc COMPONENT Libraries)
+
 install(
   TARGETS libnchg
   EXPORT libnchg-targets

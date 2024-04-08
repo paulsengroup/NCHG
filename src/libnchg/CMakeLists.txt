@@ -27,8 +27,7 @@ include(FetchContent)
 FetchContent_Declare(
   stocc
   URL "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc-20240322.tar.xz"
-  URL_HASH SHA256=c31c61a8236245546ce5fe3615e8a0dfeb089aa141ec1c500ed397a32778bba6
-  EXCLUDE_FROM_ALL
+  URL_HASH SHA256=06ca370cfa93b3619d379adc8e016f28a0dce0dd644fbce6d28118b8ce889059
   SYSTEM)
 
 set(NCHG_BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS}")
@@ -41,14 +40,14 @@ add_library(libnchg INTERFACE)
 add_library(nchg::libnchg ALIAS libnchg)
 
 target_sources(
-        libnchg
-        INTERFACE FILE_SET
-        HEADERS
-        BASE_DIRS
-        "${CMAKE_CURRENT_SOURCE_DIR}/include")
+  libnchg
+  INTERFACE FILE_SET
+            HEADERS
+            BASE_DIRS
+            "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 target_include_directories(libnchg INTERFACE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-        "$<INSTALL_INTERFACE:include>")
+                                             "$<INSTALL_INTERFACE:include>")
 
 target_link_libraries(
   libnchg

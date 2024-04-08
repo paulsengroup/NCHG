@@ -19,6 +19,7 @@
 find_package(CLI11 REQUIRED)
 find_package(FMT REQUIRED)
 find_package(hictk REQUIRED)
+find_package(Filesystem REQUIRED)
 find_package(HighFive REQUIRED)
 find_package(spdlog REQUIRED)
 
@@ -35,24 +36,25 @@ target_sources(
 target_include_directories(NCHG PRIVATE include/)
 target_link_libraries(
   NCHG
-  PUBLIC libnchg
-         CLI11::CLI11
-         fmt::fmt-header-only
-         hictk::libhictk
-         HighFive
-         spdlog::spdlog_header_only)
+  PRIVATE libnchg
+          CLI11::CLI11
+          fmt::fmt-header-only
+          hictk::libhictk
+          HighFive
+          spdlog::spdlog_header_only
+          std::filesystem)
 
 include(GNUInstallDirs)
 install(
-        TARGETS NCHG
-        COMPONENT Runtime
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        PUBLIC_HEADER DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/scratch/
-        PRIVATE_HEADER DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/scratch/)
+  TARGETS NCHG
+  COMPONENT Runtime
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  PUBLIC_HEADER DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/scratch/
+  PRIVATE_HEADER DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/scratch/)
 
 install(
-        FILES "${PROJECT_SOURCE_DIR}/LICENSE"
-        DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/nchg/"
-        COMPONENT Runtime)
+  FILES "${PROJECT_SOURCE_DIR}/LICENSE"
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/nchg/"
+  COMPONENT Runtime)

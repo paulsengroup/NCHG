@@ -75,12 +75,10 @@ inline ExpectedValues<File> ExpectedValues<File>::chromosome_pair(std::shared_pt
   const hictk::transformers::JoinGenomicCoords jsel(
       sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), ev._fp->bins_ptr());
 
-  ev._expected_values_trans.emplace(
-      std::make_pair(chrom1, chrom2),
-      ExpectedMatrix{jsel.begin(), jsel.end(), chrom1, chrom2, ev._fp->bins(),
-                     std::vector<double>{}, 0, std::numeric_limits<std::uint64_t>::max()}
+  const ExpectedMatrix em(jsel.begin(), jsel.end(), chrom1, chrom2, ev._fp->bins(),
+                          std::vector<double>{}, 0, std::numeric_limits<std::uint64_t>::max());
 
-          .nnz_avg());
+  ev._expected_values_trans.emplace(std::make_pair(chrom1, chrom2), em.nnz_avg());
 
   return ev;
 }
@@ -262,11 +260,9 @@ inline void ExpectedValues<File>::compute_expected_values_trans() {
       const hictk::transformers::JoinGenomicCoords jsel(
           sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), _fp->bins_ptr());
 
-      _expected_values_trans.emplace(
-          std::make_pair(chrom1, chrom2),
-          ExpectedMatrix{jsel.begin(), jsel.end(), chrom1, chrom2, _fp->bins(),
-                         std::vector<double>{}, 0, std::numeric_limits<std::uint64_t>::max()}
-              .nnz_avg());
+      const ExpectedMatrix em(jsel.begin(), jsel.end(), chrom1, chrom2, _fp->bins(),
+                              std::vector<double>{}, 0, std::numeric_limits<std::uint64_t>::max());
+      _expected_values_trans.emplace(std::make_pair(chrom1, chrom2), em.nnz_avg());
     }
   }
 }

@@ -266,7 +266,6 @@ inline void ExpectedValues<File>::compute_expected_values_trans() {
           std::make_pair(chrom1, chrom2),
           ExpectedMatrix{jsel.begin(), jsel.end(), chrom1, chrom2, _fp->bins(),
                          std::vector<double>{}, 0, std::numeric_limits<std::uint64_t>::max()}
-
               .nnz_avg());
     }
   }

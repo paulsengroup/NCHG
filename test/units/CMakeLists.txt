@@ -16,6 +16,9 @@
 # License along with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
-add_subdirectory(fdr)
+include_directories(include)
+
 add_subdirectory(expected_matrix)
+add_subdirectory(expected_values)
+add_subdirectory(fdr)
 add_subdirectory(observed_matrix)

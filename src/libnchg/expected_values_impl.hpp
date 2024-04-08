@@ -104,7 +104,7 @@ inline ExpectedValues<File> ExpectedValues<File>::chromosome_pair(std::shared_pt
 
 template <typename File>
 inline ExpectedValues<File> ExpectedValues<File>::deserialize(const std::filesystem::path &path) {
-  ExpectedValues<hictk::File> ev{nullptr};
+  ExpectedValues<File> ev{nullptr};
   HighFive::File f(path);
 
   auto [weights, scaling_factors] = deserialize_cis_profiles(f);
@@ -123,6 +123,11 @@ inline const std::vector<double> &ExpectedValues<File>::weights() const noexcept
 template <typename File>
 inline std::vector<double> ExpectedValues<File>::expected_values(const hictk::Chromosome &chrom,
                                                                  bool rescale) const {
+  if (_expected_weights.empty()) {
+    throw std::out_of_range(fmt::format(
+        FMT_STRING("expected values for \"{}\" are not available: out of range"), chrom.name()));
+  }
+
   const auto num_bins = (chrom.size() + _fp->resolution() - 1) / _fp->resolution();
   assert(num_bins <= _expected_weights.size());
 
@@ -370,7 +375,7 @@ ExpectedValues<File>::deserialize_cis_profiles(const HighFive::File &f) {
     f.getDataSet("profile/scaling-factors").read(values);
 
     assert(chroms.size() == values.size());
-    for (std::size_t i = 0; i < chroms.size(); ++i) {
+    for (std::uint32_t i = 0; i < chroms.size(); ++i) {
       scaling_factors.emplace(chroms[i], values[i]);
     }
   }
@@ -381,7 +386,7 @@ ExpectedValues<File>::deserialize_cis_profiles(const HighFive::File &f) {
 template <typename File>
 inline auto ExpectedValues<File>::deserialize_trans_profiles(const HighFive::File &f)
     -> phmap::btree_map<EVTKey, double> {
-  if (!f.exist("avg-values/values")) {
+  if (!f.exist("avg-values/value")) {
     return {};
   }
 
@@ -392,7 +397,7 @@ inline auto ExpectedValues<File>::deserialize_trans_profiles(const HighFive::Fil
 
   f.getDataSet("avg-values/chrom1").read(chrom1);
   f.getDataSet("avg-values/chrom2").read(chrom2);
-  f.getDataSet("avg-values/values").read(values);
+  f.getDataSet("avg-values/value").read(values);
 
   assert(chrom1.size() == chrom2.size());
   assert(chrom1.size() == values.size());

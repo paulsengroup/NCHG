@@ -53,39 +53,71 @@ TEST_CASE("ObservedMatrix (cis)", "[short][observed_matrix]") {
   };
   // clang-format on
 
-  const ObservedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom1, bins};
+  SECTION("full matrix") {
+    const ObservedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom1, bins};
 
-  SECTION("accessors") {
-    CHECK(m.resolution() == resolution);
-    CHECK(m.num_rows() == 3);
-    CHECK(m.num_cols() == 3);
+    SECTION("accessors") {
+      CHECK(m.resolution() == resolution);
+      CHECK(m.num_rows() == 3);
+      CHECK(m.num_cols() == 3);
+    }
+
+    SECTION("stats") {
+      CHECK(m.nnz() == 5);
+      CHECK(m.sum() == 5);
+      CHECK(m.nnz_avg() == 1);
+
+      REQUIRE(m.marginals1().size() == m.marginals2().size());
+      CHECK(std::equal(m.marginals1().begin(), m.marginals1().end(), m.marginals2().begin()));
+      CHECK(m.marginals1().at(0) == 2);
+      CHECK(m.marginals1().at(1) == 1);
+      CHECK(m.marginals1().at(2) == 2);
+    }
+
+    SECTION("iterators") {
+      const auto nnz = static_cast<std::ptrdiff_t>(pixels.size());
+      CHECK(std::distance(m.begin(), m.end()) == nnz);
+    }
   }
 
-  SECTION("stats") {
-    CHECK(m.nnz() == 5);
-    CHECK(m.sum() == 5);
-    CHECK(m.nnz_avg() == 1);
+  SECTION("masked matrix") {
+    const ObservedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom1, bins, 1, 100};
 
-    REQUIRE(m.marginals1().size() == m.marginals2().size());
-    CHECK(std::equal(m.marginals1().begin(), m.marginals1().end(), m.marginals2().begin()));
-    CHECK(m.marginals1().at(0) == 2);
-    CHECK(m.marginals1().at(1) == 1);
-    CHECK(m.marginals1().at(2) == 2);
-  }
+    SECTION("accessors") {
+      CHECK(m.resolution() == resolution);
+      CHECK(m.num_rows() == 3);
+      CHECK(m.num_cols() == 3);
 
-  SECTION("iterators") {
-    const auto nnz = static_cast<std::ptrdiff_t>(pixels.size());
-    CHECK(std::distance(m.begin(), m.end()) == nnz);
+      CHECK(m.min_delta() == 1);
+      CHECK(m.max_delta() == 100);
+    }
+
+    SECTION("stats") {
+      CHECK(m.nnz() == 2);
+      CHECK(m.sum() == 2);
+      CHECK(m.nnz_avg() == 1);
+
+      REQUIRE(m.marginals1().size() == m.marginals2().size());
+      CHECK(std::equal(m.marginals1().begin(), m.marginals1().end(), m.marginals2().begin()));
+      CHECK(m.marginals1().at(0) == 1);
+      CHECK(m.marginals1().at(1) == 0);
+      CHECK(m.marginals1().at(2) == 1);
+    }
+
+    SECTION("iterators") {
+      const auto nnz = static_cast<std::ptrdiff_t>(pixels.size());
+      CHECK(std::distance(m.begin(), m.end()) == nnz);
+    }
   }
 
   SECTION("empty matrix") {
     const std::vector<Pixel> buff{};
-    const ObservedMatrix m1{buff.begin(), buff.end(), chrom1, chrom1, bins};
-    CHECK(std::all_of(m1.marginals1().begin(), m1.marginals1().end(),
+    const ObservedMatrix m{buff.begin(), buff.end(), chrom1, chrom1, bins};
+    CHECK(std::all_of(m.marginals1().begin(), m.marginals1().end(),
                       [](const auto n) { return n == 0; }));
-    CHECK(std::all_of(m1.marginals2().begin(), m1.marginals2().end(),
+    CHECK(std::all_of(m.marginals2().begin(), m.marginals2().end(),
                       [](const auto n) { return n == 0; }));
-    CHECK(m1.nnz() == 0);
+    CHECK(m.nnz() == 0);
   }
 }
 
@@ -115,40 +147,83 @@ TEST_CASE("ObservedMatrix (trans)", "[short][observed_matrix]") {
   };
   // clang-format on
 
-  const ObservedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom2, bins};
+  SECTION("full matrix") {
+    const ObservedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom2, bins};
 
-  SECTION("accessors") {
-    CHECK(m.resolution() == resolution);
-    CHECK(m.num_rows() == 3);
-    CHECK(m.num_cols() == 2);
+    SECTION("accessors") {
+      CHECK(m.resolution() == resolution);
+      CHECK(m.num_rows() == 3);
+      CHECK(m.num_cols() == 2);
+    }
+
+    SECTION("stats") {
+      CHECK(m.nnz() == 3);
+      CHECK(m.sum() == 3);
+      CHECK(m.nnz_avg() == 1);
+
+      CHECK(m.marginals1().at(0) == 1);
+      CHECK(m.marginals1().at(1) == 2);
+      CHECK(m.marginals1().at(2) == 0);
+
+      CHECK(m.marginals2().at(0) == 2);
+      CHECK(m.marginals2().at(1) == 1);
+    }
+
+    SECTION("iterators") {
+      const auto nnz = static_cast<std::ptrdiff_t>(pixels.size());
+      CHECK(std::distance(m.begin(), m.end()) == nnz);
+    }
   }
 
-  SECTION("stats") {
-    CHECK(m.nnz() == 3);
-    CHECK(m.sum() == 3);
-    CHECK(m.nnz_avg() == 1);
+  SECTION("masked matrix") {
+    const ObservedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom2, bins, 1, 100};
 
-    CHECK(m.marginals1().at(0) == 1);
-    CHECK(m.marginals1().at(1) == 2);
-    CHECK(m.marginals1().at(2) == 0);
+    SECTION("accessors") {
+      CHECK(m.resolution() == resolution);
+      CHECK(m.num_rows() == 3);
+      CHECK(m.num_cols() == 2);
 
-    CHECK(m.marginals2().at(0) == 2);
-    CHECK(m.marginals2().at(1) == 1);
-  }
+      CHECK(m.min_delta() == 1);
+      CHECK(m.max_delta() == 100);
+    }
 
-  SECTION("iterators") {
-    const auto nnz = static_cast<std::ptrdiff_t>(pixels.size());
-    CHECK(std::distance(m.begin(), m.end()) == nnz);
+    SECTION("stats") {
+      CHECK(m.nnz() == 3);
+      CHECK(m.sum() == 3);
+      CHECK(m.nnz_avg() == 1);
+
+      CHECK(m.marginals1().at(0) == 1);
+      CHECK(m.marginals1().at(1) == 2);
+      CHECK(m.marginals1().at(2) == 0);
+
+      CHECK(m.marginals2().at(0) == 2);
+      CHECK(m.marginals2().at(1) == 1);
+    }
+
+    SECTION("iterators") {
+      const auto nnz = static_cast<std::ptrdiff_t>(pixels.size());
+      CHECK(std::distance(m.begin(), m.end()) == nnz);
+    }
+
+    SECTION("empty matrix") {
+      const std::vector<Pixel> buff{};
+      const ObservedMatrix m1{buff.begin(), buff.end(), chrom1, chrom1, bins};
+      CHECK(std::all_of(m1.marginals1().begin(), m1.marginals1().end(),
+                        [](const auto n) { return n == 0; }));
+      CHECK(std::all_of(m1.marginals2().begin(), m1.marginals2().end(),
+                        [](const auto n) { return n == 0; }));
+      CHECK(m1.nnz() == 0);
+    }
   }
 
   SECTION("empty matrix") {
     const std::vector<Pixel> buff{};
-    const ObservedMatrix m1{buff.begin(), buff.end(), chrom1, chrom1, bins};
-    CHECK(std::all_of(m1.marginals1().begin(), m1.marginals1().end(),
+    const ObservedMatrix m{buff.begin(), buff.end(), chrom1, chrom1, bins};
+    CHECK(std::all_of(m.marginals1().begin(), m.marginals1().end(),
                       [](const auto n) { return n == 0; }));
-    CHECK(std::all_of(m1.marginals2().begin(), m1.marginals2().end(),
+    CHECK(std::all_of(m.marginals2().begin(), m.marginals2().end(),
                       [](const auto n) { return n == 0; }));
-    CHECK(m1.nnz() == 0);
+    CHECK(m.nnz() == 0);
   }
 }
 

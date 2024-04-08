@@ -123,12 +123,12 @@ inline std::uint32_t ObservedMatrix<PixelIt>::resolution() const noexcept {
 
 template <typename PixelIt>
 inline std::size_t ObservedMatrix<PixelIt>::num_rows() const noexcept {
-  return _bins.subset(_chrom1).size();
+  return _bins.subset(chrom1()).size();
 }
 
 template <typename PixelIt>
 inline std::size_t ObservedMatrix<PixelIt>::num_cols() const noexcept {
-  return _bins.subset(_chrom2).size();
+  return _bins.subset(chrom2()).size();
 }
 
 template <typename PixelIt>

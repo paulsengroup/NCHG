@@ -32,7 +32,9 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(stocc)
 
-set_property(TARGET stocc PROPERTY COMPILE_WARNING_AS_ERROR OFF)
+if(CMAKE_CXX_COMPILER_ID STREQUAL Clang OR CMAKE_CXX_COMPILER_ID STREQUAL AppleClang)
+  target_compile_options(stocc PRIVATE "-Wno-c++11-narrowing")
+endif()
 
 add_library(libnchg INTERFACE)
 add_library(nchg::libnchg ALIAS libnchg)

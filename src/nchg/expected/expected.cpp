@@ -16,19 +16,17 @@
 // License along with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-#include <parallel_hashmap/btree.h>
-
-#include <cstdint>
+#include <cassert>
+#include <filesystem>
 #include <hictk/chromosome.hpp>
 #include <hictk/file.hpp>
-#include <hictk/transformers/join_genomic_coords.hpp>
-#include <highfive/H5File.hpp>
-#include <vector>
+#include <memory>
+#include <type_traits>
+#include <variant>
 
 #include "nchg/common.hpp"
-#include "nchg/expected_matrix.hpp"
+#include "nchg/config.hpp"
 #include "nchg/expected_values.hpp"
-#include "nchg/nchg.hpp"
 #include "nchg/tools.hpp"
 
 namespace nchg {

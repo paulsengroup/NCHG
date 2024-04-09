@@ -30,6 +30,7 @@ struct ComputePvalConfig {
   std::uint32_t resolution{};
   std::string chrom1{"all"};
   std::string chrom2{"all"};
+  std::filesystem::path path_to_domains{};
 
   bool cis_only{false};
   bool trans_only{false};

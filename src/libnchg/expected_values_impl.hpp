@@ -260,11 +260,17 @@ inline void ExpectedValues<File>::compute_expected_values_cis() {
   });
   aggr.compute_density();
 
+  _expected_scaling_factors = aggr.scaling_factors();
+  for (const auto &chrom : _fp->chromosomes()) {
+    if (!_expected_scaling_factors.contains(chrom)) {
+      _expected_scaling_factors.emplace(chrom, std::numeric_limits<double>::quiet_NaN());
+    }
+  }
+
   _expected_weights = aggr.weights();
   const auto &chrom = _fp->chromosomes().longest_chromosome();
   const auto num_bins = (chrom.size() + _fp->resolution() - 1) / _fp->resolution();
   _expected_weights.resize(num_bins, std::numeric_limits<double>::quiet_NaN());
-  _expected_scaling_factors = aggr.scaling_factors();
 }
 
 template <typename File>

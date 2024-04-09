@@ -395,9 +395,9 @@ inline auto NCHG<File>::compute(const hictk::GenomicInterval &range1,
 
   // TODO how do we handle partial overlaps?
   const auto i11 = range1.start() / resolution;
-  const auto i12 = range1.end() / resolution;
+  const auto i12 = (range1.end() + resolution - 1) / resolution;
   const auto i21 = range2.start() / resolution;
-  const auto i22 = range2.end() / resolution;
+  const auto i22 = (range2.end() + resolution - 1) / resolution;
 
   for (auto i = i11; i < i12; ++i) {
     N1 += static_cast<double>(obs_marginals1[i]);

@@ -145,6 +145,12 @@ void Cli::make_compute_subcommand() {
     "Name of the second chromosome.\n"
     "Used to compute p-values only for a chromosome-chromosome matrix of interest.")
     ->capture_default_str();
+  sc.add_option(
+    "--domains",
+    c.path_to_domains,
+    "Path to a BED file with a list of domains whose pair-wise interactions should\n"
+    "be assessed for significance.")
+    ->check(CLI::ExistingFile);
   sc.add_flag(
     "--cis-only",
     c.cis_only,

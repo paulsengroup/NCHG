@@ -102,14 +102,13 @@ inline ObservedMatrix<PixelIt>::ObservedMatrix(PixelIt first_pixel, PixelIt last
                                                hictk::Chromosome chrom1, hictk::Chromosome chrom2,
                                                hictk::BinTable bins, std::uint64_t min_delta_,
                                                std::uint64_t max_delta_)
-    : _first(std::move(first_pixel)),
-      _last(std::move(last_pixel)),
-      _chrom1(std::move(chrom1)),
+    : _chrom1(std::move(chrom1)),
       _chrom2(std::move(chrom2)),
       _bins(std::move(bins)),
       _min_delta(min_delta_),
       _max_delta(max_delta_) {
-  auto stats = compute_stats(_first, _last, _chrom1, _chrom2, _bins, min_delta_, max_delta_);
+  auto stats =
+      compute_stats(first_pixel, last_pixel, _chrom1, _chrom2, _bins, min_delta_, max_delta_);
   _marginals1 = std::move(stats.marginals1);
   _marginals2 = std::move(stats.marginals2);
   _nnz = stats.nnz;
@@ -172,24 +171,6 @@ inline const std::vector<std::uint64_t> &ObservedMatrix<PixelIt>::marginals1() c
 template <typename PixelIt>
 inline const std::vector<std::uint64_t> &ObservedMatrix<PixelIt>::marginals2() const noexcept {
   return *_marginals2;
-}
-
-template <typename PixelIt>
-inline auto ObservedMatrix<PixelIt>::begin() const -> PixelIt {
-  return _first;
-}
-template <typename PixelIt>
-inline auto ObservedMatrix<PixelIt>::cbegin() const -> PixelIt {
-  return begin();
-}
-
-template <typename PixelIt>
-inline auto ObservedMatrix<PixelIt>::end() const -> PixelIt {
-  return _last;
-}
-template <typename PixelIt>
-inline auto ObservedMatrix<PixelIt>::cend() const -> PixelIt {
-  return end();
 }
 
 }  // namespace nchg

@@ -73,11 +73,6 @@ TEST_CASE("ObservedMatrix (cis)", "[short][observed_matrix]") {
       CHECK(m.marginals1().at(1) == 1);
       CHECK(m.marginals1().at(2) == 2);
     }
-
-    SECTION("iterators") {
-      const auto nnz = static_cast<std::ptrdiff_t>(pixels.size());
-      CHECK(std::distance(m.begin(), m.end()) == nnz);
-    }
   }
 
   SECTION("masked matrix") {
@@ -102,11 +97,6 @@ TEST_CASE("ObservedMatrix (cis)", "[short][observed_matrix]") {
       CHECK(m.marginals1().at(0) == 1);
       CHECK(m.marginals1().at(1) == 0);
       CHECK(m.marginals1().at(2) == 1);
-    }
-
-    SECTION("iterators") {
-      const auto nnz = static_cast<std::ptrdiff_t>(pixels.size());
-      CHECK(std::distance(m.begin(), m.end()) == nnz);
     }
   }
 
@@ -168,11 +158,6 @@ TEST_CASE("ObservedMatrix (trans)", "[short][observed_matrix]") {
       CHECK(m.marginals2().at(0) == 2);
       CHECK(m.marginals2().at(1) == 1);
     }
-
-    SECTION("iterators") {
-      const auto nnz = static_cast<std::ptrdiff_t>(pixels.size());
-      CHECK(std::distance(m.begin(), m.end()) == nnz);
-    }
   }
 
   SECTION("masked matrix") {
@@ -198,11 +183,6 @@ TEST_CASE("ObservedMatrix (trans)", "[short][observed_matrix]") {
 
       CHECK(m.marginals2().at(0) == 2);
       CHECK(m.marginals2().at(1) == 1);
-    }
-
-    SECTION("iterators") {
-      const auto nnz = static_cast<std::ptrdiff_t>(pixels.size());
-      CHECK(std::distance(m.begin(), m.end()) == nnz);
     }
 
     SECTION("empty matrix") {

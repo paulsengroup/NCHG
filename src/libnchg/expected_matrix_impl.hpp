@@ -115,9 +115,7 @@ inline ExpectedMatrix<PixelIt>::ExpectedMatrix(PixelIt first_pixel, PixelIt last
                                                hictk::BinTable bins, std::vector<double> weights,
                                                double scaling_factor, std::uint64_t min_delta_,
                                                std::uint64_t max_delta_)
-    : _first(std::move(first_pixel)),
-      _last(std::move(last_pixel)),
-      _chrom1(std::move(chrom1)),
+    : _chrom1(std::move(chrom1)),
       _chrom2(std::move(chrom2)),
       _bins(std::move(bins)),
       _weights(std::move(weights)),
@@ -126,8 +124,8 @@ inline ExpectedMatrix<PixelIt>::ExpectedMatrix(PixelIt first_pixel, PixelIt last
   std::transform(_weights.begin(), _weights.end(), _weights.begin(),
                  [&](const auto n) { return n / scaling_factor; });
 
-  auto stats =
-      compute_stats(_first, _last, _chrom1, _chrom2, _bins, _weights, min_delta_, max_delta_);
+  auto stats = compute_stats(first_pixel, last_pixel, _chrom1, _chrom2, _bins, _weights, min_delta_,
+                             max_delta_);
   _marginals1 = std::move(stats.marginals1);
   _marginals2 = std::move(stats.marginals2);
   _nnz = stats.nnz;

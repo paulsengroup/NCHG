@@ -34,9 +34,6 @@ class ObservedMatrix {
   using N = decltype(std::declval<PixelT>().count);
   static_assert(std::is_same_v<PixelT, hictk::Pixel<N>>);
 
-  PixelIt _first{};
-  PixelIt _last{};
-
   hictk::Chromosome _chrom1{};
   hictk::Chromosome _chrom2{};
 
@@ -73,12 +70,6 @@ class ObservedMatrix {
 
   [[nodiscard]] const std::vector<std::uint64_t>& marginals1() const noexcept;
   [[nodiscard]] const std::vector<std::uint64_t>& marginals2() const noexcept;
-
-  [[nodiscard]] auto begin() const -> PixelIt;
-  [[nodiscard]] auto cbegin() const -> PixelIt;
-
-  [[nodiscard]] auto end() const -> PixelIt;
-  [[nodiscard]] auto cend() const -> PixelIt;
 
  private:
   static auto compute_stats(PixelIt first_pixel, PixelIt last_pixel,

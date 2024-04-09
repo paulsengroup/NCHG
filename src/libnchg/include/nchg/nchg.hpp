@@ -62,6 +62,8 @@ class NCHG {
   phmap::flat_hash_map<Key, std::shared_ptr<const ExpectedMatrix<PixelIt>>> _exp_matrices{};
   ExpectedValues<File> _expected_values{};
 
+  mutable std::vector<double> _nchg_pval_buffer{};
+
  public:
   explicit NCHG(std::shared_ptr<const File> f, std::uint64_t min_delta = 40'000,
                 std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
@@ -95,12 +97,9 @@ class NCHG {
   void erase_matrix(const hictk::Chromosome& chrom);
   void erase_matrix(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2);
 
-  void print_pvalues();
-  void print_pvalues(const hictk::Chromosome& chrom);
-  void print_pvalues(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2);
-
-  void print_expected_curves();
-  void print_expected_curve(const hictk::Chromosome& chrom);
+  [[nodiscard]] auto compute(const hictk::GenomicInterval& range) const -> Stats;
+  [[nodiscard]] auto compute(const hictk::GenomicInterval& range1,
+                             const hictk::GenomicInterval& range2) const -> Stats;
 
   [[nodiscard]] auto cbegin(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2) const
       -> iterator;

@@ -17,9 +17,14 @@
 // <https://www.gnu.org/licenses/>.
 
 #include <fmt/format.h>
+#include <fmt/std.h>
 
 #include <cstdint>
+#include <fstream>
 #include <hictk/file.hpp>
+#include <hictk/fmt/pixel.hpp>
+#include <hictk/genomic_interval.hpp>
+#include <hictk/reference.hpp>
 #include <memory>
 #include <variant>
 
@@ -45,6 +50,118 @@ static void print_header() {
                  "omega\n"));
 }
 
+[[nodiscard]] static std::string_view truncate_bed3_record(std::string_view record,
+                                                           char sep = '\t') {
+  const auto pos1 = record.find('\t');
+  if (pos1 == std::string_view::npos) {
+    throw std::runtime_error("invalid bed record, expected 3 tokens, found 1");
+  }
+  const auto pos2 = record.find('\t', pos1 + 1);
+  if (pos2 == std::string_view::npos) {
+    throw std::runtime_error("invalid bed record, expected 3 tokens, found 2");
+  }
+  const auto pos3 = record.find('\t', pos2 + 1);
+
+  return record.substr(0, pos3);
+}
+
+[[nodiscard]] static std::vector<hictk::GenomicInterval> parse_domains(
+    const hictk::Reference &chroms, const std::filesystem::path &path, std::string_view chrom1,
+    std::string_view chrom2) {
+  std::vector<hictk::GenomicInterval> domains{};
+  std::string buffer{};
+
+  std::ifstream fs{};
+  fs.exceptions(fs.exceptions() | std::ios::badbit | std::ios::failbit);
+
+  try {
+    fs.open(path);
+
+    for (std::size_t i = 1; std::getline(fs, buffer); ++i) {
+      if (buffer.empty()) {
+        continue;
+      }
+
+      try {
+        const auto record = truncate_bed3_record(buffer);
+        auto domain = hictk::GenomicInterval::parse_bed(chroms, record);
+
+        if (chrom1 != "all") {
+          assert(chrom2 != "all");
+          if (domain.chrom().name() != chrom1 && domain.chrom().name() != chrom2) {
+            continue;
+          }
+        }
+
+        domains.emplace_back(std::move(domain));
+      } catch (const std::exception &e) {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("found an invalid record at line {} of file {}: {}"), i, path, e.what()));
+      }
+    }
+
+  } catch (const std::exception &e) {
+    if (!fs.eof()) {
+      throw;
+    }
+  }
+
+  std::sort(domains.begin(), domains.end());
+  return domains;
+}
+
+template <typename FilePtr, typename File = remove_cvref_t<decltype(*std::declval<FilePtr>())>>
+[[nodiscard]] static NCHG<File> init_nchg(const FilePtr &f, const ComputePvalConfig &c) {
+  if (c.cis_only) {
+    return NCHG<File>::cis_only(f, c.min_delta, c.max_delta);
+  }
+  if (c.trans_only) {
+    return NCHG<File>::trans_only(f);
+  }
+
+  if (c.chrom1 != "all") {
+    assert(c.chrom2 != "all");
+    return NCHG<File>::chromosome_pair(f, f->chromosomes().at(c.chrom1),
+                                       f->chromosomes().at(c.chrom2), c.min_delta, c.max_delta);
+  }
+
+  NCHG nchg(f, c.min_delta, c.max_delta);
+  nchg.init_matrices();
+  return nchg;
+}
+
+template <typename FilePtr>
+static void process_domains(const FilePtr &f, const ComputePvalConfig &c) {
+  assert(std::filesystem::exists(c.path_to_domains));
+
+  const auto domains = parse_domains(f->chromosomes(), c.path_to_domains, c.chrom1, c.chrom2);
+
+  if (domains.empty()) {
+    return;
+  }
+
+  const auto nchg = init_nchg(f, c);
+
+  if (c.write_header) {
+    print_header();
+  }
+
+  for (std::size_t i = 0; i < domains.size(); ++i) {
+    for (std::size_t j = i; j < domains.size(); ++j) {
+      const auto &d1 = domains[i];
+      const auto &d2 = domains[j];
+
+      if (c.chrom1 != "all" && (d1.chrom() != c.chrom1 || d2.chrom() != c.chrom2)) {
+        continue;
+      }
+
+      const auto s = nchg.compute(d1, d2);
+      fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval, s.pixel.count,
+                 s.expected, s.odds_ratio, s.omega);
+    }
+  }
+}
+
 template <typename FilePtr>
 static void process_all_chromosomes(const FilePtr &f, const ComputePvalConfig &c) {
   NCHG nchg(f, c.min_delta, c.max_delta);
@@ -64,7 +181,10 @@ static void process_all_chromosomes(const FilePtr &f, const ComputePvalConfig &c
         header_printed = true;
       }
 
-      nchg.print_pvalues(chrom1, chrom2);
+      std::for_each(nchg.begin(chrom1, chrom2), nchg.end(chrom1, chrom2), [&](const auto &s) {
+        fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval,
+                   s.pixel.count, s.expected, s.odds_ratio, s.omega);
+      });
       nchg.erase_matrix(chrom1, chrom2);
     }
   }
@@ -85,7 +205,10 @@ static void process_cis_only_chromosomes(const FilePtr &f, const ComputePvalConf
       header_printed = true;
     }
 
-    nchg.print_pvalues(chrom);
+    std::for_each(nchg.begin(chrom, chrom), nchg.end(chrom, chrom), [&](const auto &s) {
+      fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval, s.pixel.count,
+                 s.expected, s.odds_ratio, s.omega);
+    });
     nchg.erase_matrix(chrom);
   }
 }
@@ -112,7 +235,10 @@ static void process_trans_only(const FilePtr &f, const ComputePvalConfig &c) {
         header_printed = true;
       }
 
-      nchg.print_pvalues(chrom1, chrom2);
+      std::for_each(nchg.begin(chrom1, chrom2), nchg.end(chrom1, chrom2), [&](const auto &s) {
+        fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval,
+                   s.pixel.count, s.expected, s.odds_ratio, s.omega);
+      });
       nchg.erase_matrix(chrom1, chrom2);
     }
   }
@@ -127,12 +253,16 @@ static void process_one_chromosome(const FilePtr &f, const ComputePvalConfig &c)
 
   auto nchg = NCHG<File>::chromosome_pair(f, chrom1, chrom2, c.min_delta, c.max_delta);
 
-  nchg.init_matrix(f->chromosomes().at(c.chrom1), f->chromosomes().at(c.chrom2));
+  nchg.init_matrix(chrom1, chrom2);
 
   if (c.write_header) {
     print_header();
   }
-  nchg.print_pvalues(f->chromosomes().at(c.chrom1), f->chromosomes().at(c.chrom2));
+
+  std::for_each(nchg.begin(chrom1, chrom2), nchg.end(chrom1, chrom2), [&](const auto &s) {
+    fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval, s.pixel.count,
+               s.expected, s.odds_ratio, s.omega);
+  });
 }
 
 int run_nchg_compute(const ComputePvalConfig &c) {
@@ -155,6 +285,11 @@ int run_nchg_compute(const ComputePvalConfig &c) {
 
   std::visit(
       [&](const auto &f_) {
+        if (!c.path_to_domains.empty()) {
+          process_domains(f_, c);
+          return;
+        }
+
         if (c.cis_only) {
           assert(c.chrom1 == "all");
           assert(c.chrom2 == "all");

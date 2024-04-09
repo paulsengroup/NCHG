@@ -37,9 +37,6 @@ class ExpectedMatrix {
   using N = decltype(std::declval<PixelT>().count);
   static_assert(std::is_same_v<PixelT, hictk::Pixel<N>>);
 
-  PixelIt _first{};
-  PixelIt _last{};
-
   hictk::Chromosome _chrom1{};
   hictk::Chromosome _chrom2{};
 

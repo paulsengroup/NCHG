@@ -37,7 +37,6 @@ TEST_CASE("NCHG", "[short][nchg]") {
 
   const auto chr1 = clr->chromosomes().at("chr1");
   auto nchg = NCHG<hictk::cooler::File>::cis_only(clr);
-  nchg.init_matrix(chr1);
 
   SECTION("significant") {
     const hictk::GenomicInterval range1(chr1, 0, 10'000'000);

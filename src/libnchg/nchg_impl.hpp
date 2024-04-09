@@ -474,7 +474,11 @@ inline auto NCHG<File>::cbegin(const hictk::Chromosome &chrom1,
   const auto &obs = _obs_matrices.at(Key{chrom1, chrom2});
   const auto &exp = _exp_matrices.at(Key{chrom1, chrom2});
 
-  return {obs->begin(), obs, exp, _min_delta, _max_delta};
+  const auto sel = _fp->fetch(chrom1.name(), chrom2.name());
+  const hictk::transformers::JoinGenomicCoords jsel(
+      sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), _fp->bins_ptr());
+
+  return {jsel.begin(), obs, exp, _min_delta, _max_delta};
 }
 
 template <typename File>
@@ -483,7 +487,11 @@ inline auto NCHG<File>::cend(const hictk::Chromosome &chrom1, const hictk::Chrom
   const auto &obs = _obs_matrices.at(Key{chrom1, chrom2});
   const auto &exp = _exp_matrices.at(Key{chrom1, chrom2});
 
-  return {obs->end(), obs, exp, _min_delta, _max_delta};
+  const auto sel = _fp->fetch(chrom1.name(), chrom2.name());
+  const hictk::transformers::JoinGenomicCoords jsel(
+      sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), _fp->bins_ptr());
+
+  return {jsel.end(), obs, exp, _min_delta, _max_delta};
 }
 
 template <typename File>

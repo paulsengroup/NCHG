@@ -55,6 +55,13 @@ inline NCHG<File> NCHG<File>::cis_only(std::shared_ptr<const File> f, std::uint6
   nchg._max_delta = max_delta;
   nchg._expected_values = ExpectedValues<File>::cis_only(nchg._fp, min_delta, max_delta);
 
+  for (const auto &chrom : nchg._fp->chromosomes()) {
+    if (chrom.is_all()) {
+      continue;
+    }
+    nchg.init_matrix(chrom);
+  }
+
   return nchg;
 }
 
@@ -66,6 +73,17 @@ inline NCHG<File> NCHG<File>::trans_only(std::shared_ptr<const File> f) {
   nchg._fp = std::move(f);
   nchg._expected_values = ExpectedValues<File>::trans_only(nchg._fp);
 
+  const auto num_chroms = nchg._fp->chromosomes().size();
+  for (std::uint32_t chrom1_id = 0; chrom1_id < num_chroms; ++chrom1_id) {
+    const auto &chrom1 = nchg._fp->chromosomes().at(chrom1_id);
+    if (chrom1.is_all()) {
+      continue;
+    }
+    for (std::uint32_t chrom2_id = chrom1_id + 1; chrom2_id < num_chroms; ++chrom2_id) {
+      const auto &chrom2 = nchg._fp->chromosomes().at(chrom2_id);
+      nchg.init_matrix(chrom1, chrom2);
+    }
+  }
   return nchg;
 }
 
@@ -85,6 +103,8 @@ inline NCHG<File> NCHG<File>::chromosome_pair(std::shared_ptr<const File> f,
   nchg._max_delta = max_delta;
   nchg._expected_values =
       ExpectedValues<File>::chromosome_pair(nchg._fp, chrom1, chrom2, min_delta, max_delta);
+
+  nchg.init_matrix(chrom1, chrom2);
 
   return nchg;
 }

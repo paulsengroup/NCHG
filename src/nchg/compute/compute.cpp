@@ -62,7 +62,7 @@ static void print_header() {
   }
   const auto pos3 = record.find('\t', pos2 + 1);
 
-  return record.substr(pos3);
+  return record.substr(0, pos3);
 }
 
 [[nodiscard]] static std::vector<hictk::GenomicInterval> parse_domains(
@@ -119,13 +119,14 @@ template <typename FilePtr, typename File = remove_cvref_t<decltype(*std::declva
     return NCHG<File>::trans_only(f);
   }
 
-  NCHG nchg(f, c.min_delta, c.max_delta);
   if (c.chrom1 != "all") {
     assert(c.chrom2 != "all");
-    nchg.init_matrix(f->chromosomes().at(c.chrom1), f->chromosomes().at(c.chrom2));
-  } else {
-    nchg.init_matrices();
+    return NCHG<File>::chromosome_pair(f, f->chromosomes().at(c.chrom1),
+                                       f->chromosomes().at(c.chrom2), c.min_delta, c.max_delta);
   }
+
+  NCHG nchg(f, c.min_delta, c.max_delta);
+  nchg.init_matrices();
   return nchg;
 }
 
@@ -150,11 +151,7 @@ static void process_domains(const FilePtr &f, const ComputePvalConfig &c) {
       const auto &d1 = domains[i];
       const auto &d2 = domains[j];
 
-      if (c.cis_only && d1.chrom() != d2.chrom()) {
-        break;
-      }
-
-      if (c.trans_only && d1.chrom() == d2.chrom()) {
+      if (c.chrom1 != "all" && (d1.chrom() != c.chrom1 || d2.chrom() != c.chrom2)) {
         continue;
       }
 

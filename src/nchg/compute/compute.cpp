@@ -17,6 +17,7 @@
 // <https://www.gnu.org/licenses/>.
 
 #include <fmt/format.h>
+#include <fmt/std.h>
 
 #include <cstdint>
 #include <fstream>
@@ -49,6 +50,21 @@ static void print_header() {
                  "omega\n"));
 }
 
+[[nodiscard]] static std::string_view truncate_bed3_record(std::string_view record,
+                                                           char sep = '\t') {
+  const auto pos1 = record.find('\t');
+  if (pos1 == std::string_view::npos) {
+    throw std::runtime_error("invalid bed record, expected 3 tokens, found 1");
+  }
+  const auto pos2 = record.find('\t', pos1 + 1);
+  if (pos2 == std::string_view::npos) {
+    throw std::runtime_error("invalid bed record, expected 3 tokens, found 2");
+  }
+  const auto pos3 = record.find('\t', pos2 + 1);
+
+  return record.substr(pos3);
+}
+
 [[nodiscard]] static std::vector<hictk::GenomicInterval> parse_domains(
     const hictk::Reference &chroms, const std::filesystem::path &path, std::string_view chrom1,
     std::string_view chrom2) {
@@ -61,26 +77,27 @@ static void print_header() {
   try {
     fs.open(path);
 
-    while (std::getline(fs, buffer)) {
+    for (std::size_t i = 1; std::getline(fs, buffer); ++i) {
       if (buffer.empty()) {
         continue;
       }
-      const std::string_view view{buffer};
-      // TODO handle invalid strings
-      const auto pos1 = view.find('\t');
-      const auto pos2 = view.find('\t', pos1 + 1);
-      const auto pos3 = view.find('\t', pos2 + 1);
 
-      auto domain = hictk::GenomicInterval::parse_bed(chroms, view.substr(0, pos3));
+      try {
+        const auto record = truncate_bed3_record(buffer);
+        auto domain = hictk::GenomicInterval::parse_bed(chroms, record);
 
-      if (chrom1 != "all") {
-        assert(chrom2 != "all");
-        if (domain.chrom().name() != chrom1 && domain.chrom().name() != chrom2) {
-          continue;
+        if (chrom1 != "all") {
+          assert(chrom2 != "all");
+          if (domain.chrom().name() != chrom1 && domain.chrom().name() != chrom2) {
+            continue;
+          }
         }
-      }
 
-      domains.emplace_back(std::move(domain));
+        domains.emplace_back(std::move(domain));
+      } catch (const std::exception &e) {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("found an invalid record at line {} of file {}: {}"), i, path, e.what()));
+      }
     }
 
   } catch (const std::exception &e) {

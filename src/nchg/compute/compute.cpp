@@ -23,9 +23,6 @@
 
 #include <BS_thread_pool.hpp>
 #include <algorithm>
-#include <boost/asio/read_until.hpp>
-#include <boost/asio/streambuf.hpp>
-#include <boost/process/v2.hpp>
 #include <cstdint>
 #include <fstream>
 #include <hictk/file.hpp>
@@ -39,6 +36,12 @@
 #ifndef _WIN32
 #include <csignal>
 #endif
+
+// clang-format off
+#include <boost/asio/read_until.hpp>
+#include <boost/asio/streambuf.hpp>
+#include <boost/process/v2.hpp>
+// clang-format on
 
 #include "nchg/common.hpp"
 #include "nchg/config.hpp"

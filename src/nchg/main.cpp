@@ -27,6 +27,7 @@
 
 #ifndef _WIN32
 #include <csignal>
+#include <cstdlib>
 #endif
 
 #include "nchg/cli.hpp"
@@ -90,17 +91,24 @@ static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &
 static std::atomic<std::uint32_t *> pids{};
 static std::atomic<std::size_t> num_pids{};
 #else
-static std::atomic<pid_t *> pids{};          // NOLINT
-static std::atomic<std::size_t> num_pids{};  // NOLINT
-extern "C" void sigpipe_handler_linux([[maybe_unused]] int sig) {
+static std::atomic<pid_t *> pids{};                // NOLINT
+static std::atomic<std::size_t> num_pids{};        // NOLINT
+static std::atomic<bool> sigpipe_received{false};  // NOLINT
+
+extern "C" void sigpipe_handler_unix([[maybe_unused]] int sig) {
+  if (sigpipe_received.exchange(true)) {
+    return;
+  }
+
   for (std::size_t i = 0; i < num_pids; ++i) {
     const auto pid = *(pids + i);
     if (pid != static_cast<pid_t>(-1)) {
-      kill(*(pids + i), SIGKILL);
+      kill(pid, SIGKILL);
     }
   }
+
   free(pids.load());  // NOLINT
-  std::quick_exit(141);
+  _exit(141);
 }
 
 void setup_sigpipe_signal_handler_linux() {
@@ -108,7 +116,7 @@ void setup_sigpipe_signal_handler_linux() {
   pids = (pid_t *)malloc(num_pids.load() * sizeof(pid_t));  // NOLINT
   std::fill(pids.load(), pids.load() + num_pids.load(), static_cast<pid_t>(-1));
 
-  const auto status = signal(SIGPIPE, sigpipe_handler_linux);
+  const auto status = std::signal(SIGPIPE, sigpipe_handler_unix);
   if (status == SIG_ERR) {
     SPDLOG_WARN(
         FMT_STRING("falied to setup the signal handler for SIGPIPE! "

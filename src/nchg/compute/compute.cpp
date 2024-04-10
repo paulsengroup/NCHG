@@ -51,7 +51,7 @@ static void print_header() {
   fmt::print(
       FMT_STRING("chrom1\t"
                  "start1\t"
-                 "end2\t"
+                 "end1\t"
                  "chrom2\t"
                  "start2\t"
                  "end2\t"
@@ -460,6 +460,10 @@ int run_nchg_compute(const ComputePvalConfig &c, std::atomic<PidT *> &pids,
   // Poor man's load balancing
   std::mt19937_64 rand_eng{};
   std::shuffle(chrom_pairs.begin(), chrom_pairs.end(), rand_eng);
+
+  if (c.write_header) {
+    print_header();
+  }
   process_queries(chrom_pairs, c, pids, num_pids);
 
   return 0;
@@ -467,7 +471,6 @@ int run_nchg_compute(const ComputePvalConfig &c, std::atomic<PidT *> &pids,
 
 #ifdef _WIN32
 return run_nchg_compute<std::uint32_t>(c, pids, num_pids);
-
 #else
 int run_nchg_compute(const ComputePvalConfig &c, std::atomic<pid_t *> &pids,
                      const std::atomic<std::size_t> &num_pids) {

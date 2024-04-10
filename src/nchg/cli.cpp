@@ -184,6 +184,12 @@ void Cli::make_compute_subcommand() {
     "Number of worker threads")
     ->check(CLI::PositiveNumber)
     ->capture_default_str();
+  sc.add_option(
+    "-v,--verbosity",
+    c.verbosity,
+    "Set verbosity of output to the console.")
+    ->check(CLI::Range(1, 4))
+    ->capture_default_str();
   // clang-format on
 
   sc.get_option("--chrom2")->needs("--chrom1");

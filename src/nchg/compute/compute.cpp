@@ -260,7 +260,7 @@ static void io_worker(moodycamel::BlockingConcurrentQueue<std::string> &msg_queu
                       const std::atomic<std::size_t> &proc_submitted,
                       const std::atomic<std::size_t> &msg_submitted,
                       std::atomic<std::size_t> &msg_received) {
-  SPDLOG_INFO("spawning IO thread");
+  SPDLOG_DEBUG("spawning IO thread");
   moodycamel::ConsumerToken ctok(msg_queue);
   std::string buffer{};
   while (!early_return && ((proc_submitted == 0 || proc_completed != proc_submitted) ||
@@ -283,10 +283,13 @@ static void io_worker(moodycamel::BlockingConcurrentQueue<std::string> &msg_queu
                                                 const std::string &chrom1,
                                                 const std::string &chrom2,
                                                 boost::asio::io_context &ctx) {
+  SPDLOG_INFO(FMT_STRING("begin processing {}:{}"), chrom1, chrom2);
+
   std::vector<std::string> args{"compute",      "--chrom1",
                                 chrom1,         "--chrom2",
                                 chrom2,         "--no-write-header",
                                 "--threads",    "1",
+                                "--verbosity",  "2",
                                 "--min-delta",  fmt::to_string(c.min_delta),
                                 "--max-delta",  fmt::to_string(c.max_delta),
                                 "--resolution", fmt::to_string(c.resolution),
@@ -300,13 +303,14 @@ static void io_worker(moodycamel::BlockingConcurrentQueue<std::string> &msg_queu
   boost::asio::readable_pipe pipe(ctx);
   boost::process::v2::process proc(ctx, c.exec.string(), args,
                                    boost::process::v2::process_stdio{{}, pipe, {}});
-  SPDLOG_INFO(FMT_STRING("spawned worker process {}..."), proc.id());
+  SPDLOG_DEBUG(FMT_STRING("spawned worker process {}..."), proc.id());
 
   return std::make_pair(std::move(pipe), std::move(proc));
 }
 
 static void consume_compute_process_output(
     boost::process::v2::process &proc, boost::asio::readable_pipe &pipe,
+    [[maybe_unused]] std::string_view chrom1, [[maybe_unused]] std::string_view chrom2,
     moodycamel::BlockingConcurrentQueue<std::string> &msg_queue, std::atomic<bool> &early_return,
     std::atomic<std::size_t> &msg_submitted) {
   const moodycamel::ProducerToken ptok(msg_queue);
@@ -314,6 +318,8 @@ static void consume_compute_process_output(
   boost::asio::streambuf strbuff;
   std::istream is(&strbuff);
   std::string line;
+
+  std::size_t records_processed{};
   while (pipe.is_open()) {
     boost::asio::read_until(pipe, strbuff, '\n', ec);
     if (ec == boost::asio::error::eof) {
@@ -332,6 +338,7 @@ static void consume_compute_process_output(
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     ++msg_submitted;
+    ++records_processed;
 
     if (early_return) {
       SPDLOG_DEBUG(FMT_STRING("[{}] terminating process..."), proc.id());
@@ -339,7 +346,8 @@ static void consume_compute_process_output(
       return;
     }
   }
-  SPDLOG_INFO(FMT_STRING("[{}] done reading output from process!"), proc.id());
+  SPDLOG_DEBUG(FMT_STRING("[{}] done reading output from process!"), proc.id());
+  SPDLOG_INFO(FMT_STRING("done processing {}:{} ({} records)!"), chrom1, chrom2, records_processed);
 }
 
 template <typename PidT>
@@ -399,7 +407,8 @@ static void process_queries(
         const auto pid_offset = register_process(proc, pids, num_pids, pids_mtx);
         ++proc_submitted;
 
-        consume_compute_process_output(proc, pipe, msg_queue, early_return, msg_submitted);
+        consume_compute_process_output(proc, pipe, chrom1, chrom2, msg_queue, early_return,
+                                       msg_submitted);
 
         proc.wait();
         deregister_process(pid_offset, pids);

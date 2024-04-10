@@ -38,6 +38,8 @@
 #endif
 
 // clang-format off
+// As of HighFive 2.9.0, these header must be included after HighFive/hictk,
+// otherwise this source file fails to compile with MSVC
 #include <boost/asio/read_until.hpp>
 #include <boost/asio/streambuf.hpp>
 #include <boost/process/v2.hpp>

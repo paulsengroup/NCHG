@@ -111,9 +111,9 @@ extern "C" void sigpipe_handler_unix([[maybe_unused]] int sig) {
   _exit(141);
 }
 
-void setup_sigpipe_signal_handler_linux() {
+static void setup_sigpipe_signal_handler_linux() {
   num_pids = std::thread::hardware_concurrency();
-  pids = (pid_t *)malloc(num_pids.load() * sizeof(pid_t));  // NOLINT
+  pids = reinterpret_cast<pid_t *>(malloc(num_pids.load() * sizeof(pid_t)));  // NOLINT
   std::fill(pids.load(), pids.load() + num_pids.load(), static_cast<pid_t>(-1));
 
   const auto status = std::signal(SIGPIPE, sigpipe_handler_unix);
@@ -124,11 +124,25 @@ void setup_sigpipe_signal_handler_linux() {
   }
 }
 
+static void at_exit_handler() {
+  free(pids.load());  // NOLINT
+}
+
+static void setup_at_exit_handler_linux() {
+  std::ignore = std::atexit(at_exit_handler);
+}
+
 #endif
 
-void setup_sigpipe_signal_handler() {
+static void setup_sigpipe_signal_handler() {
 #ifndef _WIN32
   setup_sigpipe_signal_handler_linux();
+#endif
+}
+
+static void setup_at_exit_handler() {
+#ifndef _WIN32
+  setup_at_exit_handler_linux();
 #endif
 }
 
@@ -149,8 +163,11 @@ int main(int argc, char **argv) noexcept {
     using sc = Cli::subcommand;
     switch (subcmd) {
       case sc::compute: {
+        setup_at_exit_handler();
         setup_sigpipe_signal_handler();
-        return run_nchg_compute(std::get<ComputePvalConfig>(config), pids, num_pids);
+        const auto ec1 = run_nchg_compute(std::get<ComputePvalConfig>(config), pids, num_pids);
+        free(pids.load());  // NOLINT
+        return ec1;
       }
       case sc::expected: {
         return run_nchg_expected(std::get<ExpectedConfig>(config));

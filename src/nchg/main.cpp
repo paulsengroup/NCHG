@@ -23,6 +23,12 @@
 #include <cassert>
 #include <cstdio>
 #include <tuple>
+#include <vector>
+
+#ifndef _WIN32
+#include <csignal>
+#include <cstdlib>
+#endif
 
 #include "nchg/cli.hpp"
 #include "nchg/config.hpp"
@@ -80,6 +86,66 @@ static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &
   }
 }
 
+#ifdef _WIN32
+// List of PIDs for child processes that should be killed when SIGPIPE is raised
+static std::atomic<std::uint32_t *> pids{};
+static std::atomic<std::size_t> num_pids{};
+#else
+static std::atomic<pid_t *> pids{};                // NOLINT
+static std::atomic<std::size_t> num_pids{};        // NOLINT
+static std::atomic<bool> sigpipe_received{false};  // NOLINT
+
+extern "C" void sigpipe_handler_unix([[maybe_unused]] int sig) {
+  if (sigpipe_received.exchange(true)) {
+    return;
+  }
+
+  for (std::size_t i = 0; i < num_pids; ++i) {
+    const auto pid = *(pids + i);
+    if (pid != static_cast<pid_t>(-1)) {
+      kill(pid, SIGKILL);
+    }
+  }
+
+  free(pids.load());  // NOLINT
+  _exit(141);
+}
+
+static void setup_sigpipe_signal_handler_linux() {
+  num_pids = std::thread::hardware_concurrency();
+  pids = reinterpret_cast<pid_t *>(malloc(num_pids.load() * sizeof(pid_t)));  // NOLINT
+  std::fill(pids.load(), pids.load() + num_pids.load(), static_cast<pid_t>(-1));
+
+  const auto status = std::signal(SIGPIPE, sigpipe_handler_unix);
+  if (status == SIG_ERR) {
+    SPDLOG_WARN(
+        FMT_STRING("falied to setup the signal handler for SIGPIPE! "
+                   "This could lead to zombie processes if the program is terminated abruptly."));
+  }
+}
+
+static void at_exit_handler() {
+  free(pids.load());  // NOLINT
+}
+
+static void setup_at_exit_handler_linux() {
+  std::ignore = std::atexit(at_exit_handler);
+}
+
+#endif
+
+static void setup_sigpipe_signal_handler() {
+#ifndef _WIN32
+  setup_sigpipe_signal_handler_linux();
+#endif
+}
+
+static void setup_at_exit_handler() {
+#ifndef _WIN32
+  setup_at_exit_handler_linux();
+#endif
+}
+
 // NOLINTNEXTLINE(bugprone-exception-escape)
 int main(int argc, char **argv) noexcept {
   std::unique_ptr<Cli> cli{nullptr};
@@ -97,7 +163,11 @@ int main(int argc, char **argv) noexcept {
     using sc = Cli::subcommand;
     switch (subcmd) {
       case sc::compute: {
-        return run_nchg_compute(std::get<ComputePvalConfig>(config));
+        setup_at_exit_handler();
+        setup_sigpipe_signal_handler();
+        const auto ec1 = run_nchg_compute(std::get<ComputePvalConfig>(config), pids, num_pids);
+        free(pids.load());  // NOLINT
+        return ec1;
       }
       case sc::expected: {
         return run_nchg_expected(std::get<ExpectedConfig>(config));

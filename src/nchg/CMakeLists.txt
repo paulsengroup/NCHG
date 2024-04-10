@@ -16,12 +16,16 @@
 # License along with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
+find_package(Boost REQUIRED COMPONENTS filesystem)  # TODO drop filesystem after upgrading hictk
+find_package(bshoshany-thread-pool REQUIRED)
 find_package(CLI11 REQUIRED)
+find_package(concurrentqueue REQUIRED)
 find_package(FMT REQUIRED)
 find_package(hictk REQUIRED)
 find_package(Filesystem REQUIRED)
 find_package(HighFive REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(Threads REQUIRED)
 
 add_executable(NCHG)
 
@@ -37,12 +41,17 @@ target_include_directories(NCHG PRIVATE include/)
 target_link_libraries(
   NCHG
   PRIVATE libnchg
+          Boost::headers
+          Boost::filesystem  # TODO remove after upgrading hictk
+          bshoshany-thread-pool::bshoshany-thread-pool
           CLI11::CLI11
+          concurrentqueue::concurrentqueue
           fmt::fmt-header-only
           hictk::libhictk
           HighFive
           spdlog::spdlog_header_only
-          std::filesystem)
+          std::filesystem
+          Threads::Threads)
 
 include(GNUInstallDirs)
 install(

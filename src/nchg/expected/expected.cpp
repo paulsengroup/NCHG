@@ -63,13 +63,13 @@ int run_nchg_expected(const ExpectedConfig &c) {
   // clang-format on
 
   const auto f = [&]() -> FilePtr {
-    hictk::File ff(c.input_path.string(), c.resolution);
+    hictk::File f_(c.input_path.string(), c.resolution);
     return {std::visit(
         [&](auto &&ff) {
           using FileT = std::remove_reference_t<decltype(ff)>;
           return FilePtr{std::make_shared<const FileT>(std::forward<FileT>(ff))};
         },
-        ff.get())};
+        f_.get())};
   }();
 
   std::visit(

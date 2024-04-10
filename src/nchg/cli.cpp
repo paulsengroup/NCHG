@@ -362,7 +362,6 @@ void Cli::validate_compute_subcommand() const {
 
 void Cli::validate_expected_subcommand() const {
   const auto &c = std::get<ExpectedConfig>(_config);
-  const auto &sc = *_cli.get_subcommand("expected");
 
   [[maybe_unused]] std::vector<std::string> warnings;
   std::vector<std::string> errors;

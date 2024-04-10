@@ -30,6 +30,7 @@
 #include <cstdlib>
 #endif
 
+#include "nchg/common.hpp"
 #include "nchg/cli.hpp"
 #include "nchg/config.hpp"
 #include "nchg/tools.hpp"
@@ -102,7 +103,7 @@ extern "C" void sigpipe_handler_unix([[maybe_unused]] int sig) {
 
   for (std::size_t i = 0; i < num_pids; ++i) {
     const auto pid = *(pids + i);
-    if (pid != static_cast<pid_t>(-1)) {
+    if (pid != conditional_static_cast<pid_t>(-1)) {
       kill(pid, SIGKILL);
     }
   }
@@ -114,7 +115,7 @@ extern "C" void sigpipe_handler_unix([[maybe_unused]] int sig) {
 static void setup_sigpipe_signal_handler_linux() {
   num_pids = std::thread::hardware_concurrency();
   pids = reinterpret_cast<pid_t *>(malloc(num_pids.load() * sizeof(pid_t)));  // NOLINT
-  std::fill(pids.load(), pids.load() + num_pids.load(), static_cast<pid_t>(-1));
+  std::fill(pids.load(), pids.load() + num_pids.load(), conditional_static_cast<pid_t>(-1));
 
   const auto status = std::signal(SIGPIPE, sigpipe_handler_unix);
   if (status == SIG_ERR) {

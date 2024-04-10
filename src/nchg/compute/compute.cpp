@@ -71,7 +71,7 @@ static void print_header() {
 
 [[nodiscard]] static std::string_view truncate_bed3_record(std::string_view record,
                                                            char sep = '\t') {
-  const auto pos1 = record.find('\t');
+  const auto pos1 = record.find(sep);
   if (pos1 == std::string_view::npos) {
     throw std::runtime_error("invalid bed record, expected 3 tokens, found 1");
   }
@@ -212,13 +212,13 @@ static void run_nchg_compute_worker(const ComputePvalConfig &c) {
   // clang-format on
 
   const auto f = [&]() -> FilePtr {
-    hictk::File ff(c.path.string(), c.resolution);
+    hictk::File f_(c.path.string(), c.resolution);
     return {std::visit(
         [&](auto &&ff) {
           using FileT = std::remove_reference_t<decltype(ff)>;
           return FilePtr{std::make_shared<const FileT>(std::forward<FileT>(ff))};
         },
-        ff.get())};
+        f_.get())};
   }();
 
   std::visit(
@@ -383,7 +383,7 @@ static void process_queries(
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
     const ComputePvalConfig &c, std::atomic<PidT *> &pids,
     const std::atomic<std::size_t> &num_pids) {
-  BS::thread_pool tpool(c.threads + 1);
+  BS::thread_pool tpool(conditional_static_cast<BS::concurrency_t>(c.threads + 1));
   moodycamel::BlockingConcurrentQueue<std::string> msg_queue(c.threads * 1'000);
 
   std::mutex pids_mtx{};

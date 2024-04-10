@@ -290,8 +290,8 @@ void Cli::make_filter_subcommand() {
       ->check(CLI::NonNegativeNumber)
       ->capture_default_str();
   sc.add_flag(
-      "--keep-non-significant,!--drop-non-significant",
-      c.keep_non_significant,
+      "--drop-non-significant,!--keep-non-significant",
+      c.drop_non_significant,
       "Output non-significant interactions (i.e. ignore --fdr and --log-ratio cutoffs).")
       ->capture_default_str();
   sc.add_flag(

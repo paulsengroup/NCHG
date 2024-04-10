@@ -52,7 +52,7 @@ struct FilterConfig {
 
   double fdr{0.01};
   double log_ratio{2.0};
-  bool keep_non_significant{false};
+  bool drop_non_significant{true};
 
   bool write_header{true};
 

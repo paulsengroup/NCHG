@@ -26,6 +26,7 @@
 
 namespace nchg {
 struct ComputePvalConfig {
+  std::filesystem::path exec{};
   std::filesystem::path path{};
   std::uint32_t resolution{};
   std::string chrom1{"all"};
@@ -40,6 +41,8 @@ struct ComputePvalConfig {
   std::uint64_t num_quantiles{100};
 
   bool write_header{true};
+
+  std::size_t threads{1};
 
   std::uint8_t verbosity{4};
 };

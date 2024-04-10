@@ -16,9 +16,16 @@
 // License along with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
+#include <blockingconcurrentqueue.h>
+#include <fmt/compile.h>
 #include <fmt/format.h>
 #include <fmt/std.h>
 
+#include <BS_thread_pool.hpp>
+#include <algorithm>
+#include <boost/asio/read_until.hpp>
+#include <boost/asio/streambuf.hpp>
+#include <boost/process/v2.hpp>
 #include <cstdint>
 #include <fstream>
 #include <hictk/file.hpp>
@@ -26,7 +33,12 @@
 #include <hictk/genomic_interval.hpp>
 #include <hictk/reference.hpp>
 #include <memory>
+#include <random>
 #include <variant>
+
+#ifndef _WIN32
+#include <csignal>
+#endif
 
 #include "nchg/common.hpp"
 #include "nchg/config.hpp"
@@ -68,6 +80,7 @@ static void print_header() {
 [[nodiscard]] static std::vector<hictk::GenomicInterval> parse_domains(
     const hictk::Reference &chroms, const std::filesystem::path &path, std::string_view chrom1,
     std::string_view chrom2) {
+  SPDLOG_INFO(FMT_STRING("reading domains from {}..."), path);
   std::vector<hictk::GenomicInterval> domains{};
   std::string buffer{};
 
@@ -107,6 +120,7 @@ static void print_header() {
   }
 
   std::sort(domains.begin(), domains.end());
+  SPDLOG_INFO(FMT_STRING("read {} domains from {}..."), domains.size(), path);
   return domains;
 }
 
@@ -163,97 +177,13 @@ static void process_domains(const FilePtr &f, const ComputePvalConfig &c) {
 }
 
 template <typename FilePtr>
-static void process_all_chromosomes(const FilePtr &f, const ComputePvalConfig &c) {
-  NCHG nchg(f, c.min_delta, c.max_delta);
-
-  bool header_printed = false;
-  for (std::uint32_t chrom1_id = 0; chrom1_id < f->chromosomes().size(); ++chrom1_id) {
-    const auto &chrom1 = f->chromosomes().at(chrom1_id);
-    if (chrom1.is_all()) {
-      continue;
-    }
-    for (std::uint32_t chrom2_id = chrom1_id; chrom2_id < f->chromosomes().size(); ++chrom2_id) {
-      const auto &chrom2 = f->chromosomes().at(chrom2_id);
-      nchg.init_matrix(chrom1, chrom2);
-
-      if (c.write_header && !header_printed) {
-        print_header();
-        header_printed = true;
-      }
-
-      std::for_each(nchg.begin(chrom1, chrom2), nchg.end(chrom1, chrom2), [&](const auto &s) {
-        fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval,
-                   s.pixel.count, s.expected, s.odds_ratio, s.omega);
-      });
-      nchg.erase_matrix(chrom1, chrom2);
-    }
-  }
-}
-
-template <typename FilePtr>
-static void process_cis_only_chromosomes(const FilePtr &f, const ComputePvalConfig &c) {
-  assert(c.cis_only);
-  using File = remove_cvref_t<decltype(*f)>;
-  auto nchg = NCHG<File>::cis_only(f, c.min_delta, c.max_delta);
-
-  bool header_printed = false;
-  for (const auto &chrom : f->chromosomes()) {
-    nchg.init_matrix(chrom);
-
-    if (c.write_header && !header_printed) {
-      print_header();
-      header_printed = true;
-    }
-
-    std::for_each(nchg.begin(chrom, chrom), nchg.end(chrom, chrom), [&](const auto &s) {
-      fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval, s.pixel.count,
-                 s.expected, s.odds_ratio, s.omega);
-    });
-    nchg.erase_matrix(chrom);
-  }
-}
-
-template <typename FilePtr>
-static void process_trans_only(const FilePtr &f, const ComputePvalConfig &c) {
-  assert(c.trans_only);
-  using File = remove_cvref_t<decltype(*f)>;
-  auto nchg = NCHG<File>::trans_only(f);
-
-  bool header_printed = false;
-  for (std::uint32_t chrom1_id = 0; chrom1_id < f->chromosomes().size(); ++chrom1_id) {
-    const auto &chrom1 = f->chromosomes().at(chrom1_id);
-    if (chrom1.is_all()) {
-      continue;
-    }
-    for (std::uint32_t chrom2_id = chrom1_id + 1; chrom2_id < f->chromosomes().size();
-         ++chrom2_id) {
-      const auto &chrom2 = f->chromosomes().at(chrom2_id);
-      nchg.init_matrix(chrom1, chrom2);
-
-      if (c.write_header && !header_printed) {
-        print_header();
-        header_printed = true;
-      }
-
-      std::for_each(nchg.begin(chrom1, chrom2), nchg.end(chrom1, chrom2), [&](const auto &s) {
-        fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval,
-                   s.pixel.count, s.expected, s.odds_ratio, s.omega);
-      });
-      nchg.erase_matrix(chrom1, chrom2);
-    }
-  }
-}
-
-template <typename FilePtr>
-static void process_one_chromosome(const FilePtr &f, const ComputePvalConfig &c) {
+static void process_one_chromosome_pair(const FilePtr &f, const ComputePvalConfig &c) {
   const auto &chrom1 = f->chromosomes().at(c.chrom1);
   const auto &chrom2 = f->chromosomes().at(c.chrom2);
 
   using File = remove_cvref_t<decltype(*f)>;
 
   auto nchg = NCHG<File>::chromosome_pair(f, chrom1, chrom2, c.min_delta, c.max_delta);
-
-  nchg.init_matrix(chrom1, chrom2);
 
   if (c.write_header) {
     print_header();
@@ -265,7 +195,8 @@ static void process_one_chromosome(const FilePtr &f, const ComputePvalConfig &c)
   });
 }
 
-int run_nchg_compute(const ComputePvalConfig &c) {
+static void run_nchg_compute_worker(const ComputePvalConfig &c) {
+  assert(c.chrom1 != "all");
   // clang-format off
   using FilePtr =
       std::variant<
@@ -289,30 +220,249 @@ int run_nchg_compute(const ComputePvalConfig &c) {
           process_domains(f_, c);
           return;
         }
-
-        if (c.cis_only) {
-          assert(c.chrom1 == "all");
-          assert(c.chrom2 == "all");
-          process_cis_only_chromosomes(f_, c);
-          return;
-        }
-
-        if (c.trans_only) {
-          assert(c.chrom1 == "all");
-          assert(c.chrom2 == "all");
-          process_trans_only(f_, c);
-          return;
-        }
-
-        if (c.chrom1 == "all") {
-          assert(c.chrom2 == "all");
-          process_all_chromosomes(f_, c);
-          return;
-        }
-        process_one_chromosome(f_, c);
+        process_one_chromosome_pair(f_, c);
       },
       f);
+}
+
+[[nodiscard]] static std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>>
+init_cis_chromosomes(const hictk::Reference &chroms) {
+  std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> buffer{};
+
+  for (const auto &chrom : chroms) {
+    if (chrom.is_all()) {
+      continue;
+    }
+    buffer.emplace_back(chrom, chrom);
+  }
+
+  return buffer;
+}
+
+[[nodiscard]] static std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>>
+init_trans_chromosomes(const hictk::Reference &chroms) {
+  std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> buffer{};
+
+  for (const auto &chrom1 : chroms) {
+    if (chrom1.is_all()) {
+      continue;
+    }
+    for (std::uint32_t chrom2_id = chrom1.id() + 1; chrom2_id < chroms.size(); ++chrom2_id) {
+      buffer.emplace_back(chrom1, chroms.at(chrom2_id));
+    }
+  }
+  return buffer;
+}
+
+static void io_worker(moodycamel::BlockingConcurrentQueue<std::string> &msg_queue,
+                      const std::atomic<bool> &early_return,
+                      const std::atomic<std::size_t> &proc_completed,
+                      const std::atomic<std::size_t> &proc_submitted,
+                      const std::atomic<std::size_t> &msg_submitted,
+                      std::atomic<std::size_t> &msg_received) {
+  SPDLOG_INFO("spawning IO thread");
+  moodycamel::ConsumerToken ctok(msg_queue);
+  std::string buffer{};
+  while (!early_return && ((proc_submitted == 0 || proc_completed != proc_submitted) ||
+                           msg_submitted != msg_received)) {
+    SPDLOG_DEBUG(FMT_STRING("[IO] reading message..."));
+    const auto msg_dequeued =
+        msg_queue.wait_dequeue_timed(ctok, buffer, std::chrono::milliseconds(10));
+    if (msg_dequeued) {
+      SPDLOG_DEBUG(FMT_STRING("[IO] message read successfully!"));
+      ++msg_received;
+      fmt::print(FMT_COMPILE("{}\n"), buffer);
+    } else {
+      SPDLOG_DEBUG(FMT_STRING("[IO] unable to read message, trying again in 10 ms"));
+    }
+  }
+  SPDLOG_DEBUG("[IO] returning");
+}
+
+[[nodiscard]] static auto spawn_compute_process(const ComputePvalConfig &c,
+                                                const std::string &chrom1,
+                                                const std::string &chrom2,
+                                                boost::asio::io_context &ctx) {
+  std::vector<std::string> args{"compute",      "--chrom1",
+                                chrom1,         "--chrom2",
+                                chrom2,         "--no-write-header",
+                                "--threads",    "1",
+                                "--min-delta",  fmt::to_string(c.min_delta),
+                                "--max-delta",  fmt::to_string(c.max_delta),
+                                "--resolution", fmt::to_string(c.resolution),
+                                c.path.string()};
+
+  if (!c.path_to_domains.empty()) {
+    args.emplace_back("--domains");
+    args.emplace_back(c.path_to_domains.string());
+  }
+
+  boost::asio::readable_pipe pipe(ctx);
+  boost::process::v2::process proc(ctx, c.exec.string(), args,
+                                   boost::process::v2::process_stdio{{}, pipe, {}});
+  SPDLOG_INFO(FMT_STRING("spawned worker process {}..."), proc.id());
+
+  return std::make_pair(std::move(pipe), std::move(proc));
+}
+
+static void consume_compute_process_output(
+    boost::process::v2::process &proc, boost::asio::readable_pipe &pipe,
+    moodycamel::BlockingConcurrentQueue<std::string> &msg_queue, std::atomic<bool> &early_return,
+    std::atomic<std::size_t> &msg_submitted) {
+  const moodycamel::ProducerToken ptok(msg_queue);
+  boost::system::error_code ec{};
+  boost::asio::streambuf strbuff;
+  std::istream is(&strbuff);
+  std::string line;
+  while (pipe.is_open()) {
+    boost::asio::read_until(pipe, strbuff, '\n', ec);
+    if (ec == boost::asio::error::eof) {
+      break;
+    }
+    if (ec) {
+      early_return = true;
+      proc.terminate();
+      throw std::runtime_error(ec.message());
+    }
+    std::getline(is, line);
+
+    SPDLOG_DEBUG(FMT_STRING("[{}] sending message..."), proc.id());
+    while (!early_return && !msg_queue.try_enqueue(ptok, line)) {
+      SPDLOG_DEBUG(FMT_STRING("[{}] sending message failed! Retrying in 10 ms..."), proc.id());
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    ++msg_submitted;
+
+    if (early_return) {
+      SPDLOG_DEBUG(FMT_STRING("[{}] terminating process..."), proc.id());
+      proc.terminate();
+      return;
+    }
+  }
+  SPDLOG_INFO(FMT_STRING("[{}] done reading output from process!"), proc.id());
+}
+
+template <typename PidT>
+[[nodiscard]] static std::size_t register_process(boost::process::v2::process &proc,
+                                                  std::atomic<PidT *> &pids,
+                                                  const std::atomic<std::size_t> &num_pids,
+                                                  std::mutex &pids_mtx) {
+  const std::scoped_lock lck(pids_mtx);
+  for (std::size_t i = 0; i < num_pids; ++i) {
+    if (pids[i] == -1) {
+      pids[i] = conditional_static_cast<PidT>(proc.id());
+      return i;
+    }
+  }
+  proc.terminate();
+  throw std::runtime_error(fmt::format(FMT_STRING("unable to register process {}"), proc.id()));
+}
+
+template <typename PidT>
+static void deregister_process(std::size_t slot, std::atomic<PidT *> &pids) {
+  pids[slot] = static_cast<pid_t>(-1);
+}
+
+template <typename PidT>
+static void process_queries(
+    const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
+    const ComputePvalConfig &c, std::atomic<PidT *> &pids,
+    const std::atomic<std::size_t> &num_pids) {
+  BS::thread_pool tpool(c.threads + 1);
+  moodycamel::BlockingConcurrentQueue<std::string> msg_queue(c.threads * 1'000);
+
+  std::mutex pids_mtx{};
+
+  std::atomic<std::size_t> msg_submitted{};
+  std::atomic<std::size_t> msg_received{};
+
+  std::atomic<std::size_t> proc_submitted{};
+  std::atomic<std::size_t> proc_completed{};
+  std::atomic<bool> early_return{false};
+
+  auto io = tpool.submit_task([&]() {
+    io_worker(msg_queue, early_return, proc_completed, proc_submitted, msg_submitted, msg_received);
+  });
+
+  auto workers = tpool.submit_loop<std::size_t>(
+      0, chrom_pairs.size(),
+      [&](std::size_t i) {
+        if (early_return) {
+          return;
+        }
+
+        const auto chrom1 = std::string{chrom_pairs[i].first.name()};
+        const auto chrom2 = std::string{chrom_pairs[i].second.name()};
+
+        boost::asio::io_context ctx{};
+        auto [pipe, proc] = spawn_compute_process(c, chrom1, chrom2, ctx);
+        const auto pid_offset = register_process(proc, pids, num_pids, pids_mtx);
+        ++proc_submitted;
+
+        consume_compute_process_output(proc, pipe, msg_queue, early_return, msg_submitted);
+
+        proc.wait();
+        deregister_process(pid_offset, pids);
+        ++proc_completed;
+
+        if (proc.exit_code() != 0) {
+          early_return = true;
+          throw std::runtime_error(
+              fmt::format(FMT_STRING("child process terminated with code {}"), proc.exit_code()));
+        }
+      },
+      chrom_pairs.size());
+
+  try {
+    io.wait();
+  } catch (...) {
+    early_return = true;
+    throw;
+  }
+  workers.wait();
+}
+
+template <typename PidT>
+int run_nchg_compute(const ComputePvalConfig &c, std::atomic<PidT *> &pids,
+                     const std::atomic<std::size_t> &num_pids) {
+  if (c.chrom1 != "all") {
+    assert(c.chrom2 != "all");
+    run_nchg_compute_worker(c);
+    return 0;
+  }
+
+  const hictk::File f(c.path, c.resolution);
+  std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> chrom_pairs{};
+  if (c.cis_only) {
+    chrom_pairs = init_cis_chromosomes(f.chromosomes());
+  }
+  if (c.trans_only) {
+    chrom_pairs = init_trans_chromosomes(f.chromosomes());
+  }
+
+  if (c.chrom1 == "all" && !c.cis_only && !c.trans_only) {
+    chrom_pairs = init_cis_chromosomes(f.chromosomes());
+    const auto chrom_pairs2 = init_trans_chromosomes(f.chromosomes());
+    std::copy(chrom_pairs2.begin(), chrom_pairs2.end(), std::back_inserter(chrom_pairs));
+  }
+
+  assert(!chrom_pairs.empty());
+
+  // Poor man's load balancing
+  std::mt19937_64 rand_eng{};
+  std::shuffle(chrom_pairs.begin(), chrom_pairs.end(), rand_eng);
+  process_queries(chrom_pairs, c, pids, num_pids);
 
   return 0;
 }
+
+#ifdef _WIN32
+return run_nchg_compute<std::uint32_t>(c, pids, num_pids);
+
+#else
+int run_nchg_compute(const ComputePvalConfig &c, std::atomic<pid_t *> &pids,
+                     const std::atomic<std::size_t> &num_pids) {
+  return run_nchg_compute<pid_t>(c, pids, num_pids);
+}
+#endif
 }  // namespace nchg

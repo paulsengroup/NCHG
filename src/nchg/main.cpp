@@ -23,6 +23,11 @@
 #include <cassert>
 #include <cstdio>
 #include <tuple>
+#include <vector>
+
+#ifndef _WIN32
+#include <csignal>
+#endif
 
 #include "nchg/cli.hpp"
 #include "nchg/config.hpp"
@@ -80,6 +85,45 @@ static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &
   }
 }
 
+#ifdef _WIN32
+// List of PIDs for child processes that should be killed when SIGPIPE is raised
+static std::atomic<std::uint32_t *> pids{};
+static std::atomic<std::size_t> num_pids{};
+#else
+static std::atomic<pid_t *> pids{};          // NOLINT
+static std::atomic<std::size_t> num_pids{};  // NOLINT
+extern "C" void sigpipe_handler_linux([[maybe_unused]] int sig) {
+  for (std::size_t i = 0; i < num_pids; ++i) {
+    const auto pid = *(pids + i);
+    if (pid != static_cast<pid_t>(-1)) {
+      kill(*(pids + i), SIGKILL);
+    }
+  }
+  free(pids.load());  // NOLINT
+  std::quick_exit(141);
+}
+
+void setup_sigpipe_signal_handler_linux() {
+  num_pids = std::thread::hardware_concurrency();
+  pids = (pid_t *)malloc(num_pids.load() * sizeof(pid_t));  // NOLINT
+  std::fill(pids.load(), pids.load() + num_pids.load(), static_cast<pid_t>(-1));
+
+  const auto status = signal(SIGPIPE, sigpipe_handler_linux);
+  if (status == SIG_ERR) {
+    SPDLOG_WARN(
+        FMT_STRING("falied to setup the signal handler for SIGPIPE! "
+                   "This could lead to zombie processes if the program is terminated abruptly."));
+  }
+}
+
+#endif
+
+void setup_sigpipe_signal_handler() {
+#ifndef _WIN32
+  setup_sigpipe_signal_handler_linux();
+#endif
+}
+
 // NOLINTNEXTLINE(bugprone-exception-escape)
 int main(int argc, char **argv) noexcept {
   std::unique_ptr<Cli> cli{nullptr};
@@ -97,7 +141,8 @@ int main(int argc, char **argv) noexcept {
     using sc = Cli::subcommand;
     switch (subcmd) {
       case sc::compute: {
-        return run_nchg_compute(std::get<ComputePvalConfig>(config));
+        setup_sigpipe_signal_handler();
+        return run_nchg_compute(std::get<ComputePvalConfig>(config), pids, num_pids);
       }
       case sc::expected: {
         return run_nchg_expected(std::get<ExpectedConfig>(config));

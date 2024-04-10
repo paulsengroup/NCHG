@@ -178,6 +178,12 @@ void Cli::make_compute_subcommand() {
     c.write_header,
     "Write the file header to stdout.")
     ->capture_default_str();
+  sc.add_option(
+    "--threads",
+    c.threads,
+    "Number of worker threads")
+    ->check(CLI::PositiveNumber)
+    ->capture_default_str();
   // clang-format on
 
   sc.get_option("--chrom2")->needs("--chrom1");
@@ -403,6 +409,8 @@ void Cli::transform_args_compute_subcommand() {
   if (c.chrom1 != "all" && c.chrom2 == "all") {
     c.chrom2 = c.chrom1;
   }
+
+  c.exec = _exec_name;
 
   // in spdlog, high numbers correspond to low log levels
   assert(c.verbosity > 0 && c.verbosity < 5);

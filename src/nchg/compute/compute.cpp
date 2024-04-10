@@ -368,7 +368,7 @@ template <typename PidT>
 
 template <typename PidT>
 static void deregister_process(std::size_t slot, std::atomic<PidT *> &pids) {
-  pids[slot] = static_cast<pid_t>(-1);
+  pids[slot] = static_cast<PidT>(-1);
 }
 
 template <typename PidT>
@@ -440,7 +440,7 @@ int run_nchg_compute(const ComputePvalConfig &c, std::atomic<PidT *> &pids,
     return 0;
   }
 
-  const hictk::File f(c.path, c.resolution);
+  const hictk::File f(c.path.string(), c.resolution);
   std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> chrom_pairs{};
   if (c.cis_only) {
     chrom_pairs = init_cis_chromosomes(f.chromosomes());
@@ -470,7 +470,10 @@ int run_nchg_compute(const ComputePvalConfig &c, std::atomic<PidT *> &pids,
 }
 
 #ifdef _WIN32
-return run_nchg_compute<std::uint32_t>(c, pids, num_pids);
+int run_nchg_compute(const ComputePvalConfig &c, std::atomic<std::uint32_t *> &pids,
+                     const std::atomic<std::size_t> &num_pids) {
+  return run_nchg_compute<std::uint32_t>(c, pids, num_pids);
+}
 #else
 int run_nchg_compute(const ComputePvalConfig &c, std::atomic<pid_t *> &pids,
                      const std::atomic<std::size_t> &num_pids) {

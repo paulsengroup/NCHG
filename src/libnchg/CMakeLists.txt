@@ -23,11 +23,17 @@ find_package(spdlog REQUIRED)
 
 include(FetchContent)
 
+if(WIN32)
+    set(STOCC_PATCH_COMMAND patch fnchyppr.cpp -i "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc.fnchyppr.patch.win")
+else()
+    set(STOCC_PATCH_COMMAND patch fnchyppr.cpp -i "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc.fnchyppr.patch")
+endif()
+
 FetchContent_Declare(
   stocc
   URL "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc-20240322.tar.xz"
   URL_HASH SHA256=a7eaa1a1a5d1d4f3ddbe94b7662e3ccb22c4be5efbc309e4348370cb97aaedfe
-  PATCH_COMMAND patch fnchyppr.cpp -i "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc.fnchyppr.patch"
+  PATCH_COMMAND "${STOCC_PATCH_COMMAND}"
   UPDATE_DISCONNECTED 1
   SYSTEM)
 

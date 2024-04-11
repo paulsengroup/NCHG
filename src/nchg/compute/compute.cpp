@@ -312,7 +312,7 @@ static void io_worker(moodycamel::BlockingConcurrentQueue<std::string> &msg_queu
                                 "--threads",
                                 "1",
                                 "--verbosity",
-                                "5",
+                                "2",
                                 "--min-delta",
                                 fmt::to_string(c.min_delta),
                                 "--max-delta",

@@ -206,6 +206,10 @@ jobs:
                 --timeout 120       |&
           tail -n 1000
 
+      - name: Install NCHG
+        run: |
+          cmake --install build --component Runtime
+
       - name: Test NCHG compute
         run: |
           dest/bin/NCHG.exe compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads $CTEST_PARALLEL_LEVEL > out.txt

@@ -191,7 +191,12 @@ void Cli::make_compute_subcommand() {
     "Set verbosity of output to the console.")
     ->check(CLI::Range(1, 5))
     ->capture_default_str();
+  sc.add_flag(
+    "--write-eof",
+    c.write_eof_signal)
+    ->group("");
   // clang-format on
+
 
   sc.get_option("--chrom2")->needs("--chrom1");
 

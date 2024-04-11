@@ -41,6 +41,7 @@ struct ComputePvalConfig {
   std::uint64_t num_quantiles{100};
 
   bool write_header{true};
+  bool write_eof_signal{false};
 
   std::size_t threads{1};
 

@@ -3,17 +3,17 @@
 // SPDX-License-Identifier: GPL-3.0
 //
 // This library is free software: you can redistribute it and/or
-// modify it under the terms of the GNU Lesser General Public
-// License as published by the Free Software Foundation; either
-// version 3 of the License, or (at your option) any later version.
+// modify it under the terms of the GNU Public License as published
+// by the Free Software Foundation; either version 3 of the License,
+// or (at your option) any later version.
 //
 // This library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // Library General Public License for more details.
 //
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library.  If not, see
+// You should have received a copy of the GNU Public License along
+// with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
 #include <fmt/compile.h>
@@ -25,6 +25,7 @@
 #include <cmath>
 #include <cstdint>
 #include <fstream>
+#include <hictk/numeric_utils.hpp>
 #include <memory>
 #include <set>
 #include <stdexcept>
@@ -86,6 +87,11 @@ struct SharedPtrStringCmp {
 
 using ChromosomeSet = phmap::btree_set<std::shared_ptr<std::string>, SharedPtrStringCmp>;
 
+template <typename N>
+[[nodiscard]] static N parse_numeric(std::string_view tok) {
+  return hictk::internal::parse_numeric_or_throw<N>(tok);
+}
+
 struct Stats {
   std::shared_ptr<const std::string> chrom1{};
   std::uint32_t start1{};
@@ -106,7 +112,6 @@ struct Stats {
   [[nodiscard]] static Stats parse(ChromosomeSet& chromosomes, std::string_view s,
                                    char sep = '\t') {
     assert(!s.empty());
-    assert(s.find('#') != 0);
     // TODO make more efficient
     std::vector<std::string_view> toks{};
     while (!s.empty()) {
@@ -127,21 +132,21 @@ struct Stats {
       chromosomes.emplace(std::make_shared<std::string>(std::string{toks[0]}));
     }
     auto chrom1_ptr = *chromosomes.find(toks[0]);
-    const auto start1 = std::stoull(std::string{toks[1]});
-    const auto end1 = std::stoull(std::string{toks[2]});
+    const auto start1 = parse_numeric<std::uint64_t>(toks[1]);
+    const auto end1 = parse_numeric<std::uint64_t>(toks[2]);
 
     if (chromosomes.find(toks[3]) == chromosomes.end()) {
       chromosomes.emplace(std::make_shared<std::string>(std::string{toks[3]}));
     }
     auto chrom2_ptr = *chromosomes.find(toks[3]);
-    const auto start2 = std::stoull(std::string{toks[4]});
-    const auto end2 = std::stoull(std::string{toks[5]});
+    const auto start2 = parse_numeric<std::uint64_t>(toks[4]);
+    const auto end2 = parse_numeric<std::uint64_t>(toks[5]);
 
-    const auto pvalue = std::stod(std::string{toks[6]});
-    const auto obs = std::stoull(std::string{toks[7]});
-    const auto exp = std::stod(std::string{toks[8]});
-    const auto odds_ratio = std::stod(std::string{toks[9]});
-    const auto omega = std::stod(std::string{toks[10]});
+    const auto pvalue = parse_numeric<double>(toks[6]);
+    const auto obs = parse_numeric<std::uint64_t>(toks[7]);
+    const auto exp = parse_numeric<double>(toks[8]);
+    const auto odds_ratio = parse_numeric<double>(toks[9]);
+    const auto omega = parse_numeric<double>(toks[10]);
 
     constexpr auto max_coord = std::numeric_limits<std::uint32_t>::max();
     if (start1 > max_coord) {
@@ -198,7 +203,7 @@ int run_nchg_filter(const FilterConfig& c) {
 
     std::string buffer{};
     for (; std::getline(fs, buffer); ++i) {
-      if (buffer.find('#') == 0) {
+      if (i == 1 && buffer.find("chrom1") == 0) {
         continue;
       }
       records.emplace_back(Stats::parse(chroms, buffer));

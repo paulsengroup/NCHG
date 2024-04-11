@@ -3,20 +3,20 @@
 # SPDX-License-Identifier: GPL-3.0
 #
 # This library is free software: you can redistribute it and/or
-# modify it under the terms of the GNU Lesser General Public
-# License as published by the Free Software Foundation; either
-# version 3 of the License, or (at your option) any later version.
+# modify it under the terms of the GNU Public License as published
+# by the Free Software Foundation; either version 3 of the License,
+# or (at your option) any later version.
 #
 # This library is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # Library General Public License for more details.
 #
-# You should have received a copy of the GNU Lesser General Public
-# License along with this library.  If not, see
+# You should have received a copy of the GNU Public License along
+# with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
-find_package(Boost REQUIRED COMPONENTS filesystem)  # TODO drop filesystem after upgrading hictk
+find_package(Boost REQUIRED COMPONENTS filesystem) # TODO drop filesystem after upgrading hictk
 find_package(bshoshany-thread-pool REQUIRED)
 find_package(CLI11 REQUIRED)
 find_package(concurrentqueue REQUIRED)
@@ -44,7 +44,7 @@ target_link_libraries(
           nchg_project_warnings
           libnchg
           Boost::headers
-          Boost::filesystem  # TODO remove after upgrading hictk
+          Boost::filesystem # TODO remove after upgrading hictk
           bshoshany-thread-pool::bshoshany-thread-pool
           CLI11::CLI11
           concurrentqueue::concurrentqueue

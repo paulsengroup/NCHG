@@ -3,17 +3,17 @@
 // SPDX-License-Identifier: GPL-3.0
 //
 // This library is free software: you can redistribute it and/or
-// modify it under the terms of the GNU Lesser General Public
-// License as published by the Free Software Foundation; either
-// version 3 of the License, or (at your option) any later version.
+// modify it under the terms of the GNU Public License as published
+// by the Free Software Foundation; either version 3 of the License,
+// or (at your option) any later version.
 //
 // This library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // Library General Public License for more details.
 //
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library.  If not, see
+// You should have received a copy of the GNU Public License along
+// with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
 #pragma once
@@ -41,10 +41,11 @@ struct ComputePvalConfig {
   std::uint64_t num_quantiles{100};
 
   bool write_header{true};
+  bool write_eof_signal{false};
 
   std::size_t threads{1};
 
-  std::uint8_t verbosity{4};
+  std::uint8_t verbosity{3};
 };
 
 struct FilterConfig {
@@ -52,11 +53,11 @@ struct FilterConfig {
 
   double fdr{0.01};
   double log_ratio{2.0};
-  bool keep_non_significant{false};
+  bool drop_non_significant{true};
 
   bool write_header{true};
 
-  std::uint8_t verbosity{4};
+  std::uint8_t verbosity{3};
 };
 
 struct ExpectedConfig {
@@ -73,7 +74,7 @@ struct ExpectedConfig {
   std::uint64_t max_delta{std::numeric_limits<std::uint64_t>::max()};
   std::uint64_t num_quantiles{100};
 
-  std::uint8_t verbosity{4};
+  std::uint8_t verbosity{3};
 };
 
 using Config = std::variant<std::monostate, ComputePvalConfig, ExpectedConfig, FilterConfig>;

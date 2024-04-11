@@ -3,17 +3,17 @@
 // SPDX-License-Identifier: GPL-3.0
 //
 // This library is free software: you can redistribute it and/or
-// modify it under the terms of the GNU Lesser General Public
-// License as published by the Free Software Foundation; either
-// version 3 of the License, or (at your option) any later version.
+// modify it under the terms of the GNU Public License as published
+// by the Free Software Foundation; either version 3 of the License,
+// or (at your option) any later version.
 //
 // This library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // Library General Public License for more details.
 //
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library.  If not, see
+// You should have received a copy of the GNU Public License along
+// with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
 #include <cassert>
@@ -63,13 +63,13 @@ int run_nchg_expected(const ExpectedConfig &c) {
   // clang-format on
 
   const auto f = [&]() -> FilePtr {
-    hictk::File ff(c.input_path.string(), c.resolution);
+    hictk::File f_(c.input_path.string(), c.resolution);
     return {std::visit(
         [&](auto &&ff) {
           using FileT = std::remove_reference_t<decltype(ff)>;
           return FilePtr{std::make_shared<const FileT>(std::forward<FileT>(ff))};
         },
-        ff.get())};
+        f_.get())};
   }();
 
   std::visit(

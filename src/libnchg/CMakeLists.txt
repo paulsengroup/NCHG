@@ -3,17 +3,17 @@
 # SPDX-License-Identifier: GPL-3.0
 #
 # This library is free software: you can redistribute it and/or
-# modify it under the terms of the GNU Lesser General Public
-# License as published by the Free Software Foundation; either
-# version 3 of the License, or (at your option) any later version.
+# modify it under the terms of the GNU Public License as published
+# by the Free Software Foundation; either version 3 of the License,
+# or (at your option) any later version.
 #
 # This library is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # Library General Public License for more details.
 #
-# You should have received a copy of the GNU Lesser General Public
-# License along with this library.  If not, see
+# You should have received a copy of the GNU Public License along
+# with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
 find_package(FMT REQUIRED)
@@ -26,7 +26,8 @@ include(FetchContent)
 FetchContent_Declare(
   stocc
   URL "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc-20240322.tar.xz"
-  URL_HASH SHA256=a7eaa1a1a5d1d4f3ddbe94b7662e3ccb22c4be5efbc309e4348370cb97aaedfe
+  URL_HASH SHA256=91e414f44445dcdfa569148c2484a50cadd786e30d833836d98f6111f82e9850
+  UPDATE_DISCONNECTED 1
   SYSTEM)
 
 set(NCHG_BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS}")

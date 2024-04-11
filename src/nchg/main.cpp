@@ -3,17 +3,17 @@
 // SPDX-License-Identifier: GPL-3.0
 //
 // This library is free software: you can redistribute it and/or
-// modify it under the terms of the GNU Lesser General Public
-// License as published by the Free Software Foundation; either
-// version 3 of the License, or (at your option) any later version.
+// modify it under the terms of the GNU Public License as published
+// by the Free Software Foundation; either version 3 of the License,
+// or (at your option) any later version.
 //
 // This library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // Library General Public License for more details.
 //
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library.  If not, see
+// You should have received a copy of the GNU Public License along
+// with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
 #include <fmt/format.h>
@@ -31,6 +31,7 @@
 #endif
 
 #include "nchg/cli.hpp"
+#include "nchg/common.hpp"
 #include "nchg/config.hpp"
 #include "nchg/tools.hpp"
 
@@ -50,6 +51,7 @@ static void setup_logger_console(int verbosity_lvl, bool print_version) {
   for (auto &sink : spdlog::default_logger()->sinks()) {
     sink->set_level(spdlog::level::level_enum(verbosity_lvl));
   }
+  spdlog::set_level(spdlog::level::level_enum(verbosity_lvl));
 
   if (print_version) {
     SPDLOG_INFO(FMT_STRING("Running nchg v{}"), "0.0.1");
@@ -60,6 +62,7 @@ static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &
   try {
     auto config = cli.parse_arguments();
     const auto subcmd = cli.get_subcommand();
+    const auto ec = cli.exit();
     std::visit(
         [&](const auto &config_) {
           using T = hictk::remove_cvref_t<decltype(config_)>;
@@ -70,7 +73,7 @@ static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &
         },
         config);
 
-    return std::make_tuple(0, subcmd, config);
+    return std::make_tuple(ec, subcmd, config);
   } catch (const CLI::ParseError &e) {
     //  This takes care of formatting and printing error messages (if any)
     return std::make_tuple(cli.exit(e), Cli::subcommand::help, Config());
@@ -94,6 +97,7 @@ static std::atomic<std::size_t> num_pids{};
 static std::atomic<pid_t *> pids{};                // NOLINT
 static std::atomic<std::size_t> num_pids{};        // NOLINT
 static std::atomic<bool> sigpipe_received{false};  // NOLINT
+static std::atomic<bool> atexit_called{false};     // NOLINT
 
 extern "C" void sigpipe_handler_unix([[maybe_unused]] int sig) {
   if (sigpipe_received.exchange(true)) {
@@ -102,19 +106,19 @@ extern "C" void sigpipe_handler_unix([[maybe_unused]] int sig) {
 
   for (std::size_t i = 0; i < num_pids; ++i) {
     const auto pid = *(pids + i);
-    if (pid != static_cast<pid_t>(-1)) {
+    if (pid != conditional_static_cast<pid_t>(-1)) {
       kill(pid, SIGKILL);
     }
   }
 
-  free(pids.load());  // NOLINT
+  delete[] pids.load();  // NOLINT
   _exit(141);
 }
 
 static void setup_sigpipe_signal_handler_linux() {
   num_pids = std::thread::hardware_concurrency();
-  pids = reinterpret_cast<pid_t *>(malloc(num_pids.load() * sizeof(pid_t)));  // NOLINT
-  std::fill(pids.load(), pids.load() + num_pids.load(), static_cast<pid_t>(-1));
+  pids = new pid_t[num_pids];  // NOLINT
+  std::fill(pids.load(), pids.load() + num_pids.load(), conditional_static_cast<pid_t>(-1));
 
   const auto status = std::signal(SIGPIPE, sigpipe_handler_unix);
   if (status == SIG_ERR) {
@@ -125,12 +129,13 @@ static void setup_sigpipe_signal_handler_linux() {
 }
 
 static void at_exit_handler() {
-  free(pids.load());  // NOLINT
+  if (atexit_called.exchange(true)) {
+    return;
+  }
+  delete[] pids.load();  // NOLINT
 }
 
-static void setup_at_exit_handler_linux() {
-  std::ignore = std::atexit(at_exit_handler);
-}
+static void setup_at_exit_handler_linux() { std::ignore = std::atexit(at_exit_handler); }
 
 #endif
 
@@ -165,9 +170,7 @@ int main(int argc, char **argv) noexcept {
       case sc::compute: {
         setup_at_exit_handler();
         setup_sigpipe_signal_handler();
-        const auto ec1 = run_nchg_compute(std::get<ComputePvalConfig>(config), pids, num_pids);
-        free(pids.load());  // NOLINT
-        return ec1;
+        return run_nchg_compute(std::get<ComputePvalConfig>(config), pids, num_pids);
       }
       case sc::expected: {
         return run_nchg_expected(std::get<ExpectedConfig>(config));

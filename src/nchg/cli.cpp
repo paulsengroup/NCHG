@@ -3,17 +3,17 @@
 // SPDX-License-Identifier: GPL-3.0
 //
 // This library is free software: you can redistribute it and/or
-// modify it under the terms of the GNU Lesser General Public
-// License as published by the Free Software Foundation; either
-// version 3 of the License, or (at your option) any later version.
+// modify it under the terms of the GNU Public License as published
+// by the Free Software Foundation; either version 3 of the License,
+// or (at your option) any later version.
 //
 // This library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // Library General Public License for more details.
 //
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library.  If not, see
+// You should have received a copy of the GNU Public License along
+// with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
 #include "nchg/cli.hpp"
@@ -83,6 +83,7 @@ auto Cli::parse_arguments() -> Config {
 }
 
 int Cli::exit(const CLI::ParseError &e) const { return _cli.exit(e); }
+int Cli::exit() const noexcept { return _exit_code; }
 
 std::string_view Cli::subcommand_to_str(subcommand s) noexcept {
   switch (s) {
@@ -188,9 +189,14 @@ void Cli::make_compute_subcommand() {
     "-v,--verbosity",
     c.verbosity,
     "Set verbosity of output to the console.")
-    ->check(CLI::Range(1, 4))
+    ->check(CLI::Range(1, 5))
     ->capture_default_str();
+  sc.add_flag(
+    "--write-eof",
+    c.write_eof_signal)
+    ->group("");
   // clang-format on
+
 
   sc.get_option("--chrom2")->needs("--chrom1");
 
@@ -290,8 +296,8 @@ void Cli::make_filter_subcommand() {
       ->check(CLI::NonNegativeNumber)
       ->capture_default_str();
   sc.add_flag(
-      "--keep-non-significant,!--drop-non-significant",
-      c.keep_non_significant,
+      "--drop-non-significant,!--keep-non-significant",
+      c.drop_non_significant,
       "Output non-significant interactions (i.e. ignore --fdr and --log-ratio cutoffs).")
       ->capture_default_str();
   sc.add_flag(
@@ -362,7 +368,6 @@ void Cli::validate_compute_subcommand() const {
 
 void Cli::validate_expected_subcommand() const {
   const auto &c = std::get<ExpectedConfig>(_config);
-  const auto &sc = *_cli.get_subcommand("expected");
 
   [[maybe_unused]] std::vector<std::string> warnings;
   std::vector<std::string> errors;
@@ -406,7 +411,7 @@ void Cli::transform_args_expected_subcommand() {
   }
 
   // in spdlog, high numbers correspond to low log levels
-  assert(c.verbosity > 0 && c.verbosity < 5);
+  assert(c.verbosity > 0 && c.verbosity <= SPDLOG_LEVEL_CRITICAL);
   c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
 }
 
@@ -419,7 +424,7 @@ void Cli::transform_args_compute_subcommand() {
   c.exec = _exec_name;
 
   // in spdlog, high numbers correspond to low log levels
-  assert(c.verbosity > 0 && c.verbosity < 5);
+  assert(c.verbosity > 0 && c.verbosity <= SPDLOG_LEVEL_CRITICAL);
   c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
 }
 

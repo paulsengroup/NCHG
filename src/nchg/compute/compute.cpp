@@ -3,17 +3,17 @@
 // SPDX-License-Identifier: GPL-3.0
 //
 // This library is free software: you can redistribute it and/or
-// modify it under the terms of the GNU Lesser General Public
-// License as published by the Free Software Foundation; either
-// version 3 of the License, or (at your option) any later version.
+// modify it under the terms of the GNU Public License as published
+// by the Free Software Foundation; either version 3 of the License,
+// or (at your option) any later version.
 //
 // This library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // Library General Public License for more details.
 //
-// You should have received a copy of the GNU Lesser General Public
-// License along with this library.  If not, see
+// You should have received a copy of the GNU Public License along
+// with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
 #include <blockingconcurrentqueue.h>
@@ -71,7 +71,7 @@ static void print_header() {
 
 [[nodiscard]] static std::string_view truncate_bed3_record(std::string_view record,
                                                            char sep = '\t') {
-  const auto pos1 = record.find('\t');
+  const auto pos1 = record.find(sep);
   if (pos1 == std::string_view::npos) {
     throw std::runtime_error("invalid bed record, expected 3 tokens, found 1");
   }
@@ -152,13 +152,13 @@ template <typename FilePtr, typename File = remove_cvref_t<decltype(*std::declva
 }
 
 template <typename FilePtr>
-static void process_domains(const FilePtr &f, const ComputePvalConfig &c) {
+[[nodiscard]] static std::size_t process_domains(const FilePtr &f, const ComputePvalConfig &c) {
   assert(std::filesystem::exists(c.path_to_domains));
 
   const auto domains = parse_domains(f->chromosomes(), c.path_to_domains, c.chrom1, c.chrom2);
 
   if (domains.empty()) {
-    return;
+    return 0;
   }
 
   const auto nchg = init_nchg(f, c);
@@ -167,6 +167,7 @@ static void process_domains(const FilePtr &f, const ComputePvalConfig &c) {
     print_header();
   }
 
+  std::size_t num_records = 0;
   for (std::size_t i = 0; i < domains.size(); ++i) {
     for (std::size_t j = i; j < domains.size(); ++j) {
       const auto &d1 = domains[i];
@@ -179,12 +180,15 @@ static void process_domains(const FilePtr &f, const ComputePvalConfig &c) {
       const auto s = nchg.compute(d1, d2);
       fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval, s.pixel.count,
                  s.expected, s.odds_ratio, s.omega);
+      ++num_records;
     }
   }
+  return num_records;
 }
 
 template <typename FilePtr>
-static void process_one_chromosome_pair(const FilePtr &f, const ComputePvalConfig &c) {
+[[nodiscard]] static std::size_t process_one_chromosome_pair(const FilePtr &f,
+                                                             const ComputePvalConfig &c) {
   const auto &chrom1 = f->chromosomes().at(c.chrom1);
   const auto &chrom2 = f->chromosomes().at(c.chrom2);
 
@@ -196,13 +200,16 @@ static void process_one_chromosome_pair(const FilePtr &f, const ComputePvalConfi
     print_header();
   }
 
+  std::size_t num_records = 0;
   std::for_each(nchg.begin(chrom1, chrom2), nchg.end(chrom1, chrom2), [&](const auto &s) {
+    ++num_records;
     fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval, s.pixel.count,
                s.expected, s.odds_ratio, s.omega);
   });
+  return num_records;
 }
 
-static void run_nchg_compute_worker(const ComputePvalConfig &c) {
+[[nodiscard]] static std::size_t run_nchg_compute_worker(const ComputePvalConfig &c) {
   assert(c.chrom1 != "all");
   // clang-format off
   using FilePtr =
@@ -212,22 +219,21 @@ static void run_nchg_compute_worker(const ComputePvalConfig &c) {
   // clang-format on
 
   const auto f = [&]() -> FilePtr {
-    hictk::File ff(c.path.string(), c.resolution);
+    hictk::File f_(c.path.string(), c.resolution);
     return {std::visit(
         [&](auto &&ff) {
           using FileT = std::remove_reference_t<decltype(ff)>;
           return FilePtr{std::make_shared<const FileT>(std::forward<FileT>(ff))};
         },
-        ff.get())};
+        f_.get())};
   }();
 
-  std::visit(
-      [&](const auto &f_) {
+  return std::visit(
+      [&](const auto &f_) -> std::size_t {
         if (!c.path_to_domains.empty()) {
-          process_domains(f_, c);
-          return;
+          return process_domains(f_, c);
         }
-        process_one_chromosome_pair(f_, c);
+        return process_one_chromosome_pair(f_, c);
       },
       f);
 }
@@ -267,23 +273,27 @@ static void io_worker(moodycamel::BlockingConcurrentQueue<std::string> &msg_queu
                       const std::atomic<std::size_t> &proc_submitted,
                       const std::atomic<std::size_t> &msg_submitted,
                       std::atomic<std::size_t> &msg_received) {
-  SPDLOG_DEBUG("spawning IO thread");
-  moodycamel::ConsumerToken ctok(msg_queue);
-  std::string buffer{};
-  while (!early_return && ((proc_submitted == 0 || proc_completed != proc_submitted) ||
-                           msg_submitted != msg_received)) {
-    SPDLOG_DEBUG(FMT_STRING("[IO] reading message..."));
-    const auto msg_dequeued =
-        msg_queue.wait_dequeue_timed(ctok, buffer, std::chrono::milliseconds(10));
-    if (msg_dequeued) {
-      SPDLOG_DEBUG(FMT_STRING("[IO] message read successfully!"));
-      ++msg_received;
-      fmt::print(FMT_COMPILE("{}\n"), buffer);
-    } else {
-      SPDLOG_DEBUG(FMT_STRING("[IO] unable to read message, trying again in 10 ms"));
+  try {
+    SPDLOG_DEBUG("spawning IO thread");
+    moodycamel::ConsumerToken ctok(msg_queue);
+    std::string buffer{};
+    while (!early_return && (proc_completed != proc_submitted || msg_submitted != msg_received)) {
+      SPDLOG_DEBUG(FMT_STRING("[IO] reading message..."));
+      const auto msg_dequeued =
+          msg_queue.wait_dequeue_timed(ctok, buffer, std::chrono::milliseconds(10));
+      if (msg_dequeued) {
+        SPDLOG_DEBUG(FMT_STRING("[IO] message read successfully!"));
+        ++msg_received;
+        fmt::print(FMT_COMPILE("{}\n"), buffer);
+      } else {
+        SPDLOG_DEBUG(FMT_STRING("[IO] unable to read message, trying again in 10 ms"));
+      }
     }
+    SPDLOG_DEBUG("[IO] returning");
+  } catch (const std::exception &e) {
+    throw std::runtime_error(
+        fmt::format(FMT_STRING("an error occurred in the IO thread: {}"), e.what()));
   }
-  SPDLOG_DEBUG("[IO] returning");
 }
 
 [[nodiscard]] static auto spawn_compute_process(const ComputePvalConfig &c,
@@ -292,14 +302,23 @@ static void io_worker(moodycamel::BlockingConcurrentQueue<std::string> &msg_queu
                                                 boost::asio::io_context &ctx) {
   SPDLOG_INFO(FMT_STRING("begin processing {}:{}"), chrom1, chrom2);
 
-  std::vector<std::string> args{"compute",      "--chrom1",
-                                chrom1,         "--chrom2",
-                                chrom2,         "--no-write-header",
-                                "--threads",    "1",
-                                "--verbosity",  "2",
-                                "--min-delta",  fmt::to_string(c.min_delta),
-                                "--max-delta",  fmt::to_string(c.max_delta),
-                                "--resolution", fmt::to_string(c.resolution),
+  std::vector<std::string> args{"compute",
+                                "--chrom1",
+                                chrom1,
+                                "--chrom2",
+                                chrom2,
+                                "--no-write-header",
+                                "--write-eof",
+                                "--threads",
+                                "1",
+                                "--verbosity",
+                                "2",
+                                "--min-delta",
+                                fmt::to_string(c.min_delta),
+                                "--max-delta",
+                                fmt::to_string(c.max_delta),
+                                "--resolution",
+                                fmt::to_string(c.resolution),
                                 c.path.string()};
 
   if (!c.path_to_domains.empty()) {
@@ -320,27 +339,29 @@ static void consume_compute_process_output(
     [[maybe_unused]] std::string_view chrom1, [[maybe_unused]] std::string_view chrom2,
     moodycamel::BlockingConcurrentQueue<std::string> &msg_queue, std::atomic<bool> &early_return,
     std::atomic<std::size_t> &msg_submitted) {
-  const moodycamel::ProducerToken ptok(msg_queue);
   boost::system::error_code ec{};
   boost::asio::streambuf strbuff;
   std::istream is(&strbuff);
   std::string line;
 
   std::size_t records_processed{};
-  while (pipe.is_open()) {
+  while (true) {
     boost::asio::read_until(pipe, strbuff, '\n', ec);
-    if (ec == boost::asio::error::eof) {
-      break;
-    }
     if (ec) {
       early_return = true;
-      proc.terminate();
+      if (proc.running()) {
+        proc.terminate();
+      }
       throw std::runtime_error(ec.message());
     }
     std::getline(is, line);
 
+    if (line == "__EOF__" || line == "__EOF__\r") {
+      break;
+    }
+
     SPDLOG_DEBUG(FMT_STRING("[{}] sending message..."), proc.id());
-    while (!early_return && !msg_queue.try_enqueue(ptok, line)) {
+    while (!early_return && !msg_queue.try_enqueue(line)) {
       SPDLOG_DEBUG(FMT_STRING("[{}] sending message failed! Retrying in 10 ms..."), proc.id());
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -358,10 +379,13 @@ static void consume_compute_process_output(
 }
 
 template <typename PidT>
-[[nodiscard]] static std::size_t register_process(boost::process::v2::process &proc,
-                                                  std::atomic<PidT *> &pids,
-                                                  const std::atomic<std::size_t> &num_pids,
-                                                  std::mutex &pids_mtx) {
+[[nodiscard]] static std::size_t register_process(
+    [[maybe_unused]] boost::process::v2::process &proc, [[maybe_unused]] std::atomic<PidT *> &pids,
+    [[maybe_unused]] const std::atomic<std::size_t> &num_pids,
+    [[maybe_unused]] std::mutex &pids_mtx) {
+#ifdef _WIN32
+  return 0;
+#else
   const std::scoped_lock lck(pids_mtx);
   for (std::size_t i = 0; i < num_pids; ++i) {
     if (pids[i] == -1) {
@@ -371,19 +395,23 @@ template <typename PidT>
   }
   proc.terminate();
   throw std::runtime_error(fmt::format(FMT_STRING("unable to register process {}"), proc.id()));
+#endif
 }
 
 template <typename PidT>
-static void deregister_process(std::size_t slot, std::atomic<PidT *> &pids) {
+static void deregister_process([[maybe_unused]] std::size_t slot,
+                               [[maybe_unused]] std::atomic<PidT *> &pids) {
+#ifndef _WIN32
   pids[slot] = static_cast<PidT>(-1);
+#endif
 }
 
 template <typename PidT>
-static void process_queries(
+static std::size_t process_queries(
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
     const ComputePvalConfig &c, std::atomic<PidT *> &pids,
     const std::atomic<std::size_t> &num_pids) {
-  BS::thread_pool tpool(c.threads + 1);
+  BS::thread_pool tpool(conditional_static_cast<BS::concurrency_t>(c.threads + 1));
   moodycamel::BlockingConcurrentQueue<std::string> msg_queue(c.threads * 1'000);
 
   std::mutex pids_mtx{};
@@ -391,7 +419,7 @@ static void process_queries(
   std::atomic<std::size_t> msg_submitted{};
   std::atomic<std::size_t> msg_received{};
 
-  std::atomic<std::size_t> proc_submitted{};
+  const std::atomic<std::size_t> proc_submitted{chrom_pairs.size()};
   std::atomic<std::size_t> proc_completed{};
   std::atomic<bool> early_return{false};
 
@@ -409,41 +437,52 @@ static void process_queries(
         const auto chrom1 = std::string{chrom_pairs[i].first.name()};
         const auto chrom2 = std::string{chrom_pairs[i].second.name()};
 
-        boost::asio::io_context ctx{};
-        auto [pipe, proc] = spawn_compute_process(c, chrom1, chrom2, ctx);
-        const auto pid_offset = register_process(proc, pids, num_pids, pids_mtx);
-        ++proc_submitted;
+        try {
+          boost::asio::io_context ctx{};
+          auto [pipe, proc] = spawn_compute_process(c, chrom1, chrom2, ctx);
+          const auto pid_offset = register_process(proc, pids, num_pids, pids_mtx);
 
-        consume_compute_process_output(proc, pipe, chrom1, chrom2, msg_queue, early_return,
-                                       msg_submitted);
+          consume_compute_process_output(proc, pipe, chrom1, chrom2, msg_queue, early_return,
+                                         msg_submitted);
 
-        proc.wait();
-        deregister_process(pid_offset, pids);
-        ++proc_completed;
+          proc.wait();
+          deregister_process(pid_offset, pids);
+          ++proc_completed;
 
-        if (proc.exit_code() != 0) {
-          early_return = true;
+          if (proc.exit_code() != 0) {
+            early_return = true;
+            throw std::runtime_error(
+                fmt::format(FMT_STRING("child process terminated with code {}"), proc.exit_code()));
+          }
+        } catch (const std::exception &e) {
           throw std::runtime_error(
-              fmt::format(FMT_STRING("child process terminated with code {}"), proc.exit_code()));
+              fmt::format(FMT_STRING("error in the worker thread processing {}:{}: {}"), chrom1,
+                          chrom2, e.what()));
         }
       },
       chrom_pairs.size());
 
-  try {
-    io.wait();
-  } catch (...) {
-    early_return = true;
-    throw;
-  }
-  workers.wait();
+  workers.get();
+  io.get();
+
+  return msg_received.load();
 }
 
 template <typename PidT>
 int run_nchg_compute(const ComputePvalConfig &c, std::atomic<PidT *> &pids,
                      const std::atomic<std::size_t> &num_pids) {
+  const auto t0 = std::chrono::system_clock::now();
+
   if (c.chrom1 != "all") {
     assert(c.chrom2 != "all");
-    run_nchg_compute_worker(c);
+    const auto interactions_processed = run_nchg_compute_worker(c);
+    if (c.write_eof_signal) {
+      fmt::print(FMT_STRING("__EOF__\n"));
+    }
+    const auto t1 = std::chrono::system_clock::now();
+    const auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+    SPDLOG_INFO(FMT_STRING("Processed {} interactions in {}s!"), interactions_processed,
+                static_cast<double>(delta) / 1000.0);
     return 0;
   }
 
@@ -471,7 +510,12 @@ int run_nchg_compute(const ComputePvalConfig &c, std::atomic<PidT *> &pids,
   if (c.write_header) {
     print_header();
   }
-  process_queries(chrom_pairs, c, pids, num_pids);
+  const auto interactions_processed = process_queries(chrom_pairs, c, pids, num_pids);
+
+  const auto t1 = std::chrono::system_clock::now();
+  const auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+  SPDLOG_INFO(FMT_STRING("Processed {} interactions in {}s!"), interactions_processed,
+              static_cast<double>(delta) / 1000.0);
 
   return 0;
 }

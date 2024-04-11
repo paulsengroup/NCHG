@@ -187,6 +187,7 @@ jobs:
                 -DNCHG_ENABLE_TESTING=ON                             \
                 -DOPT_ENABLE_CLANG_TIDY=OFF                          \
                 -DOPT_ENABLE_CPPCHECK=OFF                            \
+                -DCMAKE_INSTALL_PREFIX=dest                          \
                 -S .                                                 \
                 -B build
 
@@ -207,15 +208,15 @@ jobs:
 
       - name: Test NCHG compute
         run: |
-          build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$(nproc)" > out.txt
+          dest/bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads $CTEST_PARALLEL_LEVEL > out.txt
 
       - name: Test NCHG filter
         run: |
-          build/src/nchg/NCHG filter out.txt --keep-non-significant > /dev/null
+          dest/bin/NCHG filter out.txt --keep-non-significant > /dev/null
 
       - name: Test NCHG expected
         run: |
-          build/src/nchg/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5
+          dest/bin/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5
 
   windows-ci-status-check:
     name: Status Check (Windows CI)

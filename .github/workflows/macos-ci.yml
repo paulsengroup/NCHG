@@ -332,7 +332,7 @@ jobs:
 
       - name: Test NCHG compute
         run: |
-          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$(nproc)" > out.txt
+          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads $CTEST_PARALLEL_LEVEL > out.txt
 
       - name: Test NCHG filter
         run: |

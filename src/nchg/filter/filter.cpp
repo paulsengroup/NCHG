@@ -106,7 +106,6 @@ struct Stats {
   [[nodiscard]] static Stats parse(ChromosomeSet& chromosomes, std::string_view s,
                                    char sep = '\t') {
     assert(!s.empty());
-    assert(s.find('#') != 0);
     // TODO make more efficient
     std::vector<std::string_view> toks{};
     while (!s.empty()) {
@@ -198,7 +197,7 @@ int run_nchg_filter(const FilterConfig& c) {
 
     std::string buffer{};
     for (; std::getline(fs, buffer); ++i) {
-      if (buffer.find('#') == 0) {
+      if (i == 1 && buffer.find("chrom1") == 0) {
         continue;
       }
       records.emplace_back(Stats::parse(chroms, buffer));

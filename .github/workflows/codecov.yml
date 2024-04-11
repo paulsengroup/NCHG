@@ -168,9 +168,9 @@ jobs:
 
       - name: Run integration tests
         run: |
-          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$(nproc)" > out.txt
-          bin/NCHG filter out.txt --keep-non-significant > /dev/null
-          bin/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5
+          build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$(nproc)" > out.txt
+          build/src/nchg/NCHG filter out.txt --keep-non-significant > /dev/null
+          build/src/nchg/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3

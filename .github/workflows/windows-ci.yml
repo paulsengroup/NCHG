@@ -207,15 +207,15 @@ jobs:
 
       - name: Test NCHG compute
         run: |
-          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$(nproc)" > out.txt
+          build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$(nproc)" > out.txt
 
       - name: Test NCHG filter
         run: |
-          bin/NCHG filter out.txt --keep-non-significant > /dev/null
+          build/src/nchg/NCHG filter out.txt --keep-non-significant > /dev/null
 
       - name: Test NCHG expected
         run: |
-          bin/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5
+          build/src/nchg/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5
 
   windows-ci-status-check:
     name: Status Check (Windows CI)

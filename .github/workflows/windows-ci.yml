@@ -208,15 +208,15 @@ jobs:
 
       - name: Test NCHG compute
         run: |
-          dest/bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads $CTEST_PARALLEL_LEVEL > out.txt
+          dest/bin/NCHG.exe compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads $CTEST_PARALLEL_LEVEL > out.txt
 
       - name: Test NCHG filter
         run: |
-          dest/bin/NCHG filter out.txt --keep-non-significant > /dev/null
+          dest/bin/NCHG.exe filter out.txt --keep-non-significant > /dev/null
 
       - name: Test NCHG expected
         run: |
-          dest/bin/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5
+          dest/bin/NCHG.exe expected test/data/ENCFF447ERX.1000000.cool --output out.h5
 
   windows-ci-status-check:
     name: Status Check (Windows CI)

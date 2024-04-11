@@ -291,6 +291,13 @@ jobs:
       - name: Install test dependencies
         run: pip install -r requirements.txt
 
+      - name: Detect number available CPUs
+        run: |
+          ncpus=$(python -c 'import multiprocessing as mp; print(mp.cpu_count())')
+
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=$ncpus" >> $GITHUB_ENV
+          echo "CTEST_PARALLEL_LEVEL=$ncpus" >> $GITHUB_ENV
+
       - name: Run unit tests
         run: |
           ctest --test-dir build/   \
@@ -330,9 +337,15 @@ jobs:
         run: |
           zstd -dcf binaries.tar.zst | tar -xf -
 
+      - name: Detect number available CPUs
+        run: |
+          ncpus=$(python -c 'import multiprocessing as mp; print(mp.cpu_count())')
+
+          echo "NPROC=$ncpus" >> $GITHUB_ENV
+
       - name: Test NCHG compute
         run: |
-          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads $CTEST_PARALLEL_LEVEL > out.txt
+          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads $NPROC > out.txt
 
       - name: Test NCHG filter
         run: |

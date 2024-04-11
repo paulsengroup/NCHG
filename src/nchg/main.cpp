@@ -62,6 +62,7 @@ static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &
   try {
     auto config = cli.parse_arguments();
     const auto subcmd = cli.get_subcommand();
+    const auto ec = cli.exit();
     std::visit(
         [&](const auto &config_) {
           using T = hictk::remove_cvref_t<decltype(config_)>;
@@ -72,7 +73,7 @@ static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &
         },
         config);
 
-    return std::make_tuple(0, subcmd, config);
+    return std::make_tuple(ec, subcmd, config);
   } catch (const CLI::ParseError &e) {
     //  This takes care of formatting and printing error messages (if any)
     return std::make_tuple(cli.exit(e), Cli::subcommand::help, Config());

@@ -270,8 +270,7 @@ static void io_worker(moodycamel::BlockingConcurrentQueue<std::string> &msg_queu
   SPDLOG_DEBUG("spawning IO thread");
   moodycamel::ConsumerToken ctok(msg_queue);
   std::string buffer{};
-  while (!early_return && ((proc_submitted == 0 || proc_completed != proc_submitted) ||
-                           msg_submitted != msg_received)) {
+  while (!early_return && (proc_completed != proc_submitted || msg_submitted != msg_received)) {
     SPDLOG_DEBUG(FMT_STRING("[IO] reading message..."));
     const auto msg_dequeued =
         msg_queue.wait_dequeue_timed(ctok, buffer, std::chrono::milliseconds(10));
@@ -320,14 +319,13 @@ static void consume_compute_process_output(
     [[maybe_unused]] std::string_view chrom1, [[maybe_unused]] std::string_view chrom2,
     moodycamel::BlockingConcurrentQueue<std::string> &msg_queue, std::atomic<bool> &early_return,
     std::atomic<std::size_t> &msg_submitted) {
-  const moodycamel::ProducerToken ptok(msg_queue);
   boost::system::error_code ec{};
   boost::asio::streambuf strbuff;
   std::istream is(&strbuff);
   std::string line;
 
   std::size_t records_processed{};
-  while (pipe.is_open()) {
+  while (true) {
     boost::asio::read_until(pipe, strbuff, '\n', ec);
     if (ec == boost::asio::error::eof) {
       break;
@@ -340,7 +338,7 @@ static void consume_compute_process_output(
     std::getline(is, line);
 
     SPDLOG_DEBUG(FMT_STRING("[{}] sending message..."), proc.id());
-    while (!early_return && !msg_queue.try_enqueue(ptok, line)) {
+    while (!early_return && !msg_queue.try_enqueue(line)) {
       SPDLOG_DEBUG(FMT_STRING("[{}] sending message failed! Retrying in 10 ms..."), proc.id());
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -391,7 +389,7 @@ static void process_queries(
   std::atomic<std::size_t> msg_submitted{};
   std::atomic<std::size_t> msg_received{};
 
-  std::atomic<std::size_t> proc_submitted{chrom_pairs.size()};
+  const std::atomic<std::size_t> proc_submitted{chrom_pairs.size()};
   std::atomic<std::size_t> proc_completed{};
   std::atomic<bool> early_return{false};
 
@@ -428,13 +426,8 @@ static void process_queries(
       },
       chrom_pairs.size());
 
-  try {
-    io.wait();
-  } catch (...) {
-    early_return = true;
-    throw;
-  }
   workers.wait();
+  io.wait();
 }
 
 template <typename PidT>

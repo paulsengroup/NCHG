@@ -111,7 +111,14 @@ struct Stats {
 
   [[nodiscard]] static Stats parse(ChromosomeSet& chromosomes, std::string_view s,
                                    char sep = '\t') {
-    assert(!s.empty());
+    if (s.empty()) {
+      throw std::runtime_error("found an empty line");
+    }
+
+    if (s.back() == '\r') {
+      s = s.substr(0, s.size() - 1);
+    }
+
     // TODO make more efficient
     std::vector<std::string_view> toks{};
     while (!s.empty()) {

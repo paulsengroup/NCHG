@@ -30,8 +30,8 @@
 #include <cstdlib>
 #endif
 
-#include "nchg/common.hpp"
 #include "nchg/cli.hpp"
+#include "nchg/common.hpp"
 #include "nchg/config.hpp"
 #include "nchg/tools.hpp"
 
@@ -95,6 +95,7 @@ static std::atomic<std::size_t> num_pids{};
 static std::atomic<pid_t *> pids{};                // NOLINT
 static std::atomic<std::size_t> num_pids{};        // NOLINT
 static std::atomic<bool> sigpipe_received{false};  // NOLINT
+static std::atomic<bool> atexit_called{false};     // NOLINT
 
 extern "C" void sigpipe_handler_unix([[maybe_unused]] int sig) {
   if (sigpipe_received.exchange(true)) {
@@ -108,13 +109,13 @@ extern "C" void sigpipe_handler_unix([[maybe_unused]] int sig) {
     }
   }
 
-  free(pids.load());  // NOLINT
+  delete[] pids.load();  // NOLINT
   _exit(141);
 }
 
 static void setup_sigpipe_signal_handler_linux() {
   num_pids = std::thread::hardware_concurrency();
-  pids = reinterpret_cast<pid_t *>(malloc(num_pids.load() * sizeof(pid_t)));  // NOLINT
+  pids = new pid_t[num_pids];  // NOLINT
   std::fill(pids.load(), pids.load() + num_pids.load(), conditional_static_cast<pid_t>(-1));
 
   const auto status = std::signal(SIGPIPE, sigpipe_handler_unix);
@@ -126,12 +127,13 @@ static void setup_sigpipe_signal_handler_linux() {
 }
 
 static void at_exit_handler() {
-  free(pids.load());  // NOLINT
+  if (atexit_called.exchange(true)) {
+    return;
+  }
+  delete[] pids.load();  // NOLINT
 }
 
-static void setup_at_exit_handler_linux() {
-  std::ignore = std::atexit(at_exit_handler);
-}
+static void setup_at_exit_handler_linux() { std::ignore = std::atexit(at_exit_handler); }
 
 #endif
 
@@ -166,9 +168,7 @@ int main(int argc, char **argv) noexcept {
       case sc::compute: {
         setup_at_exit_handler();
         setup_sigpipe_signal_handler();
-        const auto ec1 = run_nchg_compute(std::get<ComputePvalConfig>(config), pids, num_pids);
-        free(pids.load());  // NOLINT
-        return ec1;
+        return run_nchg_compute(std::get<ComputePvalConfig>(config), pids, num_pids);
       }
       case sc::expected: {
         return run_nchg_expected(std::get<ExpectedConfig>(config));

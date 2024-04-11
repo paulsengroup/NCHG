@@ -391,7 +391,7 @@ static void process_queries(
   std::atomic<std::size_t> msg_submitted{};
   std::atomic<std::size_t> msg_received{};
 
-  std::atomic<std::size_t> proc_submitted{};
+  std::atomic<std::size_t> proc_submitted{chrom_pairs.size()};
   std::atomic<std::size_t> proc_completed{};
   std::atomic<bool> early_return{false};
 
@@ -412,7 +412,6 @@ static void process_queries(
         boost::asio::io_context ctx{};
         auto [pipe, proc] = spawn_compute_process(c, chrom1, chrom2, ctx);
         const auto pid_offset = register_process(proc, pids, num_pids, pids_mtx);
-        ++proc_submitted;
 
         consume_compute_process_output(proc, pipe, chrom1, chrom2, msg_queue, early_return,
                                        msg_submitted);

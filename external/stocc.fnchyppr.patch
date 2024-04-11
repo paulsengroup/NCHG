@@ -1,0 +1,4 @@
+332c332
+<       memcpy(table, table+i1, (i0-i1+1)*sizeof(*table));
+---
+>       memmove(table, table+i1, (i0-i1+1)*sizeof(*table));

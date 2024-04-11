@@ -187,6 +187,7 @@ jobs:
                 -DNCHG_ENABLE_TESTING=ON                             \
                 -DOPT_ENABLE_CLANG_TIDY=OFF                          \
                 -DOPT_ENABLE_CPPCHECK=OFF                            \
+                -DCMAKE_INSTALL_PREFIX=dest                          \
                 -S .                                                 \
                 -B build
 
@@ -204,6 +205,22 @@ jobs:
                 --no-tests=error    \
                 --timeout 120       |&
           tail -n 1000
+
+      - name: Install NCHG
+        run: |
+          cmake --install build --component Runtime
+
+      - name: Test NCHG compute
+        run: |
+          dest/bin/NCHG.exe compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads $CTEST_PARALLEL_LEVEL > out.txt
+
+      - name: Test NCHG filter
+        run: |
+          dest/bin/NCHG.exe filter out.txt --keep-non-significant > /dev/null
+
+      - name: Test NCHG expected
+        run: |
+          dest/bin/NCHG.exe expected test/data/ENCFF447ERX.1000000.cool --output out.h5
 
   windows-ci-status-check:
     name: Status Check (Windows CI)

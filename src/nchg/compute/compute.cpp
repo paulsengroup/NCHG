@@ -102,6 +102,10 @@ static void print_header() {
         continue;
       }
 
+      if (buffer.back() == '\r') {
+        buffer.resize(buffer.size() - 1);
+      }
+
       try {
         const auto record = truncate_bed3_record(buffer);
         auto domain = hictk::GenomicInterval::parse_bed(chroms, record);

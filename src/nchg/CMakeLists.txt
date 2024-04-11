@@ -55,6 +55,8 @@ target_link_libraries(
           std::filesystem
           Threads::Threads)
 
+target_compile_definitions(NCHG PRIVATE SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
+
 include(GNUInstallDirs)
 install(
   TARGETS NCHG

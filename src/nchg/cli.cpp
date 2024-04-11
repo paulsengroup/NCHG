@@ -188,7 +188,7 @@ void Cli::make_compute_subcommand() {
     "-v,--verbosity",
     c.verbosity,
     "Set verbosity of output to the console.")
-    ->check(CLI::Range(1, 4))
+    ->check(CLI::Range(1, 5))
     ->capture_default_str();
   // clang-format on
 
@@ -405,7 +405,7 @@ void Cli::transform_args_expected_subcommand() {
   }
 
   // in spdlog, high numbers correspond to low log levels
-  assert(c.verbosity > 0 && c.verbosity < 5);
+  assert(c.verbosity > 0 && c.verbosity <= SPDLOG_LEVEL_CRITICAL);
   c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
 }
 
@@ -418,7 +418,7 @@ void Cli::transform_args_compute_subcommand() {
   c.exec = _exec_name;
 
   // in spdlog, high numbers correspond to low log levels
-  assert(c.verbosity > 0 && c.verbosity < 5);
+  assert(c.verbosity > 0 && c.verbosity <= SPDLOG_LEVEL_CRITICAL);
   c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
 }
 

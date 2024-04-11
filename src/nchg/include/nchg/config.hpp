@@ -44,7 +44,7 @@ struct ComputePvalConfig {
 
   std::size_t threads{1};
 
-  std::uint8_t verbosity{4};
+  std::uint8_t verbosity{3};
 };
 
 struct FilterConfig {
@@ -56,7 +56,7 @@ struct FilterConfig {
 
   bool write_header{true};
 
-  std::uint8_t verbosity{4};
+  std::uint8_t verbosity{3};
 };
 
 struct ExpectedConfig {
@@ -73,7 +73,7 @@ struct ExpectedConfig {
   std::uint64_t max_delta{std::numeric_limits<std::uint64_t>::max()};
   std::uint64_t num_quantiles{100};
 
-  std::uint8_t verbosity{4};
+  std::uint8_t verbosity{3};
 };
 
 using Config = std::variant<std::monostate, ComputePvalConfig, ExpectedConfig, FilterConfig>;

@@ -27,6 +27,8 @@ FetchContent_Declare(
   stocc
   URL "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc-20240322.tar.xz"
   URL_HASH SHA256=a7eaa1a1a5d1d4f3ddbe94b7662e3ccb22c4be5efbc309e4348370cb97aaedfe
+  PATCH_COMMAND patch fnchyppr.cpp -i "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc.fnchyppr.patch"
+  UPDATE_DISCONNECTED 1
   SYSTEM)
 
 set(NCHG_BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS}")

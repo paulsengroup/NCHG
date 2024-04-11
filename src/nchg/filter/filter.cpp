@@ -126,14 +126,14 @@ struct Stats {
     if (chromosomes.find(toks[0]) == chromosomes.end()) {
       chromosomes.emplace(std::make_shared<std::string>(std::string{toks[0]}));
     }
-    const auto& chrom1_ptr = *chromosomes.find(toks[0]);
+    auto chrom1_ptr = *chromosomes.find(toks[0]);
     const auto start1 = std::stoull(std::string{toks[1]});
     const auto end1 = std::stoull(std::string{toks[2]});
 
     if (chromosomes.find(toks[3]) == chromosomes.end()) {
       chromosomes.emplace(std::make_shared<std::string>(std::string{toks[3]}));
     }
-    const auto& chrom2_ptr = *chromosomes.find(toks[3]);
+    auto chrom2_ptr = *chromosomes.find(toks[3]);
     const auto start2 = std::stoull(std::string{toks[4]});
     const auto end2 = std::stoull(std::string{toks[5]});
 
@@ -170,10 +170,10 @@ struct Stats {
           end2));
     }
 
-    return {chrom1_ptr,
+    return {std::move(chrom1_ptr),
             static_cast<std::uint32_t>(start1),
             static_cast<std::uint32_t>(end1),
-            chrom2_ptr,
+            std::move(chrom2_ptr),
             static_cast<std::uint32_t>(start2),
             static_cast<std::uint32_t>(end2),
             pvalue,
@@ -214,9 +214,9 @@ int run_nchg_filter(const FilterConfig& c) {
     print_header();
   }
 
-  BH_FDR bh(records);
+  BH_FDR bh(std::move(records));
   for (const auto& s : bh.correct([](Stats& s) -> double& { return s.pvalue_corrected; })) {
-    if (c.keep_non_significant ||
+    if (!c.drop_non_significant ||
         (s.pvalue_corrected <= c.fdr && std::abs(s.log_ratio) >= c.log_ratio)) {
       fmt::print(FMT_COMPILE("{}\t"
                              "{}\t"

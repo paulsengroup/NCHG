@@ -40,7 +40,9 @@ target_sources(
 target_include_directories(NCHG PRIVATE include/)
 target_link_libraries(
   NCHG
-  PRIVATE libnchg
+  PRIVATE nchg_project_options
+          nchg_project_warnings
+          libnchg
           Boost::headers
           Boost::filesystem  # TODO remove after upgrading hictk
           bshoshany-thread-pool::bshoshany-thread-pool
@@ -52,6 +54,8 @@ target_link_libraries(
           spdlog::spdlog_header_only
           std::filesystem
           Threads::Threads)
+
+target_compile_definitions(NCHG PRIVATE SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
 
 include(GNUInstallDirs)
 install(

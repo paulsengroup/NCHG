@@ -71,7 +71,7 @@ static void print_header() {
 
 [[nodiscard]] static std::string_view truncate_bed3_record(std::string_view record,
                                                            char sep = '\t') {
-  const auto pos1 = record.find('\t');
+  const auto pos1 = record.find(sep);
   if (pos1 == std::string_view::npos) {
     throw std::runtime_error("invalid bed record, expected 3 tokens, found 1");
   }
@@ -212,13 +212,13 @@ static void run_nchg_compute_worker(const ComputePvalConfig &c) {
   // clang-format on
 
   const auto f = [&]() -> FilePtr {
-    hictk::File ff(c.path.string(), c.resolution);
+    hictk::File f_(c.path.string(), c.resolution);
     return {std::visit(
         [&](auto &&ff) {
           using FileT = std::remove_reference_t<decltype(ff)>;
           return FilePtr{std::make_shared<const FileT>(std::forward<FileT>(ff))};
         },
-        ff.get())};
+        f_.get())};
   }();
 
   std::visit(
@@ -270,8 +270,7 @@ static void io_worker(moodycamel::BlockingConcurrentQueue<std::string> &msg_queu
   SPDLOG_DEBUG("spawning IO thread");
   moodycamel::ConsumerToken ctok(msg_queue);
   std::string buffer{};
-  while (!early_return && ((proc_submitted == 0 || proc_completed != proc_submitted) ||
-                           msg_submitted != msg_received)) {
+  while (!early_return && (proc_completed != proc_submitted || msg_submitted != msg_received)) {
     SPDLOG_DEBUG(FMT_STRING("[IO] reading message..."));
     const auto msg_dequeued =
         msg_queue.wait_dequeue_timed(ctok, buffer, std::chrono::milliseconds(10));
@@ -320,14 +319,13 @@ static void consume_compute_process_output(
     [[maybe_unused]] std::string_view chrom1, [[maybe_unused]] std::string_view chrom2,
     moodycamel::BlockingConcurrentQueue<std::string> &msg_queue, std::atomic<bool> &early_return,
     std::atomic<std::size_t> &msg_submitted) {
-  const moodycamel::ProducerToken ptok(msg_queue);
   boost::system::error_code ec{};
   boost::asio::streambuf strbuff;
   std::istream is(&strbuff);
   std::string line;
 
   std::size_t records_processed{};
-  while (pipe.is_open()) {
+  while (true) {
     boost::asio::read_until(pipe, strbuff, '\n', ec);
     if (ec == boost::asio::error::eof) {
       break;
@@ -340,7 +338,7 @@ static void consume_compute_process_output(
     std::getline(is, line);
 
     SPDLOG_DEBUG(FMT_STRING("[{}] sending message..."), proc.id());
-    while (!early_return && !msg_queue.try_enqueue(ptok, line)) {
+    while (!early_return && !msg_queue.try_enqueue(line)) {
       SPDLOG_DEBUG(FMT_STRING("[{}] sending message failed! Retrying in 10 ms..."), proc.id());
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -383,7 +381,7 @@ static void process_queries(
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
     const ComputePvalConfig &c, std::atomic<PidT *> &pids,
     const std::atomic<std::size_t> &num_pids) {
-  BS::thread_pool tpool(c.threads + 1);
+  BS::thread_pool tpool(conditional_static_cast<BS::concurrency_t>(c.threads + 1));
   moodycamel::BlockingConcurrentQueue<std::string> msg_queue(c.threads * 1'000);
 
   std::mutex pids_mtx{};
@@ -391,7 +389,7 @@ static void process_queries(
   std::atomic<std::size_t> msg_submitted{};
   std::atomic<std::size_t> msg_received{};
 
-  std::atomic<std::size_t> proc_submitted{};
+  const std::atomic<std::size_t> proc_submitted{chrom_pairs.size()};
   std::atomic<std::size_t> proc_completed{};
   std::atomic<bool> early_return{false};
 
@@ -412,7 +410,6 @@ static void process_queries(
         boost::asio::io_context ctx{};
         auto [pipe, proc] = spawn_compute_process(c, chrom1, chrom2, ctx);
         const auto pid_offset = register_process(proc, pids, num_pids, pids_mtx);
-        ++proc_submitted;
 
         consume_compute_process_output(proc, pipe, chrom1, chrom2, msg_queue, early_return,
                                        msg_submitted);
@@ -429,13 +426,8 @@ static void process_queries(
       },
       chrom_pairs.size());
 
-  try {
-    io.wait();
-  } catch (...) {
-    early_return = true;
-    throw;
-  }
   workers.wait();
+  io.wait();
 }
 
 template <typename PidT>

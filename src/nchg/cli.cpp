@@ -83,6 +83,7 @@ auto Cli::parse_arguments() -> Config {
 }
 
 int Cli::exit(const CLI::ParseError &e) const { return _cli.exit(e); }
+int Cli::exit() const noexcept { return _exit_code; }
 
 std::string_view Cli::subcommand_to_str(subcommand s) noexcept {
   switch (s) {
@@ -188,7 +189,7 @@ void Cli::make_compute_subcommand() {
     "-v,--verbosity",
     c.verbosity,
     "Set verbosity of output to the console.")
-    ->check(CLI::Range(1, 4))
+    ->check(CLI::Range(1, 5))
     ->capture_default_str();
   // clang-format on
 
@@ -290,8 +291,8 @@ void Cli::make_filter_subcommand() {
       ->check(CLI::NonNegativeNumber)
       ->capture_default_str();
   sc.add_flag(
-      "--keep-non-significant,!--drop-non-significant",
-      c.keep_non_significant,
+      "--drop-non-significant,!--keep-non-significant",
+      c.drop_non_significant,
       "Output non-significant interactions (i.e. ignore --fdr and --log-ratio cutoffs).")
       ->capture_default_str();
   sc.add_flag(
@@ -362,7 +363,6 @@ void Cli::validate_compute_subcommand() const {
 
 void Cli::validate_expected_subcommand() const {
   const auto &c = std::get<ExpectedConfig>(_config);
-  const auto &sc = *_cli.get_subcommand("expected");
 
   [[maybe_unused]] std::vector<std::string> warnings;
   std::vector<std::string> errors;
@@ -406,7 +406,7 @@ void Cli::transform_args_expected_subcommand() {
   }
 
   // in spdlog, high numbers correspond to low log levels
-  assert(c.verbosity > 0 && c.verbosity < 5);
+  assert(c.verbosity > 0 && c.verbosity <= SPDLOG_LEVEL_CRITICAL);
   c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
 }
 
@@ -419,7 +419,7 @@ void Cli::transform_args_compute_subcommand() {
   c.exec = _exec_name;
 
   // in spdlog, high numbers correspond to low log levels
-  assert(c.verbosity > 0 && c.verbosity < 5);
+  assert(c.verbosity > 0 && c.verbosity <= SPDLOG_LEVEL_CRITICAL);
   c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
 }
 

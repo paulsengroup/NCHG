@@ -26,8 +26,7 @@ include(FetchContent)
 FetchContent_Declare(
   stocc
   URL "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc-20240322.tar.xz"
-  URL_HASH SHA256=a7eaa1a1a5d1d4f3ddbe94b7662e3ccb22c4be5efbc309e4348370cb97aaedfe
-  PATCH_COMMAND patch fnchyppr.cpp -i "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc.fnchyppr.patch"
+  URL_HASH SHA256=91e414f44445dcdfa569148c2484a50cadd786e30d833836d98f6111f82e9850
   UPDATE_DISCONNECTED 1
   SYSTEM)
 

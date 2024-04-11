@@ -330,9 +330,17 @@ jobs:
         run: |
           zstd -dcf binaries.tar.zst | tar -xf -
 
-      - name: Test NCHG
+      - name: Test NCHG compute
         run: |
-          bin/NCHG --version
+          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$(nproc)" > out.txt
+
+      - name: Test NCHG filter
+        run: |
+          bin/NCHG filter out.txt --keep-non-significant > /dev/null
+
+      - name: Test NCHG expected
+        run: |
+          bin/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5
 
   macos-ci-status-check:
     name: Status Check (MacOS CI)

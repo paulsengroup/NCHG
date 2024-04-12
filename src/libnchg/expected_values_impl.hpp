@@ -218,11 +218,13 @@ inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom
     return expected_matrix(chrom1);
   }
 
-  assert(_fp);
+  if (!_fp) {
+    throw std::logic_error("ExpectedValues::expected_matrix() was called on a null file");
+  }
   const auto sel = _fp->fetch(chrom1.name(), chrom2.name());
   const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<N>(), sel.template end<N>(),
                                                     _fp->bins_ptr());
-  return expected_values(chrom1, chrom2, _fp->bins(), jsel.begin(), jsel.end());
+  return expected_matrix(chrom1, chrom2, _fp->bins(), jsel.begin(), jsel.end());
 }
 
 template <typename File>

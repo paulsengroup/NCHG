@@ -67,6 +67,9 @@ class NCHG {
  public:
   explicit NCHG(std::shared_ptr<const File> f, std::uint64_t min_delta = 40'000,
                 std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
+  NCHG(std::shared_ptr<const File> f, ExpectedValues<File> expected_values,
+       std::uint64_t min_delta = 40'000,
+       std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
 
   [[nodiscard]] static NCHG cis_only(
       std::shared_ptr<const File> f, std::uint64_t min_delta = 40'000,
@@ -90,6 +93,8 @@ class NCHG {
       -> const ExpectedMatrix<PixelIt>&;
 
   void init_matrices();
+    void init_cis_matrices();
+    void init_trans_matrices();
   void init_matrix(const hictk::Chromosome& chrom);
   void init_matrix(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2);
 

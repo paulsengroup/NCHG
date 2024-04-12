@@ -27,10 +27,11 @@
 namespace nchg {
 struct ComputePvalConfig {
   std::filesystem::path exec{};
-  std::filesystem::path path{};
+  std::filesystem::path path_to_hic{};
   std::uint32_t resolution{};
   std::string chrom1{"all"};
   std::string chrom2{"all"};
+  std::filesystem::path path_to_expected_values{};
   std::filesystem::path path_to_domains{};
 
   bool cis_only{false};

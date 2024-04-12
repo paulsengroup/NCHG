@@ -137,6 +137,22 @@ static void print_header() {
 
 template <typename FilePtr, typename File = remove_cvref_t<decltype(*std::declval<FilePtr>())>>
 [[nodiscard]] static NCHG<File> init_nchg(const FilePtr &f, const ComputePvalConfig &c) {
+  if (!c.path_to_expected_values.empty()) {
+    SPDLOG_INFO(FMT_STRING("reading expected values from {}..."), c.path_to_expected_values);
+    NCHG nchg(f, ExpectedValues<File>::deserialize(c.path_to_expected_values), c.min_delta,
+              c.max_delta);
+    if (c.cis_only) {
+      nchg.init_cis_matrices();
+    } else if (c.trans_only) {
+      nchg.init_trans_matrices();
+    } else if (c.chrom1 != "all") {
+      nchg.init_matrix(f->chromosomes().at(c.chrom1), f->chromosomes().at(c.chrom2));
+    } else {
+      nchg.init_matrices();
+    }
+    return nchg;
+  }
+
   if (c.cis_only) {
     return NCHG<File>::cis_only(f, c.min_delta, c.max_delta);
   }
@@ -195,10 +211,7 @@ template <typename FilePtr>
                                                              const ComputePvalConfig &c) {
   const auto &chrom1 = f->chromosomes().at(c.chrom1);
   const auto &chrom2 = f->chromosomes().at(c.chrom2);
-
-  using File = remove_cvref_t<decltype(*f)>;
-
-  auto nchg = NCHG<File>::chromosome_pair(f, chrom1, chrom2, c.min_delta, c.max_delta);
+  auto nchg = init_nchg(f, c);
 
   if (c.write_header) {
     print_header();
@@ -223,7 +236,7 @@ template <typename FilePtr>
   // clang-format on
 
   const auto f = [&]() -> FilePtr {
-    hictk::File f_(c.path.string(), c.resolution);
+    hictk::File f_(c.path_to_hic.string(), c.resolution);
     return {std::visit(
         [&](auto &&ff) {
           using FileT = std::remove_reference_t<decltype(ff)>;
@@ -323,11 +336,16 @@ static void io_worker(moodycamel::BlockingConcurrentQueue<std::string> &msg_queu
                                 fmt::to_string(c.max_delta),
                                 "--resolution",
                                 fmt::to_string(c.resolution),
-                                c.path.string()};
+                                c.path_to_hic.string()};
 
   if (!c.path_to_domains.empty()) {
     args.emplace_back("--domains");
     args.emplace_back(c.path_to_domains.string());
+  }
+
+  if (!c.path_to_expected_values.empty()) {
+    args.emplace_back("--expected-values");
+    args.emplace_back(c.path_to_expected_values.string());
   }
 
   boost::asio::readable_pipe pipe(ctx);
@@ -490,7 +508,7 @@ int run_nchg_compute(const ComputePvalConfig &c, std::atomic<PidT *> &pids,
     return 0;
   }
 
-  const hictk::File f(c.path.string(), c.resolution);
+  const hictk::File f(c.path_to_hic.string(), c.resolution);
   std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> chrom_pairs{};
   if (c.cis_only) {
     chrom_pairs = init_cis_chromosomes(f.chromosomes());

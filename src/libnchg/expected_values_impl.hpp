@@ -163,18 +163,49 @@ inline double ExpectedValues<File>::scaling_factor(const hictk::Chromosome &chro
 }
 
 template <typename File>
+inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom,
+                                                  const hictk::BinTable &bins, PixelIt first_pixel,
+                                                  PixelIt last_pixel) const
+    -> ExpectedMatrix<PixelIt> {
+  return {std::move(first_pixel),
+          std::move(last_pixel),
+          chrom,
+          chrom,
+          bins,
+          _expected_weights,
+          _expected_scaling_factors.at(chrom),
+          _min_delta,
+          _max_delta};
+}
+
+template <typename File>
 inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom) const
     -> ExpectedMatrix<PixelIt> {
+  if (!_fp) {
+    throw std::logic_error("ExpectedValues::expected_matrix() was called on a null file");
+  }
   const auto sel = _fp->fetch(chrom.name());
   const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<N>(), sel.template end<N>(),
                                                     _fp->bins_ptr());
-  return {jsel.begin(),
-          jsel.end(),
-          chrom,
-          chrom,
-          _fp->bins(),
-          _expected_weights,
-          _expected_scaling_factors.at(chrom),
+  return expected_matrix(chrom, _fp->bins(), jsel.begin(), jsel.end());
+}
+
+template <typename File>
+inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom1,
+                                                  const hictk::Chromosome &chrom2,
+                                                  const hictk::BinTable &bins, PixelIt first_pixel,
+                                                  PixelIt last_pixel) const
+    -> ExpectedMatrix<PixelIt> {
+  if (chrom1 == chrom2) {
+    return expected_matrix(chrom1, bins, std::move(first_pixel), std::move(last_pixel));
+  }
+  return {std::move(first_pixel),
+          std::move(last_pixel),
+          chrom1,
+          chrom2,
+          bins,
+          std::vector<double>{},
+          1.0,
           _min_delta,
           _max_delta};
 }
@@ -187,16 +218,19 @@ inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom
     return expected_matrix(chrom1);
   }
 
+  assert(_fp);
   const auto sel = _fp->fetch(chrom1.name(), chrom2.name());
   const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<N>(), sel.template end<N>(),
                                                     _fp->bins_ptr());
-  return {jsel.begin(),          jsel.end(), chrom1,     chrom2,    _fp->bins(),
-          std::vector<double>{}, 1.0,        _min_delta, _max_delta};
+  return expected_values(chrom1, chrom2, _fp->bins(), jsel.begin(), jsel.end());
 }
 
 template <typename File>
 inline void ExpectedValues<File>::serialize(const std::filesystem::path &path) const {
   SPDLOG_INFO(FMT_STRING("writing expected value profiles to {}..."), path);
+  if (!_fp) {
+    throw std::logic_error("ExpectedValues::expected_matrix() was called on a null file");
+  }
 
   HighFive::File f(path.string(), HighFive::File::Create);
 
@@ -212,6 +246,9 @@ inline void ExpectedValues<File>::serialize(const std::filesystem::path &path) c
 template <typename File>
 inline void ExpectedValues<File>::compute_expected_values_cis() {
   SPDLOG_INFO(FMT_STRING("initializing expected matrix weights from genome-wide interactions..."));
+  if (!_fp) {
+    throw std::logic_error("ExpectedValues::expected_matrix() was called on a null file");
+  }
 
   using PixelSel = decltype(std::declval<File>().fetch("chr1"));
 
@@ -275,6 +312,9 @@ inline void ExpectedValues<File>::compute_expected_values_cis() {
 
 template <typename File>
 inline void ExpectedValues<File>::compute_expected_values_trans() {
+  if (!_fp) {
+    throw std::logic_error("ExpectedValues::expected_matrix() was called on a null file");
+  }
   const auto &chroms = _fp->chromosomes();
   for (std::uint32_t chrom1_id = 0; chrom1_id < chroms.size(); ++chrom1_id) {
     const auto &chrom1 = chroms.at(chrom1_id);

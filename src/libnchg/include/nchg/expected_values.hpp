@@ -77,8 +77,15 @@ class ExpectedValues {
 
   [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom) const
       -> ExpectedMatrix<PixelIt>;
+  [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom, const hictk::BinTable& bins,
+                                     PixelIt first_pixel, PixelIt last_pixel) const
+      -> ExpectedMatrix<PixelIt>;
   [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom1,
                                      const hictk::Chromosome& chrom2) const
+      -> ExpectedMatrix<PixelIt>;
+  [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom1,
+                                     const hictk::Chromosome& chrom2, const hictk::BinTable& bins,
+                                     PixelIt first_Pixel, PixelIt last_pixel) const
       -> ExpectedMatrix<PixelIt>;
 
   void serialize(const std::filesystem::path& path) const;

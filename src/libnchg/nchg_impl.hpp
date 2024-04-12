@@ -16,6 +16,8 @@
 // with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
+#pragma once
+
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <stocc.h>
@@ -35,7 +37,15 @@ namespace nchg {
 template <typename File>
 inline NCHG<File>::NCHG(std::shared_ptr<const File> f, std::uint64_t min_delta,
                         std::uint64_t max_delta)
-    : _fp(std::move(f)), _min_delta(min_delta), _max_delta(max_delta), _expected_values(_fp) {
+    : NCHG(f, ExpectedValues(f), min_delta, max_delta) {}
+
+template <typename File>
+inline NCHG<File>::NCHG(std::shared_ptr<const File> f, ExpectedValues<File> expected_values,
+                        std::uint64_t min_delta, std::uint64_t max_delta)
+    : _fp(std::move(f)),
+      _min_delta(min_delta),
+      _max_delta(max_delta),
+      _expected_values(std::move(expected_values)) {
   if (_min_delta >= _max_delta) {
     throw std::logic_error("min_delta should be strictly less than max_delta");
   }
@@ -55,13 +65,7 @@ inline NCHG<File> NCHG<File>::cis_only(std::shared_ptr<const File> f, std::uint6
   nchg._max_delta = max_delta;
   nchg._expected_values = ExpectedValues<File>::cis_only(nchg._fp, min_delta, max_delta);
 
-  for (const auto &chrom : nchg._fp->chromosomes()) {
-    if (chrom.is_all()) {
-      continue;
-    }
-    nchg.init_matrix(chrom);
-  }
-
+  nchg.init_cis_matrices();
   return nchg;
 }
 
@@ -73,17 +77,7 @@ inline NCHG<File> NCHG<File>::trans_only(std::shared_ptr<const File> f) {
   nchg._fp = std::move(f);
   nchg._expected_values = ExpectedValues<File>::trans_only(nchg._fp);
 
-  const auto num_chroms = nchg._fp->chromosomes().size();
-  for (std::uint32_t chrom1_id = 0; chrom1_id < num_chroms; ++chrom1_id) {
-    const auto &chrom1 = nchg._fp->chromosomes().at(chrom1_id);
-    if (chrom1.is_all()) {
-      continue;
-    }
-    for (std::uint32_t chrom2_id = chrom1_id + 1; chrom2_id < num_chroms; ++chrom2_id) {
-      const auto &chrom2 = nchg._fp->chromosomes().at(chrom2_id);
-      nchg.init_matrix(chrom1, chrom2);
-    }
-  }
+  nchg.init_trans_matrices();
   return nchg;
 }
 
@@ -137,12 +131,29 @@ inline auto NCHG<File>::expected_matrix(const hictk::Chromosome &chrom1,
 
 template <typename File>
 inline void NCHG<File>::init_matrices() {
-  for (std::uint32_t chrom1_id = 0; chrom1_id < _fp->chromosomes().size(); ++chrom1_id) {
+  init_cis_matrices();
+  init_trans_matrices();
+}
+
+template <typename File>
+inline void NCHG<File>::init_cis_matrices() {
+  for (const auto &chrom : _fp->chromosomes()) {
+    if (chrom.is_all()) {
+      continue;
+    }
+    init_matrix(chrom);
+  }
+}
+
+template <typename File>
+inline void NCHG<File>::init_trans_matrices() {
+  const auto num_chroms = _fp->chromosomes().size();
+  for (std::uint32_t chrom1_id = 0; chrom1_id < num_chroms; ++chrom1_id) {
     const auto &chrom1 = _fp->chromosomes().at(chrom1_id);
     if (chrom1.is_all()) {
       continue;
     }
-    for (std::uint32_t chrom2_id = chrom1_id; chrom2_id < _fp->chromosomes().size(); ++chrom2_id) {
+    for (std::uint32_t chrom2_id = chrom1_id + 1; chrom2_id < num_chroms; ++chrom2_id) {
       const auto &chrom2 = _fp->chromosomes().at(chrom2_id);
       init_matrix(chrom1, chrom2);
     }
@@ -179,8 +190,9 @@ inline void NCHG<File>::init_matrix(const hictk::Chromosome &chrom1,
 
   SPDLOG_INFO(FMT_STRING("[{}:{}] initializing expected matrix..."), chrom1.name(), chrom2.name());
 
-  _exp_matrices.emplace(k, std::make_shared<const ExpectedMatrix<PixelIt>>(
-                               _expected_values.expected_matrix(chrom1, chrom2)));
+  _exp_matrices.emplace(
+      k, std::make_shared<const ExpectedMatrix<PixelIt>>(_expected_values.expected_matrix(
+             chrom1, chrom2, _fp->bins(), first_pixel, last_pixel)));
 }
 
 template <typename File>

@@ -30,7 +30,6 @@
 #include <hictk/genomic_interval.hpp>
 #include <hictk/reference.hpp>
 #include <memory>
-#include <random>
 #include <variant>
 
 #ifndef _WIN32
@@ -522,12 +521,6 @@ int run_nchg_compute(const ComputePvalConfig &c, std::atomic<PidT *> &pids,
     const auto chrom_pairs2 = init_trans_chromosomes(f.chromosomes());
     std::copy(chrom_pairs2.begin(), chrom_pairs2.end(), std::back_inserter(chrom_pairs));
   }
-
-  assert(!chrom_pairs.empty());
-
-  // Poor man's load balancing
-  std::mt19937_64 rand_eng{};
-  std::shuffle(chrom_pairs.begin(), chrom_pairs.end(), rand_eng);
 
   if (c.write_header) {
     print_header();

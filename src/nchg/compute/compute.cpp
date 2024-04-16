@@ -351,6 +351,10 @@ static void io_worker(moodycamel::BlockingConcurrentQueue<std::string> &msg_queu
   boost::process::v2::process proc(ctx, c.exec.string(), args,
                                    boost::process::v2::process_stdio{{}, pipe, {}});
   SPDLOG_DEBUG(FMT_STRING("spawned worker process {}..."), proc.id());
+  if (!proc.running()) {
+    throw std::runtime_error(fmt::format(FMT_STRING("failed to spawn worker process: {} {}"),
+                                         c.exec.string(), fmt::join(args, " ")));
+  }
 
   return std::make_pair(std::move(pipe), std::move(proc));
 }

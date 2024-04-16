@@ -30,7 +30,6 @@
 #include <hictk/genomic_interval.hpp>
 #include <hictk/reference.hpp>
 #include <memory>
-#include <random>
 #include <variant>
 
 #ifndef _WIN32
@@ -352,6 +351,10 @@ static void io_worker(moodycamel::BlockingConcurrentQueue<std::string> &msg_queu
   boost::process::v2::process proc(ctx, c.exec.string(), args,
                                    boost::process::v2::process_stdio{{}, pipe, {}});
   SPDLOG_DEBUG(FMT_STRING("spawned worker process {}..."), proc.id());
+  if (!proc.running()) {
+    throw std::runtime_error(fmt::format(FMT_STRING("failed to spawn worker process: {} {}"),
+                                         c.exec.string(), fmt::join(args, " ")));
+  }
 
   return std::make_pair(std::move(pipe), std::move(proc));
 }
@@ -522,12 +525,6 @@ int run_nchg_compute(const ComputePvalConfig &c, std::atomic<PidT *> &pids,
     const auto chrom_pairs2 = init_trans_chromosomes(f.chromosomes());
     std::copy(chrom_pairs2.begin(), chrom_pairs2.end(), std::back_inserter(chrom_pairs));
   }
-
-  assert(!chrom_pairs.empty());
-
-  // Poor man's load balancing
-  std::mt19937_64 rand_eng{};
-  std::shuffle(chrom_pairs.begin(), chrom_pairs.end(), rand_eng);
 
   if (c.write_header) {
     print_header();

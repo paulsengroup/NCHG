@@ -54,7 +54,7 @@ static void setup_logger_console(int verbosity_lvl, bool print_version) {
   spdlog::set_level(spdlog::level::level_enum(verbosity_lvl));
 
   if (print_version) {
-    SPDLOG_INFO(FMT_STRING("Running nchg v{}"), "0.0.1");
+    SPDLOG_INFO(FMT_STRING("Running NCHG v{}"), "0.0.1");
   }
 }
 

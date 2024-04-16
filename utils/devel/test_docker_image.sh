@@ -39,6 +39,8 @@ whereis -b NCHG
 NCHG --help
 NCHG --version
 
+NCHG compute --threads "$(nproc)" /tmp/data/ENCFF447ERX.1000000.cool --cis-only > /dev/null
+
 EOM
 
 chmod 755 "$tmpdir/runme.sh"
@@ -46,5 +48,6 @@ chmod 755 "$tmpdir/runme.sh"
 sudo docker run --rm --entrypoint=/bin/bash \
   -v "$tmpdir/runme.sh:/tmp/runme.sh:ro" \
   -v "$PWD/test/scripts:/tmp/nghc/test/scripts:ro" \
+  -v "$PWD/test/data/:/tmp/data/:ro" \
   "$IMG" \
   /tmp/runme.sh

@@ -31,6 +31,17 @@
 #include <string_view>
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
+
+#include <climits>
+
+#else
+#include <unistd.h>
+#endif
+
 #include "nchg/config.hpp"
 
 namespace nchg {
@@ -201,7 +212,6 @@ void Cli::make_compute_subcommand() {
     c.write_eof_signal)
     ->group("");
   // clang-format on
-
 
   sc.get_option("--chrom2")->needs("--chrom1");
 
@@ -420,13 +430,37 @@ void Cli::transform_args_expected_subcommand() {
   c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
 }
 
+static std::string get_path_to_executable() {
+#ifdef _WIN32
+  std::string path(MAX_PATH, '\0');
+  if (GetModuleFileNameA(NULL, path.data(), path.size())) {
+    return std::string{path.c_str()};
+  }
+
+#elif defined(__APPLE__)
+  std::string path(PATH_MAX, '\0');
+  std::uint32_t count = PATH_MAX;
+  if (!_NSGetExecutablePath(path.data(), &count)) {
+    return path.substr(0, count);
+  }
+
+#else
+  std::string path(PATH_MAX, '\0');
+  const auto count = readlink("/proc/self/exe", path.data(), path.size());
+  if (count != -1) {
+    return path.substr(0, static_cast<std::size_t>(count));
+  }
+#endif
+  throw std::runtime_error("unable to generate the path to NCHG.");
+}
+
 void Cli::transform_args_compute_subcommand() {
   auto &c = std::get<ComputePvalConfig>(_config);
   if (c.chrom1 != "all" && c.chrom2 == "all") {
     c.chrom2 = c.chrom1;
   }
 
-  c.exec = _exec_name;
+  c.exec = get_path_to_executable();
 
   // in spdlog, high numbers correspond to low log levels
   assert(c.verbosity > 0 && c.verbosity <= SPDLOG_LEVEL_CRITICAL);

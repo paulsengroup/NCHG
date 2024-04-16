@@ -320,6 +320,11 @@ void Cli::make_filter_subcommand() {
       c.write_header,
       "Write the file header to stdout.")
       ->capture_default_str();
+  sc.add_flag(
+      "--sorted,!--unsorted",
+      c.sorted,
+      "Sort records by their genomic coordinates.")
+      ->capture_default_str();
   // clang-format on
 
   sc.get_option("--keep-non-significant")->excludes(sc.get_option("--fdr"));

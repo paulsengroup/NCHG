@@ -196,6 +196,19 @@ struct Stats {
             odds_ratio,
             omega};
   }
+
+  [[nodiscard]] bool operator<(const Stats& other) const noexcept {
+    if (chrom1 != other.chrom1) {
+      return *chrom1 < *other.chrom1;
+    }
+    if (start1 != other.start1) {
+      return start1 < other.start1;
+    }
+    if (chrom2 != other.chrom2) {
+      return *chrom2 < *other.chrom2;
+    }
+    return start2 < other.start2;
+  }
 };
 
 int run_nchg_filter(const FilterConfig& c) {
@@ -227,7 +240,11 @@ int run_nchg_filter(const FilterConfig& c) {
   }
 
   BH_FDR bh(std::move(records));
-  for (const auto& s : bh.correct([](Stats& s) -> double& { return s.pvalue_corrected; })) {
+  records = bh.correct([](Stats& s) -> double& { return s.pvalue_corrected; });
+  if (c.sorted) {
+    std::sort(records.begin(), records.end());
+  }
+  for (const auto& s : records) {
     if (!c.drop_non_significant ||
         (s.pvalue_corrected <= c.fdr && std::abs(s.log_ratio) >= c.log_ratio)) {
       fmt::print(FMT_COMPILE("{}\t"

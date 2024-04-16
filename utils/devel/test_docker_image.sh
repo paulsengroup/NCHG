@@ -39,7 +39,7 @@ whereis -b NCHG
 NCHG --help
 NCHG --version
 
-NCHG compute --threads "$(nproc)" /tmp/data/ENCFF447ERX.1000000.cool > /dev/null
+NCHG compute --threads "$(nproc)" /tmp/data/ENCFF447ERX.1000000.cool --cis-only > /dev/null
 
 EOM
 

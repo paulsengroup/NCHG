@@ -441,7 +441,7 @@ static std::string get_path_to_executable() {
   std::string path(PATH_MAX, '\0');
   std::uint32_t count = PATH_MAX;
   if (!_NSGetExecutablePath(path.data(), &count)) {
-    return path.substring(0, count);
+    return path.substr(0, count);
   }
 
 #else

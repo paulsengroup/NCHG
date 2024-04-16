@@ -313,7 +313,7 @@ void Cli::make_filter_subcommand() {
   sc.add_flag(
       "--drop-non-significant,!--keep-non-significant",
       c.drop_non_significant,
-      "Output non-significant interactions (i.e. ignore --fdr and --log-ratio cutoffs).")
+      "Drop non-significant interactions based on the --fdr and --log-ratio cutoffs.")
       ->capture_default_str();
   sc.add_flag(
       "--write-header,!--no-write-header",

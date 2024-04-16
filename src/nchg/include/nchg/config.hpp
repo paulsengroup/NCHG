@@ -57,6 +57,7 @@ struct FilterConfig {
   bool drop_non_significant{true};
 
   bool write_header{true};
+  bool sorted{true};
 
   std::uint8_t verbosity{3};
 };

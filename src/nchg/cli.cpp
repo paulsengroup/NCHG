@@ -313,12 +313,17 @@ void Cli::make_filter_subcommand() {
   sc.add_flag(
       "--drop-non-significant,!--keep-non-significant",
       c.drop_non_significant,
-      "Output non-significant interactions (i.e. ignore --fdr and --log-ratio cutoffs).")
+      "Drop non-significant interactions based on the --fdr and --log-ratio cutoffs.")
       ->capture_default_str();
   sc.add_flag(
       "--write-header,!--no-write-header",
       c.write_header,
       "Write the file header to stdout.")
+      ->capture_default_str();
+  sc.add_flag(
+      "--sorted,!--unsorted",
+      c.sorted,
+      "Sort records by their genomic coordinates.")
       ->capture_default_str();
   // clang-format on
 

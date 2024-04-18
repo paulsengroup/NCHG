@@ -182,6 +182,8 @@ struct Stats {
           end2));
     }
 
+    const auto log_ratio = std::log2(odds_ratio) - std::log2(omega);
+
     return {std::move(chrom1_ptr),
             static_cast<std::uint32_t>(start1),
             static_cast<std::uint32_t>(end1),
@@ -192,7 +194,7 @@ struct Stats {
             pvalue,
             obs,
             exp,
-            std::log2(odds_ratio) - std::log2(omega),
+            std::isfinite(log_ratio) ? log_ratio : 0.0,
             odds_ratio,
             omega};
   }
@@ -245,8 +247,7 @@ int run_nchg_filter(const FilterConfig& c) {
     std::sort(records.begin(), records.end());
   }
   for (const auto& s : records) {
-    if (!c.drop_non_significant ||
-        (s.pvalue_corrected <= c.fdr && std::abs(s.log_ratio) >= c.log_ratio)) {
+    if (!c.drop_non_significant || (s.pvalue_corrected <= c.fdr && s.log_ratio >= c.log_ratio)) {
       fmt::print(FMT_COMPILE("{}\t"
                              "{}\t"
                              "{}\t"

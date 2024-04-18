@@ -21,8 +21,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <hictk/chromosome.hpp>
+#include <hictk/expected_values_aggregator.hpp>
 #include <hictk/file.hpp>
-#include <hictk/hic/expected_values_aggregator.hpp>
 #include <hictk/pixel.hpp>
 #include <utility>
 #include <variant>
@@ -225,15 +225,12 @@ ExpectedMatrix<PixelIt>::build_expected_vector(PixelItGw first_pixel, PixelItGw 
 
   const auto bins_ = std::make_shared<const hictk::BinTable>(bins);
 
-  hictk::hic::internal::ExpectedValuesAggregator aggr(bins_);
+  hictk::ExpectedValuesAggregator aggr(bins_);
 
   std::for_each(first_pixel, last_pixel, [&](const hictk::Pixel<N> &p) {
     const auto delta = p.coords.bin2.start() - p.coords.bin1.start();
     if (delta >= min_delta_ && delta < max_delta_) {
-      // TODO remove redundant pixel copy
-      hictk::Pixel<float> pp(*bins_, hictk::ThinPixel<float>{p.coords.bin1.id(), p.coords.bin2.id(),
-                                                             static_cast<float>(p.count)});
-      aggr.add(std::move(pp));
+      aggr.add(p);
     }
   });
   aggr.compute_density();

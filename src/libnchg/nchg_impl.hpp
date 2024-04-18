@@ -29,52 +29,44 @@
 #include <hictk/transformers/pixel_merger.hpp>
 
 #include "nchg/expected_matrix.hpp"
+#include "nchg/mad_max_filter.hpp"
 #include "nchg/observed_matrix.hpp"
 
 namespace nchg {
 
 template <typename File>
-inline NCHG<File>::NCHG(std::shared_ptr<const File> f, std::uint64_t min_delta,
+inline NCHG<File>::NCHG(std::shared_ptr<const File> f, double mad_max_, std::uint64_t min_delta,
                         std::uint64_t max_delta)
-    : NCHG(f, ExpectedValues(f), min_delta, max_delta) {}
+    : NCHG(f, ExpectedValues(f, mad_max_, min_delta, max_delta)) {}
 
 template <typename File>
-inline NCHG<File>::NCHG(std::shared_ptr<const File> f, ExpectedValues<File> expected_values,
-                        std::uint64_t min_delta, std::uint64_t max_delta)
-    : _fp(std::move(f)),
-      _min_delta(min_delta),
-      _max_delta(max_delta),
-      _expected_values(std::move(expected_values)) {
-  if (_min_delta >= _max_delta) {
-    throw std::logic_error("min_delta should be strictly less than max_delta");
-  }
-}
+inline NCHG<File>::NCHG(std::shared_ptr<const File> f,
+                        ExpectedValues<File> expected_values) noexcept
+    : _fp(std::move(f)), _expected_values(std::move(expected_values)) {}
 
 template <typename File>
-inline NCHG<File> NCHG<File>::cis_only(std::shared_ptr<const File> f, std::uint64_t min_delta,
-                                       std::uint64_t max_delta) {
+inline NCHG<File> NCHG<File>::cis_only(std::shared_ptr<const File> f, double mad_max_,
+                                       std::uint64_t min_delta, std::uint64_t max_delta) {
   assert(f);
   if (min_delta >= max_delta) {
     throw std::logic_error("min_delta should be strictly less than max_delta");
   }
 
-  NCHG<File> nchg{nullptr};
+  NCHG<File> nchg{nullptr, mad_max_, min_delta, max_delta};
   nchg._fp = std::move(f);
-  nchg._min_delta = min_delta;
-  nchg._max_delta = max_delta;
-  nchg._expected_values = ExpectedValues<File>::cis_only(nchg._fp, min_delta, max_delta);
+  nchg._expected_values = ExpectedValues<File>::cis_only(nchg._fp, mad_max_, min_delta, max_delta);
 
   nchg.init_cis_matrices();
   return nchg;
 }
 
 template <typename File>
-inline NCHG<File> NCHG<File>::trans_only(std::shared_ptr<const File> f) {
+inline NCHG<File> NCHG<File>::trans_only(std::shared_ptr<const File> f, double mad_max_) {
   assert(f);
 
-  NCHG<File> nchg{nullptr};
+  NCHG<File> nchg{nullptr, mad_max_, 0, std::numeric_limits<std::uint64_t>::max()};
   nchg._fp = std::move(f);
-  nchg._expected_values = ExpectedValues<File>::trans_only(nchg._fp);
+  nchg._expected_values = ExpectedValues<File>::trans_only(nchg._fp, mad_max_);
 
   nchg.init_trans_matrices();
   return nchg;
@@ -83,23 +75,30 @@ inline NCHG<File> NCHG<File>::trans_only(std::shared_ptr<const File> f) {
 template <typename File>
 inline NCHG<File> NCHG<File>::chromosome_pair(std::shared_ptr<const File> f,
                                               const hictk::Chromosome &chrom1,
-                                              const hictk::Chromosome &chrom2,
+                                              const hictk::Chromosome &chrom2, double mad_max_,
                                               std::uint64_t min_delta, std::uint64_t max_delta) {
   assert(f);
-  if (min_delta >= max_delta) {
-    throw std::logic_error("min_delta should be strictly less than max_delta");
-  }
-
-  NCHG<File> nchg{nullptr};
+  NCHG<File> nchg{nullptr, mad_max_, min_delta, max_delta};
   nchg._fp = std::move(f);
-  nchg._min_delta = min_delta;
-  nchg._max_delta = max_delta;
-  nchg._expected_values =
-      ExpectedValues<File>::chromosome_pair(nchg._fp, chrom1, chrom2, min_delta, max_delta);
+  nchg._expected_values = ExpectedValues<File>::chromosome_pair(nchg._fp, chrom1, chrom2, mad_max_,
+                                                                min_delta, max_delta);
 
   nchg.init_matrix(chrom1, chrom2);
 
   return nchg;
+}
+
+template <typename File>
+inline double NCHG<File>::mad_max() const noexcept {
+  return _expected_values.mad_max();
+}
+template <typename File>
+inline std::uint64_t NCHG<File>::min_delta() const noexcept {
+  return _expected_values.min_delta();
+}
+template <typename File>
+inline std::uint64_t NCHG<File>::max_delta() const noexcept {
+  return _expected_values.max_delta();
 }
 
 template <typename File>
@@ -180,18 +179,18 @@ inline void NCHG<File>::init_matrix(const hictk::Chromosome &chrom1,
   const auto first_pixel = jsel.begin();
   const auto last_pixel = jsel.end();
 
-  SPDLOG_INFO(FMT_STRING("[{}:{}] initializing observed matrix..."), chrom1.name(), chrom2.name());
-  _obs_matrices.emplace(
-      k, std::make_shared<const ObservedMatrix<PixelIt>>(first_pixel, last_pixel, chrom1, chrom2,
-                                                         _fp->bins(), _min_delta, _max_delta));
-
-  assert(_exp_matrices.find(k) == _exp_matrices.end());
-
   SPDLOG_INFO(FMT_STRING("[{}:{}] initializing expected matrix..."), chrom1.name(), chrom2.name());
 
   _exp_matrices.emplace(
       k, std::make_shared<const ExpectedMatrix<PixelIt>>(_expected_values.expected_matrix(
              chrom1, chrom2, _fp->bins(), first_pixel, last_pixel)));
+
+  SPDLOG_INFO(FMT_STRING("[{}:{}] initializing observed matrix..."), chrom1.name(), chrom2.name());
+  _obs_matrices.emplace(
+      k, std::make_shared<const ObservedMatrix<PixelIt>>(
+             first_pixel, last_pixel, chrom1, chrom2, _fp->bins(), mad_max(),
+             *_expected_values.bin_mask(chrom1, chrom2).first,
+             *_expected_values.bin_mask(chrom1, chrom2).second, min_delta(), max_delta()));
 }
 
 template <typename File>
@@ -238,23 +237,29 @@ inline void NCHG<File>::erase_matrix(const hictk::Chromosome &chrom1,
 }
 
 template <typename File>
-inline NCHG<File>::iterator::iterator(PixelIt pixel_it,
+inline NCHG<File>::iterator::iterator(PixelIt pixel_it, PixelIt sentinel_it,
                                       std::shared_ptr<const ObservedMatrix<PixelIt>> obs,
                                       std::shared_ptr<const ExpectedMatrix<PixelIt>> exp,
-                                      std::uint64_t min_delta, std::uint64_t max_delta)
+                                      std::shared_ptr<const std::vector<bool>> bin_mask1,
+                                      std::shared_ptr<const std::vector<bool>> bin_mask2,
+                                      std::uint64_t min_delta, std::uint64_t max_delta) noexcept
     : _pixel_it(std::move(pixel_it)),
+      _sentinel_it(std::move(sentinel_it)),
       _obs(std::move(obs)),
       _exp(std::move(exp)),
+      _bin_mask1(std::move(bin_mask1)),
+      _bin_mask2(std::move(bin_mask2)),
       _min_delta(min_delta),
-      _max_delta(max_delta) {
-  assert(min_delta < max_delta);
-}
+      _max_delta(max_delta) {}
 
 template <typename File>
 inline NCHG<File>::iterator::iterator(const iterator &other)
     : _pixel_it(other._pixel_it),
+      _sentinel_it(other._sentinel_it),
       _obs(other._obs),
       _exp(other._exp),
+      _bin_mask1(other._bin_mask1),
+      _bin_mask2(other._bin_mask2),
       _min_delta(other._min_delta),
       _max_delta(other._max_delta),
       _value((other._value)) {}
@@ -266,8 +271,11 @@ inline auto NCHG<File>::iterator::operator=(const iterator &other) -> iterator &
   }
 
   _pixel_it = other._pixel_it;
+  _sentinel_it = other._sentinel_it;
   _obs = other._obs;
   _exp = other._exp;
+  _bin_mask1 = other._bin_mask1;
+  _bin_mask2 = other._bin_mask2;
   _min_delta = other._min_delta;
   _max_delta = other._max_delta;
   _value = other._value;
@@ -379,7 +387,17 @@ inline auto NCHG<File>::iterator::operator->() const -> const_pointer {
 
 template <typename File>
 inline auto NCHG<File>::iterator::operator++() -> iterator & {
-  ++_pixel_it;
+  while (++_pixel_it != _sentinel_it) {
+    const auto bin1_id = _pixel_it->coords.bin1.rel_id();
+    const auto bin2_id = _pixel_it->coords.bin2.rel_id();
+
+    const auto bin1_masked = (*_bin_mask1)[bin1_id];
+    const auto bin2_masked = (*_bin_mask2)[bin2_id];
+
+    if (!bin1_masked && !bin2_masked) {
+      break;
+    }
+  }
   return *this;
 }
 
@@ -392,13 +410,19 @@ inline auto NCHG<File>::iterator::operator++(int) -> iterator {
 }
 
 template <typename File>
-inline auto NCHG<File>::compute(const hictk::GenomicInterval &range) const -> Stats {
-  return compute(range, range);
+inline auto NCHG<File>::compute(const hictk::GenomicInterval &range, double bad_bin_fraction) const
+    -> Stats {
+  return compute(range, range, bad_bin_fraction);
 }
 
 template <typename File>
 inline auto NCHG<File>::compute(const hictk::GenomicInterval &range1,
-                                const hictk::GenomicInterval &range2) const -> Stats {
+                                const hictk::GenomicInterval &range2, double bad_bin_fraction) const
+    -> Stats {
+  if (bad_bin_fraction < 0.0 || bad_bin_fraction > 1.0) {
+    throw std::logic_error("bad_bin_fraction should be between 0 and 1");
+  }
+
   const auto &chrom1 = range1.chrom();
   const auto &chrom2 = range2.chrom();
 
@@ -415,6 +439,9 @@ inline auto NCHG<File>::compute(const hictk::GenomicInterval &range1,
   const auto obs_sum = obs_matrix.sum();
   const auto exp_sum = exp_matrix.sum();
 
+  const auto &mask1 = *_expected_values.bin_mask(chrom1, chrom2).first;
+  const auto &mask2 = *_expected_values.bin_mask(chrom1, chrom2).second;
+
   const double cutoff = 1.0e-20;
 
   double N1 = 0.0;
@@ -424,36 +451,51 @@ inline auto NCHG<File>::compute(const hictk::GenomicInterval &range1,
 
   const auto resolution = _fp->resolution();
 
-  // TODO how do we handle partial overlaps?
   const auto i11 = range1.start() / resolution;
   const auto i12 = (range1.end() + resolution - 1) / resolution;
   const auto i21 = range2.start() / resolution;
   const auto i22 = (range2.end() + resolution - 1) / resolution;
 
+  std::size_t bin1_masked = 0;
   for (auto i = i11; i < i12; ++i) {
     N1 += static_cast<double>(obs_marginals1[i]);
     L1 += exp_marginals1[i];
+    bin1_masked += mask1[i];
   }
+
+  std::size_t bin2_masked = 0;
   for (auto i = i21; i < i22; ++i) {
     N2 += static_cast<double>(obs_marginals2[i]);
     L2 += exp_marginals2[i];
+    bin2_masked += mask2[i];
   }
 
-  const auto sel = _fp->fetch(range1.chrom().name(), range1.start(), range1.end(),
-                              range2.chrom().name(), range2.start(), range2.end());
-  const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<double>(),
-                                                    sel.template end<double>(), _fp->bins_ptr());
+  const auto bin1_masked_frac = static_cast<double>(bin1_masked) / static_cast<double>(i12 - i11);
+  const auto bin2_masked_frac = static_cast<double>(bin2_masked) / static_cast<double>(i22 - i21);
 
   double obs = 0.0;
   double exp = 0.0;
 
-  std::for_each(jsel.begin(), jsel.end(), [&](const hictk::Pixel<double> &p) {
-    const auto delta = intra_matrix ? p.coords.bin2.start() - p.coords.bin1.start() : _min_delta;
-    if (delta >= _min_delta && delta < _max_delta) {
-      obs += p.count;
-      exp += exp_matrix.at(p.coords.bin1.rel_id(), p.coords.bin2.rel_id());
-    }
-  });
+  if (bin1_masked_frac < bad_bin_fraction && bin2_masked_frac < bad_bin_fraction) {
+    const auto sel = _fp->fetch(range1.chrom().name(), range1.start(), range1.end(),
+                                range2.chrom().name(), range2.start(), range2.end());
+    const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<double>(),
+                                                      sel.template end<double>(), _fp->bins_ptr());
+
+    std::for_each(jsel.begin(), jsel.end(), [&](const hictk::Pixel<double> &p) {
+      const auto delta = intra_matrix ? p.coords.bin2.start() - p.coords.bin1.start() : min_delta();
+
+      const auto bin1_id = p.coords.bin1.rel_id();
+      const auto bin2_id = p.coords.bin2.rel_id();
+      if (delta >= min_delta() && delta < max_delta() && !mask1[bin1_id] && !mask2[bin2_id]) {
+        obs += p.count;
+        exp += exp_matrix.at(bin1_id, bin2_id);
+      }
+    });
+  } else {
+    obs = 0;
+    exp = 0;
+  }
 
   // clang-format off
   const hictk::Pixel<std::uint32_t> p{
@@ -489,7 +531,14 @@ inline auto NCHG<File>::cbegin(const hictk::Chromosome &chrom1,
   const hictk::transformers::JoinGenomicCoords jsel(
       sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), _fp->bins_ptr());
 
-  return {jsel.begin(), obs, exp, _min_delta, _max_delta};
+  return {jsel.begin(),
+          jsel.end(),
+          obs,
+          exp,
+          _expected_values.bin_mask(chrom1),
+          _expected_values.bin_mask(chrom2),
+          min_delta(),
+          max_delta()};
 }
 
 template <typename File>
@@ -502,7 +551,7 @@ inline auto NCHG<File>::cend(const hictk::Chromosome &chrom1, const hictk::Chrom
   const hictk::transformers::JoinGenomicCoords jsel(
       sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), _fp->bins_ptr());
 
-  return {jsel.end(), obs, exp, _min_delta, _max_delta};
+  return {jsel.end(), jsel.end(), obs, exp, nullptr, nullptr, min_delta(), max_delta()};
 }
 
 template <typename File>
@@ -641,8 +690,8 @@ inline auto NCHG<File>::compute_expected_profile() const
   const hictk::transformers::JoinGenomicCoords mjsel(merger.begin(), merger.end(), _fp->bins_ptr());
 
   using PixelItMerged = decltype(mjsel.begin());
-  return ExpectedMatrix<PixelItMerged>::build_expected_vector(mjsel.begin(), mjsel.end(),
-                                                              _fp->bins(), _min_delta, _max_delta);
+  return ExpectedMatrix<PixelItMerged>::build_expected_vector(
+      mjsel.begin(), mjsel.end(), _fp->bins(), min_delta(), max_delta());
 }
 
 }  // namespace nchg

@@ -40,13 +40,20 @@
 #include <vector>
 
 #include "nchg/expected_matrix.hpp"
+#include "nchg/mad_max_filter.hpp"
 
 namespace nchg {
 
 template <typename File>
-inline ExpectedValues<File>::ExpectedValues(std::shared_ptr<const File> file,
+inline ExpectedValues<File>::ExpectedValues(std::shared_ptr<const File> file, double mad_max,
                                             std::uint64_t min_delta, std::uint64_t max_delta)
-    : _fp(std::move(file)), _min_delta(min_delta), _max_delta(max_delta) {
+    : _fp(std::move(file)), _mad_max(mad_max), _min_delta(min_delta), _max_delta(max_delta) {
+  if (_mad_max < 0 || !std::isfinite(_mad_max)) {
+    throw std::logic_error("mad_max_ should be a non-negative value");
+  }
+  if (_min_delta >= _max_delta) {
+    throw std::logic_error("min_delta should be strictly less than max_delta");
+  }
   if (_fp) {
     compute_expected_values_cis();
     compute_expected_values_trans();
@@ -55,9 +62,9 @@ inline ExpectedValues<File>::ExpectedValues(std::shared_ptr<const File> file,
 
 template <typename File>
 inline ExpectedValues<File> ExpectedValues<File>::cis_only(std::shared_ptr<const File> file,
-                                                           std::uint64_t min_delta,
+                                                           double mad_max, std::uint64_t min_delta,
                                                            std::uint64_t max_delta) {
-  ExpectedValues ev(nullptr, min_delta, max_delta);
+  ExpectedValues ev(nullptr, mad_max, min_delta, max_delta);
   ev._fp = std::move(file);
   if (ev._fp) {
     ev.compute_expected_values_cis();
@@ -66,8 +73,9 @@ inline ExpectedValues<File> ExpectedValues<File>::cis_only(std::shared_ptr<const
 }
 
 template <typename File>
-inline ExpectedValues<File> ExpectedValues<File>::trans_only(std::shared_ptr<const File> file) {
-  ExpectedValues ev(nullptr);
+inline ExpectedValues<File> ExpectedValues<File>::trans_only(std::shared_ptr<const File> file,
+                                                             double mad_max) {
+  ExpectedValues ev(nullptr, mad_max);
   ev._fp = std::move(file);
   if (ev._fp) {
     ev.compute_expected_values_trans();
@@ -79,11 +87,12 @@ template <typename File>
 inline ExpectedValues<File> ExpectedValues<File>::chromosome_pair(std::shared_ptr<const File> file,
                                                                   const hictk::Chromosome &chrom1,
                                                                   const hictk::Chromosome &chrom2,
+                                                                  double mad_max,
                                                                   std::uint64_t min_delta,
                                                                   std::uint64_t max_delta) {
   SPDLOG_INFO(FMT_STRING("computing expected values for {}:{}..."), chrom1.name(), chrom2.name());
 
-  ExpectedValues ev(nullptr, min_delta, max_delta);
+  ExpectedValues ev(nullptr, mad_max, min_delta, max_delta);
   ev._fp = std::move(file);
   if (chrom1 == chrom2) {
     ev.compute_expected_values_cis();
@@ -94,8 +103,16 @@ inline ExpectedValues<File> ExpectedValues<File>::chromosome_pair(std::shared_pt
   const hictk::transformers::JoinGenomicCoords jsel(
       sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), ev._fp->bins_ptr());
 
+  if (!ev._bin_masks.contains(std::make_pair(chrom1, chrom2))) {
+    ev.add_bin_mask(chrom1, chrom2,
+                    mad_max_filtering(jsel.begin(), jsel.end(), chrom1, chrom2,
+                                      ev._fp->resolution(), ev._mad_max));
+  }
+
   const ExpectedMatrix em(jsel.begin(), jsel.end(), chrom1, chrom2, ev._fp->bins(),
-                          std::vector<double>{}, 0, std::numeric_limits<std::uint64_t>::max());
+                          std::vector<double>{}, 0, *ev.bin_mask(chrom1, chrom2).first,
+                          *ev.bin_mask(chrom1, chrom2).second,
+                          std::numeric_limits<std::uint64_t>::max());
 
   ev._expected_values_trans.emplace(std::make_pair(chrom1, chrom2), em.nnz_avg());
 
@@ -118,6 +135,32 @@ inline ExpectedValues<File> ExpectedValues<File>::deserialize(const std::filesys
 template <typename File>
 inline const std::vector<double> &ExpectedValues<File>::weights() const noexcept {
   return _expected_weights;
+}
+
+template <typename File>
+inline double ExpectedValues<File>::mad_max() const noexcept {
+  return _mad_max;
+}
+template <typename File>
+inline std::uint64_t ExpectedValues<File>::min_delta() const noexcept {
+  return _min_delta;
+}
+template <typename File>
+inline std::uint64_t ExpectedValues<File>::max_delta() const noexcept {
+  return _max_delta;
+}
+
+template <typename File>
+inline std::shared_ptr<const std::vector<bool>> ExpectedValues<File>::bin_mask(
+    const hictk::Chromosome &chrom) const {
+  return _bin_masks.at(std::make_pair(chrom, chrom)).first;
+}
+
+template <typename File>
+inline std::pair<std::shared_ptr<const std::vector<bool>>, std::shared_ptr<const std::vector<bool>>>
+ExpectedValues<File>::bin_mask(const hictk::Chromosome &chrom1,
+                               const hictk::Chromosome &chrom2) const {
+  return _bin_masks.at(std::make_pair(chrom1, chrom2));
 }
 
 template <typename File>
@@ -174,6 +217,8 @@ inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom
           bins,
           _expected_weights,
           _expected_scaling_factors.at(chrom),
+          *bin_mask(chrom),
+          *bin_mask(chrom),
           _min_delta,
           _max_delta};
 }
@@ -206,6 +251,8 @@ inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom
           bins,
           std::vector<double>{},
           1.0,
+          *bin_mask(chrom1, chrom2).first,
+          *bin_mask(chrom1, chrom2).second,
           _min_delta,
           _max_delta};
 }
@@ -269,6 +316,12 @@ inline void ExpectedValues<File>::compute_expected_values_cis() {
     auto last = sel.template end<N>();
 
     if (first != last) {
+      if (!_bin_masks.contains(std::make_pair(chrom, chrom))) {
+        const hictk::transformers::JoinGenomicCoords jsel(first, last, _fp->bins_ptr());
+        add_bin_mask(
+            chrom, mad_max_filtering(jsel.begin(), jsel.end(), chrom, _fp->resolution(), _mad_max));
+      }
+
       heads.emplace_back(std::move(first));
       tails.emplace_back(std::move(last));
       sels.emplace_back(std::move(sel));
@@ -288,8 +341,11 @@ inline void ExpectedValues<File>::compute_expected_values_cis() {
 
   hictk::ExpectedValuesAggregator aggr(_fp->bins_ptr());
   std::for_each(mjsel.begin(), mjsel.end(), [&](const hictk::Pixel<N> &p) {
+    const auto &mask = *bin_mask(p.coords.bin1.chrom());
     const auto delta = p.coords.bin2.start() - p.coords.bin1.start();
-    if (delta >= _min_delta && delta < _max_delta) {
+    const auto bin1_id = p.coords.bin1.id();
+    const auto bin2_id = p.coords.bin2.id();
+    if (delta >= _min_delta && delta < _max_delta && !mask[bin1_id] && !mask[bin2_id]) {
       aggr.add(p);
     }
   });
@@ -328,11 +384,43 @@ inline void ExpectedValues<File>::compute_expected_values_trans() {
       const hictk::transformers::JoinGenomicCoords jsel(
           sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), _fp->bins_ptr());
 
+      if (!_bin_masks.contains(std::make_pair(chrom1, chrom2))) {
+        add_bin_mask(chrom1, chrom2,
+                     mad_max_filtering(jsel.begin(), jsel.end(), chrom1, chrom2, _fp->resolution(),
+                                       _mad_max));
+      }
+
       const ExpectedMatrix em(jsel.begin(), jsel.end(), chrom1, chrom2, _fp->bins(),
-                              std::vector<double>{}, 0, std::numeric_limits<std::uint64_t>::max());
+                              std::vector<double>{}, 0, *bin_mask(chrom1, chrom2).first,
+                              *bin_mask(chrom1, chrom2).first,
+                              std::numeric_limits<std::uint64_t>::max());
       _expected_values_trans.emplace(std::make_pair(chrom1, chrom2), em.nnz_avg());
     }
   }
+}
+
+template <typename File>
+inline void ExpectedValues<File>::add_bin_mask(const hictk::Chromosome &chrom,
+                                               std::vector<bool> &&mask) {
+  const auto key = std::make_pair(chrom, chrom);
+  if (_bin_masks.contains(key)) {
+    return;
+  }
+  auto value = std::make_shared<const std::vector<bool>>(std::move(mask));
+  _bin_masks.emplace(key, std::make_pair(value, value));
+}
+
+template <typename File>
+void ExpectedValues<File>::add_bin_mask(const hictk::Chromosome &chrom1,
+                                        const hictk::Chromosome &chrom2,
+                                        std::pair<std::vector<bool>, std::vector<bool>> &&masks) {
+  const auto key = std::make_pair(chrom1, chrom2);
+  if (_bin_masks.contains(key)) {
+    return;
+  }
+  _bin_masks.emplace(
+      key, std::make_pair(std::make_shared<const std::vector<bool>>(std::move(masks.first)),
+                          std::make_shared<const std::vector<bool>>(std::move(masks.second))));
 }
 
 template <typename File>

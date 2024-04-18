@@ -138,8 +138,7 @@ template <typename FilePtr, typename File = remove_cvref_t<decltype(*std::declva
 [[nodiscard]] static NCHG<File> init_nchg(const FilePtr &f, const ComputePvalConfig &c) {
   if (!c.path_to_expected_values.empty()) {
     SPDLOG_INFO(FMT_STRING("reading expected values from {}..."), c.path_to_expected_values);
-    NCHG nchg(f, ExpectedValues<File>::deserialize(c.path_to_expected_values), c.min_delta,
-              c.max_delta);
+    NCHG nchg(f, ExpectedValues<File>::deserialize(c.path_to_expected_values));
     if (c.cis_only) {
       nchg.init_cis_matrices();
     } else if (c.trans_only) {
@@ -153,19 +152,20 @@ template <typename FilePtr, typename File = remove_cvref_t<decltype(*std::declva
   }
 
   if (c.cis_only) {
-    return NCHG<File>::cis_only(f, c.min_delta, c.max_delta);
+    return NCHG<File>::cis_only(f, c.mad_max, c.min_delta, c.max_delta);
   }
   if (c.trans_only) {
-    return NCHG<File>::trans_only(f);
+    return NCHG<File>::trans_only(f, c.mad_max);
   }
 
   if (c.chrom1 != "all") {
     assert(c.chrom2 != "all");
     return NCHG<File>::chromosome_pair(f, f->chromosomes().at(c.chrom1),
-                                       f->chromosomes().at(c.chrom2), c.min_delta, c.max_delta);
+                                       f->chromosomes().at(c.chrom2), c.mad_max, c.min_delta,
+                                       c.max_delta);
   }
 
-  NCHG nchg(f, c.min_delta, c.max_delta);
+  NCHG nchg(f, c.mad_max, c.min_delta, c.max_delta);
   nchg.init_matrices();
   return nchg;
 }
@@ -196,7 +196,7 @@ template <typename FilePtr>
         continue;
       }
 
-      const auto s = nchg.compute(d1, d2);
+      const auto s = nchg.compute(d1, d2, c.bad_bin_fraction);
       fmt::print(FMT_COMPILE("{:bg2}\t{}\t{}\t{}\t{}\t{}\n"), s.pixel.coords, s.pval, s.pixel.count,
                  s.expected, s.odds_ratio, s.omega);
       ++num_records;

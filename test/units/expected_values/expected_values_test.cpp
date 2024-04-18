@@ -110,7 +110,7 @@ TEST_CASE("ExpectedValues: trans-only", "[long][expected_values]") {
 
   const auto clr = std::make_shared<const hictk::cooler::File>(test_file.string());
 
-  const auto evs = ExpectedValues<hictk::cooler::File>::trans_only(clr);
+  const auto evs = ExpectedValues<hictk::cooler::File>::trans_only(clr, 0.0);
   const auto chrom1 = clr->chromosomes().at("chr21");
   const auto chrom2 = clr->chromosomes().at("chr22");
 

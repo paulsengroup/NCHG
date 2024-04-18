@@ -88,8 +88,17 @@ TEST_CASE("ExpectedMatrix (cis)", "[short][expected_matrix]") {
   }
 
   SECTION("masked matrix") {
-    const ExpectedMatrix m{
-        pixels.begin(), pixels.end(), pixels.begin(), pixels.end(), chrom1, chrom1, bins, 1, 100};
+    const ExpectedMatrix m{pixels.begin(),
+                           pixels.end(),
+                           pixels.begin(),
+                           pixels.end(),
+                           chrom1,
+                           chrom1,
+                           bins,
+                           {},
+                           {},
+                           1,
+                           100};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);
@@ -187,8 +196,17 @@ TEST_CASE("ExpectedMatrix (trans)", "[short][expected_matrix]") {
   }
 
   SECTION("masked matrix") {
-    const ExpectedMatrix m{
-        pixels.begin(), pixels.end(), pixels.begin(), pixels.end(), chrom1, chrom2, bins, 1, 100};
+    const ExpectedMatrix m{pixels.begin(),
+                           pixels.end(),
+                           pixels.begin(),
+                           pixels.end(),
+                           chrom1,
+                           chrom2,
+                           bins,
+                           {},
+                           {},
+                           1,
+                           100};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);

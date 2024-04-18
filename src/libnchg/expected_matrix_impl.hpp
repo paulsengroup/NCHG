@@ -34,7 +34,8 @@ template <typename PixelIt>
 inline auto ExpectedMatrix<PixelIt>::compute_stats(
     PixelIt first_pixel, PixelIt last_pixel, const hictk::Chromosome &chrom1,
     const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
-    const std::vector<double> &weights, std::uint64_t min_delta_, std::uint64_t max_delta_) {
+    const std::vector<double> &weights, const std::vector<bool> &bin_mask1,
+    const std::vector<bool> &bin_mask2, std::uint64_t min_delta_, std::uint64_t max_delta_) {
   struct Result {
     std::shared_ptr<std::vector<double>> marginals1{std::make_shared<std::vector<double>>()};
     std::shared_ptr<std::vector<double>> marginals2{std::make_shared<std::vector<double>>()};
@@ -71,6 +72,13 @@ inline auto ExpectedMatrix<PixelIt>::compute_stats(
       return;
     }
 
+    if (!bin_mask1.empty() && bin_mask1[p.coords.bin1.rel_id()]) {
+      return;
+    }
+    if (!bin_mask2.empty() && bin_mask2[p.coords.bin2.rel_id()]) {
+      return;
+    }
+
     auto count = intra_matrix ? weights.at(bin2.id() - bin1.id()) : static_cast<double>(p.count);
     if (std::isnan(count)) {
       count = 0.0;
@@ -98,34 +106,37 @@ inline auto ExpectedMatrix<PixelIt>::compute_stats(
 
 template <typename PixelIt>
 template <typename PixelItGw>
-inline ExpectedMatrix<PixelIt>::ExpectedMatrix(PixelIt first_pixel, PixelIt last_pixel,
-                                               PixelItGw first_pixel_gw, PixelItGw last_pixel_gw,
-                                               const hictk::Chromosome &chrom1,
-                                               const hictk::Chromosome &chrom2,
-                                               const hictk::BinTable &bins,
-                                               std::uint64_t min_delta_, std::uint64_t max_delta_)
+inline ExpectedMatrix<PixelIt>::ExpectedMatrix(
+    PixelIt first_pixel, PixelIt last_pixel, PixelItGw first_pixel_gw, PixelItGw last_pixel_gw,
+    const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
+    const std::vector<bool> &bin_mask1, const std::vector<bool> &bin_mask2,
+    std::uint64_t min_delta_, std::uint64_t max_delta_)
     : ExpectedMatrix(std::move(first_pixel), std::move(last_pixel), chrom1, chrom2, bins,
                      compute_weights(std::move(first_pixel_gw), std::move(last_pixel_gw), chrom1,
                                      chrom2, bins, min_delta_, max_delta_),
-                     1.0, min_delta_, max_delta_) {}
+                     1.0, bin_mask1, bin_mask2, min_delta_, max_delta_) {}
 
 template <typename PixelIt>
 inline ExpectedMatrix<PixelIt>::ExpectedMatrix(PixelIt first_pixel, PixelIt last_pixel,
                                                hictk::Chromosome chrom1, hictk::Chromosome chrom2,
                                                hictk::BinTable bins, std::vector<double> weights,
-                                               double scaling_factor, std::uint64_t min_delta_,
-                                               std::uint64_t max_delta_)
+                                               double scaling_factor,
+                                               const std::vector<bool> &bin_mask1,
+                                               const std::vector<bool> &bin_mask2,
+                                               std::uint64_t min_delta_, std::uint64_t max_delta_)
     : _chrom1(std::move(chrom1)),
       _chrom2(std::move(chrom2)),
       _bins(std::move(bins)),
       _weights(std::move(weights)),
       _min_delta(min_delta_),
       _max_delta(max_delta_) {
-  std::transform(_weights.begin(), _weights.end(), _weights.begin(),
-                 [&](const auto n) { return n / scaling_factor; });
+  if (scaling_factor != 1) {
+    std::transform(_weights.begin(), _weights.end(), _weights.begin(),
+                   [&](const auto n) { return n / scaling_factor; });
+  }
 
-  auto stats = compute_stats(first_pixel, last_pixel, _chrom1, _chrom2, _bins, _weights, min_delta_,
-                             max_delta_);
+  auto stats = compute_stats(first_pixel, last_pixel, _chrom1, _chrom2, _bins, _weights, bin_mask1,
+                             bin_mask2, min_delta_, max_delta_);
   _marginals1 = std::move(stats.marginals1);
   _marginals2 = std::move(stats.marginals2);
   _nnz = stats.nnz;

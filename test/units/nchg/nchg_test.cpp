@@ -36,13 +36,13 @@ TEST_CASE("NCHG", "[short][nchg]") {
   const auto clr = std::make_shared<const hictk::cooler::File>(test_file.string());
 
   const auto chr1 = clr->chromosomes().at("chr1");
-  auto nchg = NCHG<hictk::cooler::File>::cis_only(clr);
+  auto nchg = NCHG<hictk::cooler::File>::cis_only(clr, 0.0, 40'000);
 
   SECTION("significant") {
     const hictk::GenomicInterval range1(chr1, 0, 10'000'000);
     const hictk::GenomicInterval range2(chr1, 10'000'000, 20'000'000);
 
-    const auto s = nchg.compute(range1, range2);
+    const auto s = nchg.compute(range1, range2, 1.0);
 
     CHECK(s.pval <= 0.05);
   }
@@ -50,7 +50,7 @@ TEST_CASE("NCHG", "[short][nchg]") {
     const hictk::GenomicInterval range1(chr1, 0, 10'000'000);
     const hictk::GenomicInterval range2(chr1, 95'000'000, 105'000'000);
 
-    const auto s = nchg.compute(range1, range2);
+    const auto s = nchg.compute(range1, range2, 1.0);
 
     CHECK(s.pval > 0.05);
   }

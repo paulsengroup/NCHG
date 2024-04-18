@@ -54,8 +54,6 @@ class NCHG {
       decltype(std::declval<hictk::transformers::JoinGenomicCoords<ThinPixelIt>>().begin());
 
   std::shared_ptr<const File> _fp;
-  std::uint64_t _min_delta{};
-  std::uint64_t _max_delta{std::numeric_limits<std::uint64_t>::max()};
 
   using Key = std::pair<hictk::Chromosome, hictk::Chromosome>;
   phmap::flat_hash_map<Key, std::shared_ptr<const ObservedMatrix<PixelIt>>> _obs_matrices{};
@@ -65,20 +63,22 @@ class NCHG {
   mutable std::vector<double> _nchg_pval_buffer{};
 
  public:
-  explicit NCHG(std::shared_ptr<const File> f, std::uint64_t min_delta = 40'000,
+  explicit NCHG(std::shared_ptr<const File> f, double mad_max_, std::uint64_t min_delta,
                 std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
-  NCHG(std::shared_ptr<const File> f, ExpectedValues<File> expected_values,
-       std::uint64_t min_delta = 40'000,
-       std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
+  NCHG(std::shared_ptr<const File> f, ExpectedValues<File> expected_values) noexcept;
 
   [[nodiscard]] static NCHG cis_only(
-      std::shared_ptr<const File> f, std::uint64_t min_delta = 40'000,
+      std::shared_ptr<const File> f, double mad_max_, std::uint64_t min_delta,
       std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
-  [[nodiscard]] static NCHG trans_only(std::shared_ptr<const File> f);
+  [[nodiscard]] static NCHG trans_only(std::shared_ptr<const File> f, double mad_max_);
   [[nodiscard]] static NCHG chromosome_pair(
       std::shared_ptr<const File> f, const hictk::Chromosome& chrom1,
-      const hictk::Chromosome& chrom2, std::uint64_t min_delta = 40'000,
+      const hictk::Chromosome& chrom2, double mad_max_, std::uint64_t min_delta,
       std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
+
+  [[nodiscard]] double mad_max() const noexcept;
+  [[nodiscard]] std::uint64_t min_delta() const noexcept;
+  [[nodiscard]] std::uint64_t max_delta() const noexcept;
 
   [[nodiscard]] auto observed_matrix(const hictk::Chromosome& chrom) const
       -> const ObservedMatrix<PixelIt>&;
@@ -93,8 +93,8 @@ class NCHG {
       -> const ExpectedMatrix<PixelIt>&;
 
   void init_matrices();
-    void init_cis_matrices();
-    void init_trans_matrices();
+  void init_cis_matrices();
+  void init_trans_matrices();
   void init_matrix(const hictk::Chromosome& chrom);
   void init_matrix(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2);
 
@@ -102,9 +102,11 @@ class NCHG {
   void erase_matrix(const hictk::Chromosome& chrom);
   void erase_matrix(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2);
 
-  [[nodiscard]] auto compute(const hictk::GenomicInterval& range) const -> Stats;
+  [[nodiscard]] auto compute(const hictk::GenomicInterval& range, double bad_bin_fraction) const
+      -> Stats;
   [[nodiscard]] auto compute(const hictk::GenomicInterval& range1,
-                             const hictk::GenomicInterval& range2) const -> Stats;
+                             const hictk::GenomicInterval& range2, double bad_bin_fraction) const
+      -> Stats;
 
   [[nodiscard]] auto cbegin(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2) const
       -> iterator;
@@ -140,9 +142,13 @@ class NCHG {
  public:
   class iterator {
     PixelIt _pixel_it{};
+    PixelIt _sentinel_it{};
 
     std::shared_ptr<const ObservedMatrix<PixelIt>> _obs{};
     std::shared_ptr<const ExpectedMatrix<PixelIt>> _exp{};
+
+    std::shared_ptr<const std::vector<bool>> _bin_mask1{};
+    std::shared_ptr<const std::vector<bool>> _bin_mask2{};
 
     std::shared_ptr<std::vector<double>> _buffer{std::make_shared<std::vector<double>>()};
 
@@ -161,9 +167,12 @@ class NCHG {
     using iterator_category = std::forward_iterator_tag;
 
     iterator() = default;
-    iterator(PixelIt pixel_it, std::shared_ptr<const ObservedMatrix<PixelIt>> obs,
-             std::shared_ptr<const ExpectedMatrix<PixelIt>> exp, std::uint64_t min_delta,
-             std::uint64_t max_delta);
+    iterator(PixelIt pixel_it, PixelIt sentinel_it,
+             std::shared_ptr<const ObservedMatrix<PixelIt>> obs,
+             std::shared_ptr<const ExpectedMatrix<PixelIt>> exp,
+             std::shared_ptr<const std::vector<bool>> bin_mask1,
+             std::shared_ptr<const std::vector<bool>> bin_mask2, std::uint64_t min_delta,
+             std::uint64_t max_delta) noexcept;
 
     iterator(const iterator& other);
     iterator(iterator&& other) noexcept = default;

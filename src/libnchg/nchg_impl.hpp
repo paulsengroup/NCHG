@@ -25,7 +25,6 @@
 #include <cassert>
 #include <hictk/file.hpp>
 #include <hictk/fmt/genomic_interval.hpp>
-#include <hictk/hic/expected_values_aggregator.hpp>
 #include <hictk/transformers/join_genomic_coords.hpp>
 #include <hictk/transformers/pixel_merger.hpp>
 

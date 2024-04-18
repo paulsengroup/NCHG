@@ -24,7 +24,7 @@ cli11/2.4.1#afacffd31f631bbb8b7c7d6425fe7a66
 concurrentqueue/1.0.4#1e48e1c712bcfd892087c9c622a51502
 fmt/10.2.1#9199a7a0611866dea5c8849a77467b25
 hdf5/1.14.3#31ccd8d4de83844f5db48471df1944a1
-hictk/0.0.10
+hictk/0.0.12#8e413cd45528da38b5a41ccffee41d6d
 highfive/2.9.0#c57477beed8b0110fadeb6da8f48bcc5
 parallel-hashmap/1.3.11#1e67f4855a3f7cdeb977cc472113baf7
 spdlog/1.13.0#8e88198fd5b9ee31d329431a6d0ccaa2
@@ -78,6 +78,7 @@ hdf5*:enable_cxx=False
 hdf5*:hl=False
 hdf5*:threadsafe=False
 hdf5*:parallel=False
+hictk*:with_eigen=False
 highfive*:with_boost=False
 highfive*:with_eigen=False
 highfive*:with_opencv=False

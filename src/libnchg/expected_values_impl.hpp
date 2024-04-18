@@ -27,7 +27,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <hictk/chromosome.hpp>
-#include <hictk/hic/expected_values_aggregator.hpp>
+#include <hictk/expected_values_aggregator.hpp>
 #include <hictk/pixel.hpp>
 #include <hictk/transformers/join_genomic_coords.hpp>
 #include <hictk/transformers/pixel_merger.hpp>
@@ -286,15 +286,11 @@ inline void ExpectedValues<File>::compute_expected_values_cis() {
   hictk::transformers::PixelMerger merger(std::move(heads), std::move(tails));
   const hictk::transformers::JoinGenomicCoords mjsel(merger.begin(), merger.end(), _fp->bins_ptr());
 
-  hictk::hic::internal::ExpectedValuesAggregator aggr(_fp->bins_ptr());
+  hictk::ExpectedValuesAggregator aggr(_fp->bins_ptr());
   std::for_each(mjsel.begin(), mjsel.end(), [&](const hictk::Pixel<N> &p) {
     const auto delta = p.coords.bin2.start() - p.coords.bin1.start();
     if (delta >= _min_delta && delta < _max_delta) {
-      // TODO remove redundant pixel copy
-      hictk::Pixel<float> pp(_fp->bins(),
-                             hictk::ThinPixel<float>{p.coords.bin1.id(), p.coords.bin2.id(),
-                                                     static_cast<float>(p.count)});
-      aggr.add(std::move(pp));
+      aggr.add(p);
     }
   });
   aggr.compute_density();

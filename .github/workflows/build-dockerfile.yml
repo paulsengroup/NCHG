@@ -153,8 +153,8 @@ jobs:
           context: ${{ github.workspace }}
           load: true
           push: false
-          cache-from: type=gha,scope=build-dockerfile
-          cache-to: type=gha,mode=max,scope=build-dockerfile
+          cache-from: type=gha,scope=build-dockerfile-x86
+          cache-to: type=gha,mode=max,scope=build-dockerfile-x86
           tags: nchg:test
           platforms: linux/amd64
           build-args: |
@@ -183,8 +183,8 @@ jobs:
           context: ${{ github.workspace }}
           load: true
           push: false
-          cache-from: type=gha,scope=build-dockerfile
-          cache-to: type=gha,mode=max,scope=build-dockerfile
+          cache-from: type=gha,scope=build-dockerfile-arm
+          cache-to: type=gha,mode=max,scope=build-dockerfile-arm
           tags: nchg:test
           platforms: linux/arm64
           build-args: |

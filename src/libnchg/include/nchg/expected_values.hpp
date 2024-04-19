@@ -42,30 +42,44 @@ class ExpectedValues {
       decltype(std::declval<hictk::transformers::JoinGenomicCoords<ThinPixelIt>>().begin());
   std::shared_ptr<const File> _fp{};
 
+  using ChromPair = std::pair<hictk::Chromosome, hictk::Chromosome>;
+  using BinMask = std::shared_ptr<const std::vector<bool>>;
+
   std::vector<double> _expected_weights{};
   phmap::btree_map<hictk::Chromosome, double> _expected_scaling_factors{};
+  phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>> _bin_masks{};
 
-  using EVTKey = std::pair<hictk::Chromosome, hictk::Chromosome>;
-  phmap::btree_map<EVTKey, double> _expected_values_trans{};
+  phmap::btree_map<ChromPair, double> _expected_values_trans{};
 
+  double _mad_max{};
   std::uint64_t _min_delta{};
   std::uint64_t _max_delta{std::numeric_limits<std::uint64_t>::max()};
 
  public:
-  explicit ExpectedValues(std::shared_ptr<const File> file, std::uint64_t min_delta = 40'000,
+  explicit ExpectedValues(std::shared_ptr<const File> file, double mad_max = 0.0,
+                          std::uint64_t min_delta = 40'000,
                           std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
   static ExpectedValues cis_only(
-      std::shared_ptr<const File> file, std::uint64_t min_delta = 40'000,
+      std::shared_ptr<const File> file, double mad_max = 0.0, std::uint64_t min_delta = 40'000,
       std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
-  static ExpectedValues trans_only(std::shared_ptr<const File> file);
+  static ExpectedValues trans_only(std::shared_ptr<const File> file, double mad_max);
   static ExpectedValues chromosome_pair(
       std::shared_ptr<const File> file, const hictk::Chromosome& chrom1,
-      const hictk::Chromosome& chrom2, std::uint64_t min_delta = 40'000,
+      const hictk::Chromosome& chrom2, double mad_max = 0.0, std::uint64_t min_delta = 40'000,
       std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
 
   static ExpectedValues deserialize(const std::filesystem::path& path);
 
   [[nodiscard]] const std::vector<double>& weights() const noexcept;
+  [[nodiscard]] double mad_max() const noexcept;
+  [[nodiscard]] std::uint64_t min_delta() const noexcept;
+  [[nodiscard]] std::uint64_t max_delta() const noexcept;
+
+  [[nodiscard]] std::shared_ptr<const std::vector<bool>> bin_mask(
+      const hictk::Chromosome& chrom) const;
+  [[nodiscard]] std::pair<std::shared_ptr<const std::vector<bool>>,
+                          std::shared_ptr<const std::vector<bool>>>
+  bin_mask(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2) const;
 
   [[nodiscard]] std::vector<double> expected_values(const hictk::Chromosome& chrom,
                                                     bool rescale = true) const;
@@ -94,19 +108,31 @@ class ExpectedValues {
   void compute_expected_values_cis();
   void compute_expected_values_trans();
 
+  void add_bin_mask(const hictk::Chromosome& chrom, std::vector<bool>&& mask);
+  void add_bin_mask(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2,
+                    std::pair<std::vector<bool>, std::vector<bool>>&& masks2);
+
+  static void serialize_attributes(HighFive::File& f, double mad_max_, std::uint64_t min_delta_,
+                                   std::uint64_t max_delta_);
   static void serialize_chromosomes(HighFive::File& f, const hictk::Reference& chroms);
+  static void serialize_bin_masks(
+      HighFive::File& f, const phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>>& bin_masks);
   static void serialize_cis_profiles(
       HighFive::File& f, const std::vector<double>& profile,
       const phmap::btree_map<hictk::Chromosome, double>& scaling_factors);
   static void serialize_trans_profiles(HighFive::File& f,
-                                       const phmap::btree_map<EVTKey, double>& nnz_avg_values);
+                                       const phmap::btree_map<ChromPair, double>& nnz_avg_values);
 
+  [[nodiscard]] static std::tuple<double, std::uint64_t, std::uint64_t> deserialize_attributes(
+      const HighFive::File& f);
   [[nodiscard]] static hictk::Reference deserialize_chromosomes(const HighFive::File& f);
+  [[nodiscard]] static auto deserialize_bin_masks(HighFive::File& f)
+      -> const phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>>;
   [[nodiscard]] static std::pair<const std::vector<double>,
                                  const phmap::btree_map<hictk::Chromosome, double>>
   deserialize_cis_profiles(const HighFive::File& f);
   [[nodiscard]] static auto deserialize_trans_profiles(const HighFive::File& f)
-      -> phmap::btree_map<EVTKey, double>;
+      -> phmap::btree_map<ChromPair, double>;
 };
 }  // namespace nchg
 

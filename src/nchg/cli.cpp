@@ -190,6 +190,19 @@ void Cli::make_compute_subcommand() {
     "Maximum distance from the diagonal required for interactions to be considered.")
     ->check(CLI::PositiveNumber)
     ->capture_default_str();
+  sc.add_option(
+    "--mad-max",
+    c.mad_max,
+    "Cutoff used by the MAD-max filter to mask bad bins.")
+    ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
+  sc.add_option(
+    "--bad-bin-fraction",
+    c.bad_bin_fraction,
+    "Largest fraction of masked bins required for a domain to be processed.\n"
+    "Has no effect when --domains is not used.")
+  ->check(CLI::Bound(0, 1))
+  ->capture_default_str();
   sc.add_flag(
     "--write-header,!--no-write-header",
     c.write_header,
@@ -264,6 +277,12 @@ void Cli::make_expected_subcommand() {
       c.chrom2,
       "Name of the second chromosome.\n"
       "Used to compute p-values only for a chromosome-chromosome matrix of interest.")
+      ->capture_default_str();
+  sc.add_option(
+      "--mad-max",
+      c.mad_max,
+      "Cutoff used by the MAD-max filter to mask bad bins.")
+      ->check(CLI::NonNegativeNumber)
       ->capture_default_str();
   sc.add_flag(
       "--force",

@@ -20,12 +20,15 @@
 #include <fmt/format.h>
 #include <fmt/std.h>
 #include <parallel_hashmap/btree.h>
+#include <spdlog/spdlog.h>
 
 #include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <fstream>
+#include <hictk/chromosome.hpp>
 #include <hictk/numeric_utils.hpp>
+#include <iostream>
 #include <memory>
 #include <set>
 #include <stdexcept>
@@ -109,8 +112,8 @@ struct Stats {
   double odds_ratio{};
   double omega{};
 
-  [[nodiscard]] static Stats parse(ChromosomeSet& chromosomes, std::string_view s,
-                                   char sep = '\t') {
+  [[nodiscard]] static Stats parse(std::vector<std::string_view>& toks, ChromosomeSet& chromosomes,
+                                   std::string_view s, char sep = '\t') {
     if (s.empty()) {
       throw std::runtime_error("found an empty line");
     }
@@ -119,8 +122,7 @@ struct Stats {
       s = s.substr(0, s.size() - 1);
     }
 
-    // TODO make more efficient
-    std::vector<std::string_view> toks{};
+    toks.clear();
     while (!s.empty()) {
       const auto pos = s.find(sep);
       toks.push_back(s.substr(0, pos));
@@ -213,39 +215,131 @@ struct Stats {
   }
 };
 
-int run_nchg_filter(const FilterConfig& c) {
-  std::vector<Stats> records{};
-  std::ifstream fs{};
+using ChromPair = std::pair<std::string, std::string>;
+
+[[nodiscard]] std::istream* open_file(const std::filesystem::path& path, std::ifstream& ifs) {
+  if (path.empty() || path == "-") {
+    return &std::cin;
+  }
+
+  ifs.exceptions(ifs.exceptions() | std::ios::failbit | std::ios::badbit);
+  ifs.open(path);
+
+  return &ifs;
+}
+
+[[nodiscard]] static phmap::btree_map<ChromPair, std::vector<Stats>> parse_records(
+    const std::filesystem::path& path) {
+  SPDLOG_INFO(FMT_STRING("parsing records from {}"), path.empty() || path == "-" ? "stdin" : path);
+  phmap::btree_map<ChromPair, std::vector<Stats>> records{};
+
+  std::ifstream ifs{};
+  std::istream* is = &std::cin;
   std::size_t i = 1;
   try {
-    fs.exceptions(fs.exceptions() | std::ios::failbit | std::ios::badbit);
-    fs.open(c.path);
-
     ChromosomeSet chroms{};
 
+    if (!path.empty() && path != "-") {
+      is = open_file(path, ifs);
+    }
+
+    std::vector<std::string_view> tok_buffer{};
     std::string buffer{};
-    for (; std::getline(fs, buffer); ++i) {
+    for (; std::getline(*is, buffer); ++i) {
       if (i == 1 && buffer.find("chrom1") == 0) {
         continue;
       }
-      records.emplace_back(Stats::parse(chroms, buffer));
+      auto record = Stats::parse(tok_buffer, chroms, buffer);
+      auto [it, inserted] = records.try_emplace(std::make_pair(*record.chrom1, *record.chrom2),
+                                                std::vector<Stats>{record});
+      if (!inserted) {
+        it->second.emplace_back(std::move(record));
+      }
     }
   } catch (const std::exception& e) {
-    if (!fs.eof()) {
-      throw std::runtime_error(fmt::format(
-          FMT_STRING("an error occurred while parsing line {} from {}: {}"), i, c.path, e.what()));
+    if (!is->eof()) {
+      throw std::runtime_error(
+          fmt::format(FMT_STRING("an error occurred while parsing line {} from {}: {}"), i,
+                      is == &std::cin ? "stdin" : path, e.what()));
     }
+  }
+
+  return records;
+}
+
+[[nodiscard]] static std::vector<Stats> correct_pvalues_chrom_chrom(
+    const phmap::btree_map<ChromPair, std::vector<Stats>>& records) {
+  SPDLOG_INFO(
+      FMT_STRING("proceeding to correct pvalues for individual chromosme pairs separately..."));
+  std::vector<Stats> corrected_records{};
+  BH_FDR<Stats> bh{};
+  for (const auto& [cp, values] : records) {
+    SPDLOG_INFO(FMT_STRING("processing {}:{} values..."), cp.first, cp.second);
+    bh.clear();
+    bh.add_records(values.begin(), values.end());
+    auto chrom_chrom_corrected_records =
+        bh.correct([](Stats& s) -> double& { return s.pvalue_corrected; });
+    corrected_records.insert(corrected_records.end(),
+                             std::make_move_iterator(chrom_chrom_corrected_records.begin()),
+                             std::make_move_iterator(chrom_chrom_corrected_records.end()));
+  }
+  return corrected_records;
+}
+
+[[nodiscard]] static std::vector<Stats> correct_pvalues_cis_trans(
+    const phmap::btree_map<ChromPair, std::vector<Stats>>& records) {
+  SPDLOG_INFO(FMT_STRING("proceeding to correct pvalues for cis and trans matrices separately..."));
+  BH_FDR<Stats> bh_cis{};
+  BH_FDR<Stats> bh_trans{};
+  for (const auto& [chroms, values] : records) {
+    if (chroms.first == chroms.second) {
+      bh_cis.add_records(values.begin(), values.end());
+    } else {
+      bh_trans.add_records(values.begin(), values.end());
+    }
+  }
+
+  auto corrected_records = bh_cis.correct([](Stats& s) -> double& { return s.pvalue_corrected; });
+  auto corrected_records_trans =
+      bh_trans.correct([](Stats& s) -> double& { return s.pvalue_corrected; });
+  corrected_records.insert(corrected_records.end(),
+                           std::make_move_iterator(corrected_records_trans.begin()),
+                           std::make_move_iterator(corrected_records_trans.end()));
+  return corrected_records;
+}
+
+[[nodiscard]] static std::vector<Stats> correct_pvalues(
+    const phmap::btree_map<ChromPair, std::vector<Stats>>& records, const FilterConfig& c) {
+  if (c.correct_chrom_chrom_separately) {
+    return correct_pvalues_chrom_chrom(records);
+  }
+
+  if (c.correct_cis_trans_separately) {
+    return correct_pvalues_cis_trans(records);
+  }
+
+  SPDLOG_INFO(FMT_STRING("proceeding to correct all pvalues in one go"));
+  BH_FDR<Stats> bh{};
+  for (const auto& [_, values] : records) {
+    bh.add_records(values.begin(), values.end());
+  }
+
+  return bh.correct([](Stats& s) -> double& { return s.pvalue_corrected; });
+}
+
+int run_nchg_filter(const FilterConfig& c) {
+  auto records = correct_pvalues(parse_records(c.path), c);
+
+  if (c.sorted) {
+    SPDLOG_INFO("sorting records...");
+    std::sort(records.begin(), records.end());
   }
 
   if (c.write_header) {
+    SPDLOG_INFO("printing the file header...");
     print_header();
   }
 
-  BH_FDR bh(std::move(records));
-  records = bh.correct([](Stats& s) -> double& { return s.pvalue_corrected; });
-  if (c.sorted) {
-    std::sort(records.begin(), records.end());
-  }
   for (const auto& s : records) {
     if (!c.drop_non_significant || (s.pvalue_corrected <= c.fdr && s.log_ratio >= c.log_ratio)) {
       fmt::print(FMT_COMPILE("{}\t"

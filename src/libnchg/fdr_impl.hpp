@@ -35,6 +35,24 @@ template <typename Stats>
 inline BH_FDR<Stats>::BH_FDR(std::vector<Stats> pvalues_) : _pvalues(std::move(pvalues_)) {}
 
 template <typename Stats>
+inline void BH_FDR<Stats>::add_record(Stats&& s) {
+  _pvalues.emplace_back(std::move(s));
+}
+
+template <typename Stats>
+template <typename StatsIt>
+inline void BH_FDR<Stats>::add_records(StatsIt first, StatsIt last) {
+  _pvalues.insert(_pvalues.end(), first, last);
+}
+
+template <typename Stats>
+inline void BH_FDR<Stats>::clear() noexcept {
+  _pvalues.clear();
+  _idx.clear();
+  _ranks.clear();
+}
+
+template <typename Stats>
 template <typename UnaryOperation>
 inline auto BH_FDR<Stats>::correct(UnaryOperation op) -> std::vector<Stats> {
   if (_pvalues.size() < 2) {

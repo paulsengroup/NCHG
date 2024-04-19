@@ -30,12 +30,11 @@
 namespace nchg {
 
 template <typename PixelIt>
-inline auto ObservedMatrix<PixelIt>::compute_stats(PixelIt first_pixel, PixelIt last_pixel,
-                                                   const hictk::Chromosome &chrom1,
-                                                   const hictk::Chromosome &chrom2,
-                                                   const hictk::BinTable &bins,
-                                                   std::uint64_t min_delta_,
-                                                   std::uint64_t max_delta_) {
+inline auto ObservedMatrix<PixelIt>::compute_stats(
+    PixelIt first_pixel, PixelIt last_pixel, const hictk::Chromosome &chrom1,
+    const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
+    const std::vector<bool> &bin_mask1, const std::vector<bool> &bin_mask2,
+    std::uint64_t min_delta_, std::uint64_t max_delta_) {
   assert(min_delta_ < max_delta_);
   struct Result {
     std::shared_ptr<std::vector<std::uint64_t>> marginals1{
@@ -77,12 +76,22 @@ inline auto ObservedMatrix<PixelIt>::compute_stats(PixelIt first_pixel, PixelIt 
       return;
     }
 
+    const auto bin1_id = p.coords.bin1.rel_id();
+    const auto bin2_id = p.coords.bin2.rel_id();
+
+    const auto bin1_masked = !bin_mask1.empty() && bin_mask1[bin1_id];
+    const auto bin2_masked = !bin_mask2.empty() && bin_mask2[bin2_id];
+
+    if (bin1_masked || bin2_masked) {
+      return;
+    }
+
     if (intra_matrix) {
       sum_ += bin1 == bin2 ? p.count : 2 * p.count;
       nnz_ += bin1 == bin2 ? 1ULL : 2ULL;
     } else {
       sum_ += p.count;
-      nnz_++;
+      ++nnz_;
     }
 
     const auto i1 = bin1.rel_id();
@@ -100,15 +109,18 @@ inline auto ObservedMatrix<PixelIt>::compute_stats(PixelIt first_pixel, PixelIt 
 template <typename PixelIt>
 inline ObservedMatrix<PixelIt>::ObservedMatrix(PixelIt first_pixel, PixelIt last_pixel,
                                                hictk::Chromosome chrom1, hictk::Chromosome chrom2,
-                                               hictk::BinTable bins, std::uint64_t min_delta_,
-                                               std::uint64_t max_delta_)
+                                               hictk::BinTable bins, double mad_max_,
+                                               const std::vector<bool> &bin_mask1,
+                                               const std::vector<bool> &bin_mask2,
+                                               std::uint64_t min_delta_, std::uint64_t max_delta_)
     : _chrom1(std::move(chrom1)),
       _chrom2(std::move(chrom2)),
       _bins(std::move(bins)),
+      _mad_max(mad_max_),
       _min_delta(min_delta_),
       _max_delta(max_delta_) {
-  auto stats =
-      compute_stats(first_pixel, last_pixel, _chrom1, _chrom2, _bins, min_delta_, max_delta_);
+  auto stats = compute_stats(first_pixel, last_pixel, _chrom1, _chrom2, _bins, bin_mask1, bin_mask2,
+                             min_delta_, max_delta_);
   _marginals1 = std::move(stats.marginals1);
   _marginals2 = std::move(stats.marginals2);
   _nnz = stats.nnz;
@@ -152,6 +164,11 @@ inline std::uint64_t ObservedMatrix<PixelIt>::sum() const noexcept {
 template <typename PixelIt>
 inline double ObservedMatrix<PixelIt>::nnz_avg() const noexcept {
   return static_cast<double>(sum()) / static_cast<double>(nnz());
+}
+
+template <typename PixelIt>
+inline double ObservedMatrix<PixelIt>::mad_max() const noexcept {
+  return _mad_max;
 }
 
 template <typename PixelIt>

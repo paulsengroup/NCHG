@@ -37,9 +37,10 @@ struct ComputePvalConfig {
   bool cis_only{false};
   bool trans_only{false};
 
+  double mad_max{5.0};
   std::uint64_t min_delta{40'000};
   std::uint64_t max_delta{std::numeric_limits<std::uint64_t>::max()};
-  std::uint64_t num_quantiles{100};
+  double bad_bin_fraction{0.1};
 
   bool write_header{true};
   bool write_eof_signal{false};
@@ -75,6 +76,7 @@ struct ExpectedConfig {
   std::string chrom1{"all"};
   std::string chrom2{"all"};
 
+  double mad_max{5.0};
   std::uint64_t min_delta{40'000};
   std::uint64_t max_delta{std::numeric_limits<std::uint64_t>::max()};
   std::uint64_t num_quantiles{100};

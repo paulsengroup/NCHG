@@ -19,9 +19,6 @@
 
 #pragma once
 
-#include <fmt/format.h>  // TODO: remove
-#include <fmt/ranges.h>  // TODO: remove
-
 #include <algorithm>
 #include <cassert>
 #include <cstddef>

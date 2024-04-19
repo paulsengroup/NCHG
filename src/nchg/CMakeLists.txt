@@ -16,7 +16,7 @@
 # with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
-find_package(Boost REQUIRED COMPONENTS filesystem) # TODO drop filesystem after upgrading hictk
+find_package(Boost REQUIRED COMPONENTS filesystem)
 find_package(bshoshany-thread-pool REQUIRED)
 find_package(CLI11 REQUIRED)
 find_package(concurrentqueue REQUIRED)
@@ -44,7 +44,7 @@ target_link_libraries(
           nchg_project_warnings
           libnchg
           Boost::headers
-          Boost::filesystem # TODO remove after upgrading hictk
+          Boost::filesystem # Required by boost::process::v2
           bshoshany-thread-pool::bshoshany-thread-pool
           CLI11::CLI11
           concurrentqueue::concurrentqueue

@@ -76,7 +76,7 @@ TEST_CASE("ObservedMatrix (cis)", "[short][observed_matrix]") {
   }
 
   SECTION("masked matrix") {
-    const ObservedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom1, bins, 1, 100};
+    const ObservedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom1, bins, 0.0, {}, {}, 1, 100};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);
@@ -161,7 +161,7 @@ TEST_CASE("ObservedMatrix (trans)", "[short][observed_matrix]") {
   }
 
   SECTION("masked matrix") {
-    const ObservedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom2, bins, 1, 100};
+    const ObservedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom2, bins, 0.0, {}, {}, 1, 100};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);

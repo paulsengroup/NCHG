@@ -58,12 +58,14 @@ class ExpectedMatrix {
   ExpectedMatrix(PixelIt first_pixel, PixelIt last_pixel, PixelItGw first_pixel_gw,
                  PixelItGw last_pixel_gw, const hictk::Chromosome &chrom1,
                  const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
+                 const std::vector<bool> &bin_mask1 = {}, const std::vector<bool> &bin_mask2 = {},
                  std::uint64_t min_delta_ = 0,
                  std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max());
 
   ExpectedMatrix(PixelIt first_pixel, PixelIt last_pixel, hictk::Chromosome chrom1,
                  hictk::Chromosome chrom2, hictk::BinTable bins, std::vector<double> weights,
-                 double scaling_factor, std::uint64_t min_delta_ = 0,
+                 double scaling_factor, const std::vector<bool> &bin_mask1 = {},
+                 const std::vector<bool> &bin_mask2 = {}, std::uint64_t min_delta_ = 0,
                  std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max());
 
   [[nodiscard]] std::uint32_t resolution() const noexcept;
@@ -97,6 +99,7 @@ class ExpectedMatrix {
   static auto compute_stats(PixelIt first_pixel, PixelIt last_pixel,
                             const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
                             const hictk::BinTable &bins, const std::vector<double> &weights,
+                            const std::vector<bool> &bin_mask1, const std::vector<bool> &bin_mask2,
                             std::uint64_t min_delta_, std::uint64_t max_delta_);
 
   template <typename PixelItGw>

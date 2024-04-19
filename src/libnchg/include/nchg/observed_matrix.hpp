@@ -42,6 +42,7 @@ class ObservedMatrix {
   std::shared_ptr<std::vector<std::uint64_t>> _marginals1{};
   std::shared_ptr<std::vector<std::uint64_t>> _marginals2{};
 
+  double _mad_max{};
   std::uint64_t _min_delta{};
   std::uint64_t _max_delta{};
 
@@ -51,7 +52,9 @@ class ObservedMatrix {
  public:
   ObservedMatrix() = delete;
   ObservedMatrix(PixelIt first_pixel, PixelIt last_pixel, hictk::Chromosome chrom1,
-                 hictk::Chromosome chrom2, hictk::BinTable bins, std::uint64_t min_delta_ = 0,
+                 hictk::Chromosome chrom2, hictk::BinTable bins, double mad_max_ = 0.0,
+                 const std::vector<bool>& bin_mask1 = {}, const std::vector<bool>& bin_mask2 = {},
+                 std::uint64_t min_delta_ = 0,
                  std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max());
 
   [[nodiscard]] std::uint32_t resolution() const noexcept;
@@ -65,6 +68,7 @@ class ObservedMatrix {
   [[nodiscard]] std::uint64_t sum() const noexcept;
   [[nodiscard]] double nnz_avg() const noexcept;
 
+  [[nodiscard]] double mad_max() const noexcept;
   [[nodiscard]] std::uint64_t min_delta() const noexcept;
   [[nodiscard]] std::uint64_t max_delta() const noexcept;
 
@@ -74,7 +78,8 @@ class ObservedMatrix {
  private:
   static auto compute_stats(PixelIt first_pixel, PixelIt last_pixel,
                             const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2,
-                            const hictk::BinTable& bins, std::uint64_t min_delta_,
+                            const hictk::BinTable& bins, const std::vector<bool>& bin_mask1,
+                            const std::vector<bool>& bin_mask2, std::uint64_t min_delta_,
                             std::uint64_t max_delta_);
 };
 

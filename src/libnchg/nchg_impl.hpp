@@ -362,6 +362,10 @@ inline auto NCHG<File>::compute(const hictk::GenomicInterval &range1,
       static_cast<std::uint32_t>(obs)};
   // clang-format on
 
+  if (obs == 0) {
+    return {p, exp, 1.0, 0.0, 0.0};
+  }
+
   const auto odds_ratio = compute_odds_ratio(obs, static_cast<double>(obs_sum), N1, N2);
   const auto omega = intra_matrix ? compute_odds_ratio(exp, exp_sum, L1, L2) : 1;
 

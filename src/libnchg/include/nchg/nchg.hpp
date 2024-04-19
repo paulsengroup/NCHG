@@ -93,8 +93,8 @@ class NCHG {
       -> const ExpectedMatrix<PixelIt>&;
 
   void init_matrices();
-    void init_cis_matrices();
-    void init_trans_matrices();
+  void init_cis_matrices();
+  void init_trans_matrices();
   void init_matrix(const hictk::Chromosome& chrom);
   void init_matrix(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2);
 

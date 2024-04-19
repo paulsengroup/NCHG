@@ -295,8 +295,9 @@ void Cli::make_filter_subcommand() {
   sc.add_option(
       "tsv",
       c.path,
-      "Path to the TSV produced by NCHG compute.")
-      ->check(CLI::ExistingFile)
+      "Path to the TSV produced by NCHG compute.\n"
+      "Pass - to read from stdin.")
+      ->check(CLI::ExistingFile | CLI::IsMember({"-"}))
       ->required();
   sc.add_option(
       "--fdr",
@@ -316,6 +317,16 @@ void Cli::make_filter_subcommand() {
       "Drop non-significant interactions based on the --fdr and --log-ratio cutoffs.")
       ->capture_default_str();
   sc.add_flag(
+      "--correct-pvals-chrom-by-chrom",
+      c.correct_chrom_chrom_separately,
+      "Perform multiple hypothesis correction by treating each pair of chromosomes as independent experiments.")
+      ->capture_default_str();
+  sc.add_flag(
+      "--correct-pvals-cis-trans,!--correct-pvals-all",
+      c.correct_cis_trans_separately,
+      "Perform multiple hypothesis correction by treating cis and trans matrices as two separate experiments.")
+      ->capture_default_str();
+  sc.add_flag(
       "--write-header,!--no-write-header",
       c.write_header,
       "Write the file header to stdout.")
@@ -329,6 +340,8 @@ void Cli::make_filter_subcommand() {
 
   sc.get_option("--keep-non-significant")->excludes(sc.get_option("--fdr"));
   sc.get_option("--keep-non-significant")->excludes(sc.get_option("--log-ratio"));
+  sc.get_option("--correct-pvals-chrom-by-chrom")
+      ->excludes(sc.get_option("--correct-pvals-cis-trans"));
 
   _config = std::monostate{};
 }
@@ -472,6 +485,11 @@ void Cli::transform_args_compute_subcommand() {
   c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
 }
 
-void Cli::transform_args_filter_subcommand() {}
+void Cli::transform_args_filter_subcommand() {
+  auto &c = std::get<FilterConfig>(_config);
+  // in spdlog, high numbers correspond to low log levels
+  assert(c.verbosity > 0 && c.verbosity <= SPDLOG_LEVEL_CRITICAL);
+  c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
+}
 
 }  // namespace nchg

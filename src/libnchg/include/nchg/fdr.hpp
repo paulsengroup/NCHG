@@ -34,7 +34,14 @@ class BH_FDR {
   std::vector<std::size_t> _ranks{};
 
  public:
+  BH_FDR() = default;
   explicit BH_FDR(std::vector<Stats> pvalues_);
+
+  void add_record(Stats&& s);
+  template <typename StatsIt>
+  void add_records(StatsIt first, StatsIt last);
+
+  void clear() noexcept;
 
   template <typename UnaryOperation = identity>
   [[nodiscard]] auto correct(UnaryOperation op = identity()) -> std::vector<Stats>;

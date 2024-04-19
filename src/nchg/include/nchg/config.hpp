@@ -56,6 +56,9 @@ struct FilterConfig {
   double log_ratio{2.0};
   bool drop_non_significant{true};
 
+  bool correct_cis_trans_separately{true};
+  bool correct_chrom_chrom_separately{false};
+
   bool write_header{true};
   bool sorted{true};
 

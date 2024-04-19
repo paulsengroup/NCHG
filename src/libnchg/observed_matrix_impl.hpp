@@ -76,10 +76,13 @@ inline auto ObservedMatrix<PixelIt>::compute_stats(
       return;
     }
 
-    if (!bin_mask1.empty() && bin_mask1[p.coords.bin1.rel_id()]) {
-      return;
-    }
-    if (!bin_mask2.empty() && bin_mask2[p.coords.bin2.rel_id()]) {
+    const auto bin1_id = p.coords.bin1.rel_id();
+    const auto bin2_id = p.coords.bin2.rel_id();
+
+    const auto bin1_masked = !bin_mask1.empty() && bin_mask1[bin1_id];
+    const auto bin2_masked = !bin_mask2.empty() && bin_mask2[bin2_id];
+
+    if (bin1_masked || bin2_masked) {
       return;
     }
 

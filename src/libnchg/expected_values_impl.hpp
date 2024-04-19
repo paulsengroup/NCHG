@@ -343,9 +343,11 @@ inline void ExpectedValues<File>::compute_expected_values_cis() {
   std::for_each(mjsel.begin(), mjsel.end(), [&](const hictk::Pixel<N> &p) {
     const auto &mask = *bin_mask(p.coords.bin1.chrom());
     const auto delta = p.coords.bin2.start() - p.coords.bin1.start();
-    const auto bin1_id = p.coords.bin1.id();
-    const auto bin2_id = p.coords.bin2.id();
-    if (delta >= _min_delta && delta < _max_delta && !mask[bin1_id] && !mask[bin2_id]) {
+    const auto bin1_id = p.coords.bin1.rel_id();
+    const auto bin2_id = p.coords.bin2.rel_id();
+    const auto bin1_masked = !mask.empty() && mask[bin1_id];
+    const auto bin2_masked = !mask.empty() && mask[bin2_id];
+    if (delta >= _min_delta && delta < _max_delta && !bin1_masked && !bin2_masked) {
       aggr.add(p);
     }
   });
@@ -392,7 +394,7 @@ inline void ExpectedValues<File>::compute_expected_values_trans() {
 
       const ExpectedMatrix em(jsel.begin(), jsel.end(), chrom1, chrom2, _fp->bins(),
                               std::vector<double>{}, 0, *bin_mask(chrom1, chrom2).first,
-                              *bin_mask(chrom1, chrom2).first,
+                              *bin_mask(chrom1, chrom2).second,
                               std::numeric_limits<std::uint64_t>::max());
       _expected_values_trans.emplace(std::make_pair(chrom1, chrom2), em.nnz_avg());
     }

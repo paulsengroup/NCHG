@@ -42,6 +42,14 @@ static void compare_weights(const std::vector<double>& weights, const std::vecto
   }
 }
 
+static void compare_masks(const std::vector<bool>& mask, const std::vector<bool>& expected) {
+  REQUIRE(mask.size() == expected.size());
+
+  for (std::size_t i = 0; i < mask.size(); ++i) {
+    CHECK(mask[i] == expected[i]);
+  }
+}
+
 TEST_CASE("ExpectedValues: genome-wide", "[long][expected_values]") {
   spdlog::default_logger()->set_level(spdlog::level::warn);
   const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
@@ -54,6 +62,11 @@ TEST_CASE("ExpectedValues: genome-wide", "[long][expected_values]") {
     const auto path = testdir() / "expected_values_gw.bin";
     evs.serialize(path);
     const auto evs_gw_serde = ExpectedValues<hictk::cooler::File>::deserialize(path);
+
+    CHECK(evs.mad_max() == evs_gw_serde.mad_max());
+    CHECK(evs.min_delta() == evs_gw_serde.min_delta());
+    CHECK(evs.max_delta() == evs_gw_serde.max_delta());
+
     const auto& w1 = evs.weights();
     const auto& w2 = evs_gw_serde.weights();
 
@@ -67,6 +80,11 @@ TEST_CASE("ExpectedValues: genome-wide", "[long][expected_values]") {
     const auto chrom1 = clr->chromosomes().at("chr21");
     const auto chrom2 = clr->chromosomes().at("chr22");
     CHECK(evs.expected_value(chrom1, chrom2) == evs_gw_serde.expected_value(chrom1, chrom2));
+
+    compare_masks(*evs_gw_serde.bin_mask(chrom1, chrom2).first,
+                  *evs.bin_mask(chrom1, chrom2).first);
+    compare_masks(*evs_gw_serde.bin_mask(chrom1, chrom2).second,
+                  *evs.bin_mask(chrom1, chrom2).second);
   }
 }
 

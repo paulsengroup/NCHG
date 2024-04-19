@@ -124,6 +124,12 @@ inline ExpectedValues<File> ExpectedValues<File>::deserialize(const std::filesys
   ExpectedValues<File> ev{nullptr};
   HighFive::File f(path.string());
 
+  const auto [mad_max_, min_delta_, max_delta_] = deserialize_attributes(f);
+  ev._mad_max = mad_max_;
+  ev._min_delta = min_delta_;
+  ev._max_delta = max_delta_;
+
+  ev._bin_masks = deserialize_bin_masks(f);
   auto [weights, scaling_factors] = deserialize_cis_profiles(f);
   ev._expected_weights = std::move(weights);
   ev._expected_scaling_factors = std::move(scaling_factors);
@@ -191,7 +197,7 @@ inline std::vector<double> ExpectedValues<File>::expected_values(const hictk::Ch
 template <typename File>
 inline double ExpectedValues<File>::expected_value(const hictk::Chromosome &chrom1,
                                                    const hictk::Chromosome &chrom2) const {
-  return _expected_values_trans.at(EVTKey{chrom1, chrom2});
+  return _expected_values_trans.at(ChromPair{chrom1, chrom2});
 }
 
 template <typename File>
@@ -286,8 +292,10 @@ inline void ExpectedValues<File>::serialize(const std::filesystem::path &path) c
   const auto source_file = std::filesystem::path{_fp->path()}.filename().string();
   f.createAttribute("source-file", source_file);
   f.createAttribute("resolution", _fp->resolution());
+  serialize_attributes(f, mad_max(), min_delta(), max_delta());
 
   serialize_chromosomes(f, _fp->chromosomes());
+  serialize_bin_masks(f, _bin_masks);
   serialize_cis_profiles(f, _expected_weights, _expected_scaling_factors);
   serialize_trans_profiles(f, _expected_values_trans);
 }
@@ -426,6 +434,16 @@ void ExpectedValues<File>::add_bin_mask(const hictk::Chromosome &chrom1,
 }
 
 template <typename File>
+void ExpectedValues<File>::serialize_attributes(HighFive::File &f, double mad_max_,
+                                                std::uint64_t min_delta_,
+                                                std::uint64_t max_delta_) {
+  assert(min_delta_ <= max_delta_);
+  f.createAttribute("mad_max", mad_max_);
+  f.createAttribute("min_delta", min_delta_);
+  f.createAttribute("max_delta", max_delta_);
+}
+
+template <typename File>
 inline void ExpectedValues<File>::serialize_chromosomes(HighFive::File &f,
                                                         const hictk::Reference &chroms) {
   auto grp = f.createGroup("chroms");
@@ -439,6 +457,52 @@ inline void ExpectedValues<File>::serialize_chromosomes(HighFive::File &f,
   std::transform(chroms.begin(), chroms.end(), chromosome_sizes.begin(),
                  [](const hictk::Chromosome &c) { return c.size(); });
   grp.createDataSet("length", chromosome_sizes);
+}
+
+template <typename File>
+void ExpectedValues<File>::serialize_bin_masks(
+    HighFive::File &f, const phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>> &bin_masks) {
+  auto grp = f.createGroup("bin-masks");
+  if (bin_masks.empty()) {
+    return;
+  }
+
+  std::vector<std::string> chrom1{};
+  std::vector<std::string> chrom2{};
+  std::vector<std::size_t> offsets1{};
+  std::vector<std::size_t> offsets2{};
+  std::vector<bool> values1{};
+  std::vector<bool> values2{};
+
+  std::for_each(bin_masks.begin(), bin_masks.end(), [&](const auto &kv) {
+    chrom1.emplace_back(std::string{kv.first.first.name()});
+    chrom2.emplace_back(std::string{kv.first.second.name()});
+
+    offsets1.emplace_back(values1.size());
+    values1.insert(values1.end(), kv.second.first->begin(), kv.second.first->end());
+
+    offsets2.emplace_back(values2.size());
+    values2.insert(values2.end(), kv.second.second->begin(), kv.second.second->end());
+  });
+
+  offsets1.emplace_back(values1.size());
+  offsets2.emplace_back(values2.size());
+
+  grp.createDataSet("chrom1", chrom1);
+  grp.createDataSet("chrom2", chrom2);
+  grp.createDataSet("offsets1", offsets1);
+  grp.createDataSet("offsets2", offsets2);
+
+  HighFive::DataSetCreateProps props1{};
+  props1.add(HighFive::Chunking({values1.size()}));
+  props1.add(HighFive::Deflate(9));
+
+  grp.createDataSet("values1", values1, props1);
+
+  HighFive::DataSetCreateProps props2{};
+  props2.add(HighFive::Chunking({values2.size()}));
+  props2.add(HighFive::Deflate(9));
+  grp.createDataSet("values2", values2, props2);
 }
 
 template <typename File>
@@ -461,7 +525,7 @@ inline void ExpectedValues<File>::serialize_cis_profiles(
 
 template <typename File>
 inline void ExpectedValues<File>::serialize_trans_profiles(
-    HighFive::File &f, const phmap::btree_map<EVTKey, double> &nnz_avg_values) {
+    HighFive::File &f, const phmap::btree_map<ChromPair, double> &nnz_avg_values) {
   auto grp = f.createGroup("avg-values");
   if (nnz_avg_values.empty()) {
     return;
@@ -483,6 +547,14 @@ inline void ExpectedValues<File>::serialize_trans_profiles(
 }
 
 template <typename File>
+inline std::tuple<double, std::uint64_t, std::uint64_t>
+ExpectedValues<File>::deserialize_attributes(const HighFive::File &f) {
+  return std::make_tuple(f.getAttribute("mad_max").read<double>(),
+                         f.getAttribute("min_delta").read<std::uint64_t>(),
+                         f.getAttribute("max_delta").read<std::uint64_t>());
+}
+
+template <typename File>
 inline hictk::Reference ExpectedValues<File>::deserialize_chromosomes(const HighFive::File &f) {
   std::vector<std::string> chrom_names{};
   std::vector<std::uint32_t> chrom_sizes{};
@@ -492,6 +564,54 @@ inline hictk::Reference ExpectedValues<File>::deserialize_chromosomes(const High
 
   assert(chrom_names.size() == chrom_sizes.size());
   return {chrom_names.begin(), chrom_names.end(), chrom_sizes.begin()};
+}
+
+template <typename File>
+auto ExpectedValues<File>::deserialize_bin_masks(HighFive::File &f)
+    -> const phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>> {
+  const auto grp = f.getGroup("bin-masks");
+  if (!grp.exist("chrom1")) {
+    return {};
+  }
+
+  const auto chroms = deserialize_chromosomes(f);
+
+  const auto chrom1_names = grp.getDataSet("chrom1").read<std::vector<std::string>>();
+  const auto chrom2_names = grp.getDataSet("chrom2").read<std::vector<std::string>>();
+  const auto offsets1 = grp.getDataSet("offsets1").read<std::vector<std::size_t>>();
+  const auto offsets2 = grp.getDataSet("offsets2").read<std::vector<std::size_t>>();
+  const auto values1 = grp.getDataSet("values1").read<std::vector<bool>>();
+  const auto values2 = grp.getDataSet("values2").read<std::vector<bool>>();
+
+  phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>> buffer{};
+  for (std::size_t i = 0; i < chrom1_names.size(); ++i) {
+    const auto &chrom1 = chroms.at(chrom1_names.at(i));
+    const auto &chrom2 = chroms.at(chrom2_names.at(i));
+
+    const auto j0 = offsets1.at(i);
+    const auto j1 = offsets1.at(i + 1);
+
+    const auto k0 = offsets2.at(i);
+    const auto k1 = offsets2.at(i + 1);
+
+    std::vector<bool> mask1(j1 - j0);
+    std::vector<bool> mask2{};
+
+    std::copy(values1.begin() + static_cast<std::ptrdiff_t>(j0),
+              values1.begin() + static_cast<std::ptrdiff_t>(j1), mask1.begin());
+    if (chrom1 != chrom2) {
+      mask2.resize(k1 - k0);
+      std::copy(values2.begin() + static_cast<std::ptrdiff_t>(k0),
+                values2.begin() + static_cast<std::ptrdiff_t>(k1), mask2.begin());
+    }
+
+    auto mask1_ptr = std::make_shared<const std::vector<bool>>(std::move(mask1));
+    auto mask2_ptr =
+        mask2.empty() ? mask1_ptr : std::make_shared<const std::vector<bool>>(std::move(mask2));
+    buffer.emplace(std::make_pair(chrom1, chrom2), std::make_pair(mask1_ptr, mask2_ptr));
+  }
+
+  return buffer;
 }
 
 template <typename File>
@@ -519,7 +639,7 @@ ExpectedValues<File>::deserialize_cis_profiles(const HighFive::File &f) {
 
 template <typename File>
 inline auto ExpectedValues<File>::deserialize_trans_profiles(const HighFive::File &f)
-    -> phmap::btree_map<EVTKey, double> {
+    -> phmap::btree_map<ChromPair, double> {
   if (!f.exist("avg-values/value")) {
     return {};
   }
@@ -536,9 +656,9 @@ inline auto ExpectedValues<File>::deserialize_trans_profiles(const HighFive::Fil
   assert(chrom1.size() == chrom2.size());
   assert(chrom1.size() == values.size());
 
-  phmap::btree_map<EVTKey, double> expected_values{};
+  phmap::btree_map<ChromPair, double> expected_values{};
   for (std::size_t i = 0; i < values.size(); ++i) {
-    expected_values.emplace(EVTKey{chroms.at(chrom1[i]), chroms.at(chrom2[i])}, values[i]);
+    expected_values.emplace(ChromPair{chroms.at(chrom1[i]), chroms.at(chrom2[i])}, values[i]);
   }
   return expected_values;
 }

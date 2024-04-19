@@ -55,52 +55,28 @@ class NCHG {
 
   std::shared_ptr<const File> _fp;
 
-  using Key = std::pair<hictk::Chromosome, hictk::Chromosome>;
-  phmap::flat_hash_map<Key, std::shared_ptr<const ObservedMatrix<PixelIt>>> _obs_matrices{};
-  phmap::flat_hash_map<Key, std::shared_ptr<const ExpectedMatrix<PixelIt>>> _exp_matrices{};
+  hictk::Chromosome _chrom1{};
+  hictk::Chromosome _chrom2{};
+
+  std::shared_ptr<const ExpectedMatrix<PixelIt>> _exp_matrix{};
+  std::shared_ptr<const ObservedMatrix<PixelIt>> _obs_matrix{};
   ExpectedValues<File> _expected_values{};
 
   mutable std::vector<double> _nchg_pval_buffer{};
 
  public:
-  explicit NCHG(std::shared_ptr<const File> f, double mad_max_, std::uint64_t min_delta,
+  explicit NCHG(std::shared_ptr<const File> f, const hictk::Chromosome& chrom1,
+                const hictk::Chromosome& chrom2, double mad_max_, std::uint64_t min_delta,
                 std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
-  NCHG(std::shared_ptr<const File> f, ExpectedValues<File> expected_values) noexcept;
-
-  [[nodiscard]] static NCHG cis_only(
-      std::shared_ptr<const File> f, double mad_max_, std::uint64_t min_delta,
-      std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
-  [[nodiscard]] static NCHG trans_only(std::shared_ptr<const File> f, double mad_max_);
-  [[nodiscard]] static NCHG chromosome_pair(
-      std::shared_ptr<const File> f, const hictk::Chromosome& chrom1,
-      const hictk::Chromosome& chrom2, double mad_max_, std::uint64_t min_delta,
-      std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
+  NCHG(std::shared_ptr<const File> f, const hictk::Chromosome& chrom1,
+       const hictk::Chromosome& chrom2, ExpectedValues<File> expected_values) noexcept;
 
   [[nodiscard]] double mad_max() const noexcept;
   [[nodiscard]] std::uint64_t min_delta() const noexcept;
   [[nodiscard]] std::uint64_t max_delta() const noexcept;
 
-  [[nodiscard]] auto observed_matrix(const hictk::Chromosome& chrom) const
-      -> const ObservedMatrix<PixelIt>&;
-  [[nodiscard]] auto observed_matrix(const hictk::Chromosome& chrom1,
-                                     const hictk::Chromosome& chrom2) const
-      -> const ObservedMatrix<PixelIt>&;
-
-  [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom) const
-      -> const ExpectedMatrix<PixelIt>&;
-  [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom1,
-                                     const hictk::Chromosome& chrom2) const
-      -> const ExpectedMatrix<PixelIt>&;
-
-  void init_matrices();
-  void init_cis_matrices();
-  void init_trans_matrices();
-  void init_matrix(const hictk::Chromosome& chrom);
-  void init_matrix(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2);
-
-  void erase_matrices() noexcept;
-  void erase_matrix(const hictk::Chromosome& chrom);
-  void erase_matrix(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2);
+  [[nodiscard]] auto observed_matrix() const noexcept -> const ObservedMatrix<PixelIt>&;
+  [[nodiscard]] auto expected_matrix() const noexcept -> const ExpectedMatrix<PixelIt>&;
 
   [[nodiscard]] auto compute(const hictk::GenomicInterval& range, double bad_bin_fraction) const
       -> Stats;
@@ -122,6 +98,17 @@ class NCHG {
       -> std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>;
 
  private:
+  [[nodiscard]] static auto init_exp_matrix(const hictk::Chromosome& chrom1,
+                                            const hictk::Chromosome& chrom2, const File& fp,
+                                            const ExpectedValues<File>& expected_values)
+      -> std::shared_ptr<const ExpectedMatrix<PixelIt>>;
+  [[nodiscard]] static auto init_obs_matrix(const hictk::Chromosome& chrom1,
+                                            const hictk::Chromosome& chrom2, const File& fp,
+                                            const std::vector<bool>& bin1_mask,
+                                            const std::vector<bool>& bin2_mask, double mad_max_,
+                                            std::uint64_t min_delta_, std::uint64_t max_delta_)
+      -> std::shared_ptr<const ObservedMatrix<PixelIt>>;
+
   [[nodiscard]] static double compute_cumulative_nchg(std::vector<double>& buffer,
                                                       std::uint64_t obs, std::uint64_t N1,
                                                       std::uint64_t N2, std::uint64_t N,

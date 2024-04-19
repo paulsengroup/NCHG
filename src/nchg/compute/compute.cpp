@@ -136,38 +136,20 @@ static void print_header() {
 
 template <typename FilePtr, typename File = remove_cvref_t<decltype(*std::declval<FilePtr>())>>
 [[nodiscard]] static NCHG<File> init_nchg(const FilePtr &f, const ComputePvalConfig &c) {
+  assert(c.chrom1 != "all");
+  assert(c.chrom2 != "all");
+  assert(!c.cis_only);
+  assert(!c.trans_only);
+
+  const auto &chrom1 = f->chromosomes().at(c.chrom1);
+  const auto &chrom2 = f->chromosomes().at(c.chrom2);
+
   if (!c.path_to_expected_values.empty()) {
     SPDLOG_INFO(FMT_STRING("reading expected values from {}..."), c.path_to_expected_values);
-    NCHG nchg(f, ExpectedValues<File>::deserialize(c.path_to_expected_values));
-    if (c.cis_only) {
-      nchg.init_cis_matrices();
-    } else if (c.trans_only) {
-      nchg.init_trans_matrices();
-    } else if (c.chrom1 != "all") {
-      nchg.init_matrix(f->chromosomes().at(c.chrom1), f->chromosomes().at(c.chrom2));
-    } else {
-      nchg.init_matrices();
-    }
-    return nchg;
+    return NCHG(f, chrom1, chrom2, ExpectedValues<File>::deserialize(c.path_to_expected_values));
   }
 
-  if (c.cis_only) {
-    return NCHG<File>::cis_only(f, c.mad_max, c.min_delta, c.max_delta);
-  }
-  if (c.trans_only) {
-    return NCHG<File>::trans_only(f, c.mad_max);
-  }
-
-  if (c.chrom1 != "all") {
-    assert(c.chrom2 != "all");
-    return NCHG<File>::chromosome_pair(f, f->chromosomes().at(c.chrom1),
-                                       f->chromosomes().at(c.chrom2), c.mad_max, c.min_delta,
-                                       c.max_delta);
-  }
-
-  NCHG nchg(f, c.mad_max, c.min_delta, c.max_delta);
-  nchg.init_matrices();
-  return nchg;
+  return NCHG<File>(f, chrom1, chrom2, c.mad_max, c.min_delta, c.max_delta);
 }
 
 template <typename FilePtr>

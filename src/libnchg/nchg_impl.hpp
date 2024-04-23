@@ -394,8 +394,8 @@ inline auto NCHG<File>::cbegin(const hictk::Chromosome &chrom1,
           jsel.end(),
           _obs_matrix,
           _exp_matrix,
-          _expected_values.bin_mask(chrom1),
-          _expected_values.bin_mask(chrom2),
+          _expected_values.bin_mask(chrom1, chrom2).first,
+          _expected_values.bin_mask(chrom1, chrom2).second,
           min_delta(),
           max_delta()};
 }

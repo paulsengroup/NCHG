@@ -576,7 +576,7 @@ inline auto ExpectedValues<File>::deserialize_attributes(const HighFive::File &f
           f.getAttribute("bin_aggregation_observed_distances_cutoff").read<double>(),
           f.getAttribute("interpolate").read<bool>(),
           f.getAttribute("interpolation_qtile").read<double>(),
-          f.getAttribute("interpolation_window").read<std::uint32_t>()};
+          f.getAttribute("interpolation_window_size").read<std::uint32_t>()};
 }
 
 template <typename File>

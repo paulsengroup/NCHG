@@ -96,7 +96,7 @@ TEST_CASE("ExpectedValues: genome-wide", "[long][expected_values]") {
   }
 }
 
-TEST_CASE("ExpectedValues: cis-only", "[short][expected_values]") {
+TEST_CASE("ExpectedValues: cis-only", "[medium][expected_values]") {
   spdlog::default_logger()->set_level(spdlog::level::warn);
   const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
 
@@ -147,7 +147,7 @@ TEST_CASE("ExpectedValues: trans-only", "[long][expected_values]") {
   CHECK_NOTHROW(evs.expected_value(chrom1, chrom2));
 }
 
-TEST_CASE("ExpectedValues: chromosome pair", "[short][expected_values]") {
+TEST_CASE("ExpectedValues: chromosome pair", "[medium][expected_values]") {
   spdlog::default_logger()->set_level(spdlog::level::warn);
   const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
 

@@ -30,7 +30,7 @@
 
 namespace nchg::test {
 
-TEST_CASE("NCHG", "[long][nchg]") {
+TEST_CASE("NCHG", "[medium][nchg]") {
   const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
 
   const auto clr = std::make_shared<const hictk::cooler::File>(test_file.string());

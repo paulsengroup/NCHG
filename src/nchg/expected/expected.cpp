@@ -33,7 +33,10 @@ namespace nchg {
 
 template <typename FilePtr>
 static void process_all_chromosomes(FilePtr f, const ExpectedConfig &c) {
-  const ExpectedValues evs(f, c.mad_max, c.min_delta, c.max_delta);
+  const ExpectedValues evs(
+      f, {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
+          c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
+          c.interpolation_qtile, c.interpolation_window_size});
   if (c.force) {
     std::filesystem::remove(c.output_path);
   }
@@ -47,8 +50,11 @@ static void process_one_chromosome_pair(FilePtr f, const ExpectedConfig &c) {
   const auto &chrom2 = f->chromosomes().at(c.chrom2);
 
   using File = remove_cvref_t<decltype(*std::declval<FilePtr>())>;
-  const auto evs =
-      ExpectedValues<File>::chromosome_pair(f, chrom1, chrom2, c.mad_max, c.min_delta, c.max_delta);
+  const auto evs = ExpectedValues<File>::chromosome_pair(
+      f, chrom1, chrom2,
+      {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
+       c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
+       c.interpolation_qtile, c.interpolation_window_size});
   if (c.force) {
     std::filesystem::remove(c.output_path);
   }

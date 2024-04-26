@@ -30,13 +30,16 @@
 
 namespace nchg::test {
 
-TEST_CASE("NCHG", "[short][nchg]") {
+TEST_CASE("NCHG", "[long][nchg]") {
   const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
 
   const auto clr = std::make_shared<const hictk::cooler::File>(test_file.string());
 
+  auto params = NCHG<hictk::cooler::File>::DefaultParams;
+  params.mad_max = 0.0;
+
   const auto chr1 = clr->chromosomes().at("chr1");
-  const NCHG nchg(clr, chr1, chr1, 0.0, 40'000);
+  const NCHG nchg(clr, chr1, chr1, params);
 
   SECTION("significant") {
     const hictk::GenomicInterval range1(chr1, 0, 10'000'000);

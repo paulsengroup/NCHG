@@ -65,15 +65,14 @@ class NCHG {
   mutable std::vector<double> _nchg_pval_buffer{};
 
  public:
+  using Params = typename ExpectedValues<File>::Params;
+  static constexpr auto& DefaultParams = ExpectedValues<File>::DefaultParams;
   explicit NCHG(std::shared_ptr<const File> f, const hictk::Chromosome& chrom1,
-                const hictk::Chromosome& chrom2, double mad_max_, std::uint64_t min_delta,
-                std::uint64_t max_delta = std::numeric_limits<std::uint64_t>::max());
+                const hictk::Chromosome& chrom2, const Params& params);
   NCHG(std::shared_ptr<const File> f, const hictk::Chromosome& chrom1,
        const hictk::Chromosome& chrom2, ExpectedValues<File> expected_values) noexcept;
 
-  [[nodiscard]] double mad_max() const noexcept;
-  [[nodiscard]] std::uint64_t min_delta() const noexcept;
-  [[nodiscard]] std::uint64_t max_delta() const noexcept;
+  [[nodiscard]] auto params() const noexcept -> Params;
 
   [[nodiscard]] auto observed_matrix() const noexcept -> const ObservedMatrix<PixelIt>&;
   [[nodiscard]] auto expected_matrix() const noexcept -> const ExpectedMatrix<PixelIt>&;

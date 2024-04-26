@@ -191,6 +191,37 @@ void Cli::make_compute_subcommand() {
     ->check(CLI::PositiveNumber)
     ->capture_default_str();
   sc.add_option(
+    "--bin-aggregation-possible-distances-cutoff",
+    c.bin_aggregation_possible_distances_cutoff,
+    "Cutoff on the number of possible bin-pair combinations used to determine\n"
+    "when to aggregate bins from the expected matrix.")
+    ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
+  sc.add_option(
+    "--bin-aggregation-observed-distances-cutoff",
+    c.bin_aggregation_observed_distances_cutoff,
+    "Cutoff on the number of observed bin-pair combinations used to determine\n"
+    "when to aggregate bins from the expected matrix.")
+    ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
+  sc.add_flag(
+    "--interpolate-expected-values,!--no-interpolate-expected-values",
+    c.interpolate_expected_values,
+    "Interpolate expected values profile to deal with outliers due to e.g. small translocations.")
+    ->capture_default_str();
+  sc.add_option(
+    "--evs-interpolation-qtile",
+    c.interpolation_qtile,
+    "Percentile used to detect outliers during interpolation.")
+    ->check(CLI::Bound(0.0, 1.0))
+    ->capture_default_str();
+  sc.add_option(
+    "--evs-interpolation-window",
+    c.interpolation_window_size,
+    "Window size in bps used to interpolate expected value profiles.")
+    ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
+  sc.add_option(
     "--mad-max",
     c.mad_max,
     "Cutoff used by the MAD-max filter to mask bad bins.")
@@ -201,7 +232,7 @@ void Cli::make_compute_subcommand() {
     c.bad_bin_fraction,
     "Largest fraction of masked bins required for a domain to be processed.\n"
     "Has no effect when --domains is not used.")
-  ->check(CLI::Bound(0, 1))
+  ->check(CLI::Bound(0.0, 1.0))
   ->capture_default_str();
   sc.add_flag(
     "--write-header,!--no-write-header",
@@ -234,6 +265,15 @@ void Cli::make_compute_subcommand() {
 
   sc.get_option("--trans-only")->excludes("--chrom1");
   sc.get_option("--trans-only")->excludes("--chrom2");
+
+  sc.get_option("--expected-values")->excludes("--min-delta");
+  sc.get_option("--expected-values")->excludes("--max-delta");
+  sc.get_option("--expected-values")->excludes("--mad-max");
+  sc.get_option("--expected-values")->excludes("--bin-aggregation-possible-distances-cutoff");
+  sc.get_option("--expected-values")->excludes("--bin-aggregation-observed-distances-cutoff");
+  sc.get_option("--expected-values")->excludes("--interpolate-expected-values");
+  sc.get_option("--expected-values")->excludes("--evs-interpolation-qtile");
+  sc.get_option("--expected-values")->excludes("--evs-interpolation-window");
 
   _config = std::monostate{};
 }
@@ -278,6 +318,49 @@ void Cli::make_expected_subcommand() {
       "Name of the second chromosome.\n"
       "Used to compute p-values only for a chromosome-chromosome matrix of interest.")
       ->capture_default_str();
+  sc.add_option(
+    "--min-delta",
+    c.min_delta,
+    "Minimum distance from the diagonal required for interactions to be considered.")
+    ->check(CLI::PositiveNumber)
+    ->capture_default_str();
+  sc.add_option(
+    "--max-delta",
+    c.max_delta,
+    "Maximum distance from the diagonal required for interactions to be considered.")
+    ->check(CLI::PositiveNumber)
+    ->capture_default_str();
+  sc.add_option(
+    "--bin-aggregation-possible-distances-cutoff",
+    c.bin_aggregation_possible_distances_cutoff,
+    "Cutoff on the number of possible bin-pair combinations used to determine\n"
+    "when to aggregate bins from the expected matrix.")
+    ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
+  sc.add_option(
+    "--bin-aggregation-observed-distances-cutoff",
+    c.bin_aggregation_observed_distances_cutoff,
+    "Cutoff on the number of observed bin-pair combinations used to determine\n"
+    "when to aggregate bins from the expected matrix.")
+    ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
+  sc.add_flag(
+    "--interpolate-expected-values,!--no-interpolate-expected-values",
+    c.interpolate_expected_values,
+    "Interpolate expected values profile to deal with outliers due to e.g. small translocations.")
+    ->capture_default_str();
+  sc.add_option(
+    "--evs-interpolation-qtile",
+    c.interpolation_qtile,
+    "Percentile used to detect outliers during interpolation.")
+    ->check(CLI::Bound(0.0, 1.0))
+    ->capture_default_str();
+  sc.add_option(
+    "--evs-interpolation-window",
+    c.interpolation_window_size,
+    "Window size in bps used to interpolate expected value profiles.")
+    ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
   sc.add_option(
       "--mad-max",
       c.mad_max,

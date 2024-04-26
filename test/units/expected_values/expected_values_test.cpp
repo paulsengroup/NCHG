@@ -63,9 +63,17 @@ TEST_CASE("ExpectedValues: genome-wide", "[long][expected_values]") {
     evs.serialize(path);
     const auto evs_gw_serde = ExpectedValues<hictk::cooler::File>::deserialize(path);
 
-    CHECK(evs.mad_max() == evs_gw_serde.mad_max());
-    CHECK(evs.min_delta() == evs_gw_serde.min_delta());
-    CHECK(evs.max_delta() == evs_gw_serde.max_delta());
+    CHECK(evs.params().mad_max == evs_gw_serde.params().mad_max);
+    CHECK(evs.params().min_delta == evs_gw_serde.params().min_delta);
+    CHECK(evs.params().max_delta == evs_gw_serde.params().max_delta);
+    CHECK(evs.params().bin_aggregation_observed_distances_cutoff ==
+          evs_gw_serde.params().bin_aggregation_observed_distances_cutoff);
+    CHECK(evs.params().bin_aggregation_possible_distances_cutoff ==
+          evs_gw_serde.params().bin_aggregation_possible_distances_cutoff);
+    CHECK(evs.params().interpolate == evs_gw_serde.params().interpolate);
+    CHECK(evs.params().interpolation_qtile == evs_gw_serde.params().interpolation_qtile);
+    CHECK(evs.params().interpolation_window_size ==
+          evs_gw_serde.params().interpolation_window_size);
 
     const auto& w1 = evs.weights();
     const auto& w2 = evs_gw_serde.weights();
@@ -128,7 +136,10 @@ TEST_CASE("ExpectedValues: trans-only", "[long][expected_values]") {
 
   const auto clr = std::make_shared<const hictk::cooler::File>(test_file.string());
 
-  const auto evs = ExpectedValues<hictk::cooler::File>::trans_only(clr, 0.0);
+  auto params = ExpectedValues<hictk::cooler::File>::DefaultParams;
+  params.mad_max = 0.0;
+
+  const auto evs = ExpectedValues<hictk::cooler::File>::trans_only(clr, params);
   const auto chrom1 = clr->chromosomes().at("chr21");
   const auto chrom2 = clr->chromosomes().at("chr22");
 

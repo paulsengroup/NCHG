@@ -58,8 +58,8 @@ inline ExpectedValues<File>::ExpectedValues(std::shared_ptr<const File> file, co
   if (_mad_max < 0 || !std::isfinite(_mad_max)) {
     throw std::logic_error("mad_max should be a non-negative value");
   }
-  if (_min_delta >= _max_delta) {
-    throw std::logic_error("min_delta should be strictly less than max_delta");
+  if (_min_delta > _max_delta) {
+    throw std::logic_error("min_delta should be less than or equal to max_delta");
   }
 
   if (_interpolation_qtile < 0 || _interpolation_qtile > 1) {

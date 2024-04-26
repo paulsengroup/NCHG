@@ -42,8 +42,8 @@ TEST_CASE("NCHG", "[long][nchg]") {
   const NCHG nchg(clr, chr1, chr1, params);
 
   SECTION("significant") {
-    const hictk::GenomicInterval range1(chr1, 0, 10'000'000);
-    const hictk::GenomicInterval range2(chr1, 10'000'000, 20'000'000);
+    const hictk::GenomicInterval range1(chr1, 14'000'000, 18'000'000);
+    const hictk::GenomicInterval range2(chr1, 233'000'000, 236'000'000);
 
     const auto s = nchg.compute(range1, range2, 1.0);
 

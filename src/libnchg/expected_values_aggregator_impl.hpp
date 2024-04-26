@@ -189,11 +189,9 @@ inline std::size_t ExpectedValuesAggregator::aggregate_low_cov_bins(
       n += 2;
       ++j;
     }
-    i1 = i + j;
 
-    if (i1 == _weights.size()) {
-      _possible_distances[i] = 0.0;
-    } else {
+    if (pos_sum >= possible_distances_cutoff || obs_sum >= observed_distances_cutoff) {
+      i1 = i + j;
       _possible_distances[i] = pos_sum / static_cast<double>(n);
       _observed_distances[i] = obs_sum / static_cast<double>(n);
     }

@@ -73,9 +73,9 @@ inline auto BH_FDR<Stats>::correct(UnaryOperation op) -> std::vector<Stats> {
   std::vector<Stats> adj_pvalues(_pvalues.size());
   for (std::size_t i = 0; i < _ranks.size(); ++i) {
     const auto rank = _ranks[i] + 1;
-    const auto pctile_rank = static_cast<double>(_pvalues.size()) / static_cast<double>(rank);
+    const auto qtile_rank = static_cast<double>(_pvalues.size()) / static_cast<double>(rank);
     adj_pvalues[i] = _pvalues[i];
-    op(adj_pvalues[i]) = std::clamp(op(_pvalues[i]) * pctile_rank, 0.0, 1.0);
+    op(adj_pvalues[i]) = std::clamp(op(_pvalues[i]) * qtile_rank, 0.0, 1.0);
   }
 
   for (std::size_t i = 1; i < _ranks.size(); ++i) {

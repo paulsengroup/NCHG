@@ -36,11 +36,8 @@ namespace nchg {
 
 template <typename File>
 inline NCHG<File>::NCHG(std::shared_ptr<const File> f, const hictk::Chromosome &chrom1,
-                        const hictk::Chromosome &chrom2, double mad_max_, std::uint64_t min_delta,
-                        std::uint64_t max_delta)
-    : NCHG(f, chrom1, chrom2,
-           ExpectedValues<File>::chromosome_pair(f, chrom1, chrom2, mad_max_, min_delta,
-                                                 max_delta)) {}
+                        const hictk::Chromosome &chrom2, const Params &params)
+    : NCHG(f, chrom1, chrom2, ExpectedValues<File>::chromosome_pair(f, chrom1, chrom2, params)) {}
 
 template <typename File>
 inline NCHG<File>::NCHG(std::shared_ptr<const File> f, const hictk::Chromosome &chrom1,
@@ -52,21 +49,13 @@ inline NCHG<File>::NCHG(std::shared_ptr<const File> f, const hictk::Chromosome &
       _exp_matrix(init_exp_matrix(chrom1, chrom2, *_fp, expected_values)),
       _obs_matrix(init_obs_matrix(
           chrom1, chrom2, *_fp, *expected_values.bin_mask(chrom1, chrom2).first,
-          *expected_values.bin_mask(chrom1, chrom2).second, expected_values.mad_max(),
-          expected_values.min_delta(), expected_values.max_delta())),
+          *expected_values.bin_mask(chrom1, chrom2).second, expected_values.params().mad_max,
+          expected_values.params().min_delta, expected_values.params().max_delta)),
       _expected_values(std::move(expected_values)) {}
 
 template <typename File>
-inline double NCHG<File>::mad_max() const noexcept {
-  return _expected_values.mad_max();
-}
-template <typename File>
-inline std::uint64_t NCHG<File>::min_delta() const noexcept {
-  return _expected_values.min_delta();
-}
-template <typename File>
-inline std::uint64_t NCHG<File>::max_delta() const noexcept {
-  return _expected_values.max_delta();
+inline auto NCHG<File>::params() const noexcept -> Params {
+  return _expected_values.params();
 }
 
 template <typename File>
@@ -339,13 +328,15 @@ inline auto NCHG<File>::compute(const hictk::GenomicInterval &range1,
                                 range2.chrom().name(), range2.start(), range2.end());
     const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<double>(),
                                                       sel.template end<double>(), _fp->bins_ptr());
+    const auto min_delta = params().min_delta;
+    const auto max_delta = params().max_delta;
 
     std::for_each(jsel.begin(), jsel.end(), [&](const hictk::Pixel<double> &p) {
-      const auto delta = intra_matrix ? p.coords.bin2.start() - p.coords.bin1.start() : min_delta();
+      const auto delta = intra_matrix ? p.coords.bin2.start() - p.coords.bin1.start() : min_delta;
 
       const auto bin1_id = p.coords.bin1.rel_id();
       const auto bin2_id = p.coords.bin2.rel_id();
-      if (delta >= min_delta() && delta < max_delta() && !mask1[bin1_id] && !mask2[bin2_id]) {
+      if (delta >= min_delta && delta < max_delta && !mask1[bin1_id] && !mask2[bin2_id]) {
         obs += p.count;
         exp += _exp_matrix->at(bin1_id, bin2_id);
       }
@@ -396,8 +387,8 @@ inline auto NCHG<File>::cbegin(const hictk::Chromosome &chrom1,
           _exp_matrix,
           _expected_values.bin_mask(chrom1, chrom2).first,
           _expected_values.bin_mask(chrom1, chrom2).second,
-          min_delta(),
-          max_delta()};
+          params().min_delta,
+          params().max_delta};
 }
 
 template <typename File>
@@ -407,8 +398,8 @@ inline auto NCHG<File>::cend(const hictk::Chromosome &chrom1, const hictk::Chrom
   const hictk::transformers::JoinGenomicCoords jsel(
       sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), _fp->bins_ptr());
 
-  return {jsel.end(), jsel.end(), _obs_matrix, _exp_matrix,
-          nullptr,    nullptr,    min_delta(), max_delta()};
+  return {jsel.end(), jsel.end(), _obs_matrix,        _exp_matrix,
+          nullptr,    nullptr,    params().min_delta, params().max_delta};
 }
 
 template <typename File>
@@ -585,7 +576,7 @@ inline auto NCHG<File>::compute_expected_profile() const
 
   using PixelItMerged = decltype(mjsel.begin());
   return ExpectedMatrix<PixelItMerged>::build_expected_vector(
-      mjsel.begin(), mjsel.end(), _fp->bins(), min_delta(), max_delta());
+      mjsel.begin(), mjsel.end(), _fp->bins(), params().min_delta, params().max_delta);
 }
 
 }  // namespace nchg

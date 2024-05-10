@@ -148,7 +148,11 @@ template <typename FilePtr, typename File = remove_cvref_t<decltype(*std::declva
     return NCHG(f, chrom1, chrom2, ExpectedValues<File>::deserialize(c.path_to_expected_values));
   }
 
-  return NCHG<File>(f, chrom1, chrom2, c.mad_max, c.min_delta, c.max_delta);
+  return NCHG<File>(
+      f, chrom1, chrom2,
+      {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
+       c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
+       c.interpolation_qtile, c.interpolation_window_size});
 }
 
 template <typename FilePtr>

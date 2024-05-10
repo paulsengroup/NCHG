@@ -27,7 +27,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <hictk/chromosome.hpp>
-#include <hictk/expected_values_aggregator.hpp>
 #include <hictk/pixel.hpp>
 #include <hictk/transformers/join_genomic_coords.hpp>
 #include <hictk/transformers/pixel_merger.hpp>
@@ -40,20 +39,33 @@
 #include <vector>
 
 #include "nchg/expected_matrix.hpp"
+#include "nchg/expected_values_aggregator.hpp"
 #include "nchg/mad_max_filter.hpp"
 
 namespace nchg {
 
 template <typename File>
-inline ExpectedValues<File>::ExpectedValues(std::shared_ptr<const File> file, double mad_max,
-                                            std::uint64_t min_delta, std::uint64_t max_delta)
-    : _fp(std::move(file)), _mad_max(mad_max), _min_delta(min_delta), _max_delta(max_delta) {
+inline ExpectedValues<File>::ExpectedValues(std::shared_ptr<const File> file, const Params &params_)
+    : _fp(std::move(file)),
+      _mad_max(params_.mad_max),
+      _min_delta(params_.min_delta),
+      _max_delta(params_.max_delta),
+      _bin_aggregation_possible_distances_cutoff(params_.bin_aggregation_possible_distances_cutoff),
+      _bin_aggregation_observed_distances_cutoff(params_.bin_aggregation_observed_distances_cutoff),
+      _interpolate(params_.interpolate),
+      _interpolation_qtile(params_.interpolation_qtile),
+      _interpolation_window_size(params_.interpolation_window_size) {
   if (_mad_max < 0 || !std::isfinite(_mad_max)) {
-    throw std::logic_error("mad_max_ should be a non-negative value");
+    throw std::logic_error("mad_max should be a non-negative value");
   }
-  if (_min_delta >= _max_delta) {
-    throw std::logic_error("min_delta should be strictly less than max_delta");
+  if (_min_delta > _max_delta) {
+    throw std::logic_error("min_delta should be less than or equal to max_delta");
   }
+
+  if (_interpolation_qtile < 0 || _interpolation_qtile > 1) {
+    throw std::logic_error("interpolation_qtile should be between 0 and 1");
+  }
+
   if (_fp) {
     compute_expected_values_cis();
     compute_expected_values_trans();
@@ -62,9 +74,8 @@ inline ExpectedValues<File>::ExpectedValues(std::shared_ptr<const File> file, do
 
 template <typename File>
 inline ExpectedValues<File> ExpectedValues<File>::cis_only(std::shared_ptr<const File> file,
-                                                           double mad_max, std::uint64_t min_delta,
-                                                           std::uint64_t max_delta) {
-  ExpectedValues ev(nullptr, mad_max, min_delta, max_delta);
+                                                           const Params &params_) {
+  ExpectedValues ev(nullptr, params_);
   ev._fp = std::move(file);
   if (ev._fp) {
     ev.compute_expected_values_cis();
@@ -74,8 +85,8 @@ inline ExpectedValues<File> ExpectedValues<File>::cis_only(std::shared_ptr<const
 
 template <typename File>
 inline ExpectedValues<File> ExpectedValues<File>::trans_only(std::shared_ptr<const File> file,
-                                                             double mad_max) {
-  ExpectedValues ev(nullptr, mad_max);
+                                                             const Params &params_) {
+  ExpectedValues ev(nullptr, {params_.mad_max, 0, 0, 0, 0, false, 0, 0});
   ev._fp = std::move(file);
   if (ev._fp) {
     ev.compute_expected_values_trans();
@@ -87,12 +98,10 @@ template <typename File>
 inline ExpectedValues<File> ExpectedValues<File>::chromosome_pair(std::shared_ptr<const File> file,
                                                                   const hictk::Chromosome &chrom1,
                                                                   const hictk::Chromosome &chrom2,
-                                                                  double mad_max,
-                                                                  std::uint64_t min_delta,
-                                                                  std::uint64_t max_delta) {
+                                                                  const Params &params) {
   SPDLOG_INFO(FMT_STRING("computing expected values for {}:{}..."), chrom1.name(), chrom2.name());
 
-  ExpectedValues ev(nullptr, mad_max, min_delta, max_delta);
+  ExpectedValues ev(nullptr, params);
   ev._fp = std::move(file);
   if (chrom1 == chrom2) {
     ev.compute_expected_values_cis();
@@ -124,10 +133,15 @@ inline ExpectedValues<File> ExpectedValues<File>::deserialize(const std::filesys
   ExpectedValues<File> ev{nullptr};
   HighFive::File f(path.string());
 
-  const auto [mad_max_, min_delta_, max_delta_] = deserialize_attributes(f);
-  ev._mad_max = mad_max_;
-  ev._min_delta = min_delta_;
-  ev._max_delta = max_delta_;
+  const auto params = deserialize_attributes(f);
+  ev._mad_max = params.mad_max;
+  ev._min_delta = params.min_delta;
+  ev._max_delta = params.max_delta;
+  ev._bin_aggregation_possible_distances_cutoff = params.bin_aggregation_possible_distances_cutoff;
+  ev._bin_aggregation_observed_distances_cutoff = params.bin_aggregation_observed_distances_cutoff;
+  ev._interpolate = params.interpolate;
+  ev._interpolation_qtile = params.interpolation_qtile;
+  ev._interpolation_window_size = params.interpolation_window_size;
 
   ev._bin_masks = deserialize_bin_masks(f);
   auto [weights, scaling_factors] = deserialize_cis_profiles(f);
@@ -144,16 +158,15 @@ inline const std::vector<double> &ExpectedValues<File>::weights() const noexcept
 }
 
 template <typename File>
-inline double ExpectedValues<File>::mad_max() const noexcept {
-  return _mad_max;
-}
-template <typename File>
-inline std::uint64_t ExpectedValues<File>::min_delta() const noexcept {
-  return _min_delta;
-}
-template <typename File>
-inline std::uint64_t ExpectedValues<File>::max_delta() const noexcept {
-  return _max_delta;
+inline auto ExpectedValues<File>::params() const noexcept -> Params {
+  return {_mad_max,
+          _min_delta,
+          _max_delta,
+          _bin_aggregation_possible_distances_cutoff,
+          _bin_aggregation_observed_distances_cutoff,
+          _interpolate,
+          _interpolation_qtile,
+          _interpolation_window_size};
 }
 
 template <typename File>
@@ -292,7 +305,7 @@ inline void ExpectedValues<File>::serialize(const std::filesystem::path &path) c
   const auto source_file = std::filesystem::path{_fp->path()}.filename().string();
   f.createAttribute("source-file", source_file);
   f.createAttribute("resolution", _fp->resolution());
-  serialize_attributes(f, mad_max(), min_delta(), max_delta());
+  serialize_attributes(f, params());
 
   serialize_chromosomes(f, _fp->chromosomes());
   serialize_bin_masks(f, _bin_masks);
@@ -347,7 +360,7 @@ inline void ExpectedValues<File>::compute_expected_values_cis() {
   hictk::transformers::PixelMerger merger(std::move(heads), std::move(tails));
   const hictk::transformers::JoinGenomicCoords mjsel(merger.begin(), merger.end(), _fp->bins_ptr());
 
-  hictk::ExpectedValuesAggregator aggr(_fp->bins_ptr());
+  ExpectedValuesAggregator aggr(_fp->bins_ptr());
   std::for_each(mjsel.begin(), mjsel.end(), [&](const hictk::Pixel<N> &p) {
     const auto &mask = *bin_mask(p.coords.bin1.chrom());
     const auto delta = p.coords.bin2.start() - p.coords.bin1.start();
@@ -359,7 +372,10 @@ inline void ExpectedValues<File>::compute_expected_values_cis() {
       aggr.add(p);
     }
   });
-  aggr.compute_density();
+
+  aggr.compute_density(_bin_aggregation_possible_distances_cutoff,
+                       _bin_aggregation_observed_distances_cutoff, _interpolate,
+                       _interpolation_qtile, _interpolation_window_size);
 
   _expected_scaling_factors = aggr.scaling_factors();
   for (const auto &chrom : _fp->chromosomes()) {
@@ -434,13 +450,18 @@ void ExpectedValues<File>::add_bin_mask(const hictk::Chromosome &chrom1,
 }
 
 template <typename File>
-void ExpectedValues<File>::serialize_attributes(HighFive::File &f, double mad_max_,
-                                                std::uint64_t min_delta_,
-                                                std::uint64_t max_delta_) {
-  assert(min_delta_ <= max_delta_);
-  f.createAttribute("mad_max", mad_max_);
-  f.createAttribute("min_delta", min_delta_);
-  f.createAttribute("max_delta", max_delta_);
+void ExpectedValues<File>::serialize_attributes(HighFive::File &f, const Params &params) {
+  assert(params.min_delta <= params.max_delta);
+  f.createAttribute("mad_max", params.mad_max);
+  f.createAttribute("min_delta", params.min_delta);
+  f.createAttribute("max_delta", params.max_delta);
+  f.createAttribute("bin_aggregation_possible_distances_cutoff",
+                    params.bin_aggregation_possible_distances_cutoff);
+  f.createAttribute("bin_aggregation_observed_distances_cutoff",
+                    params.bin_aggregation_observed_distances_cutoff);
+  f.createAttribute("interpolate", params.interpolate);
+  f.createAttribute("interpolation_qtile", params.interpolation_qtile);
+  f.createAttribute("interpolation_window_size", params.interpolation_window_size);
 }
 
 template <typename File>
@@ -547,11 +568,15 @@ inline void ExpectedValues<File>::serialize_trans_profiles(
 }
 
 template <typename File>
-inline std::tuple<double, std::uint64_t, std::uint64_t>
-ExpectedValues<File>::deserialize_attributes(const HighFive::File &f) {
-  return std::make_tuple(f.getAttribute("mad_max").read<double>(),
-                         f.getAttribute("min_delta").read<std::uint64_t>(),
-                         f.getAttribute("max_delta").read<std::uint64_t>());
+inline auto ExpectedValues<File>::deserialize_attributes(const HighFive::File &f) -> Params {
+  return {f.getAttribute("mad_max").read<double>(),
+          f.getAttribute("min_delta").read<std::uint64_t>(),
+          f.getAttribute("max_delta").read<std::uint64_t>(),
+          f.getAttribute("bin_aggregation_possible_distances_cutoff").read<double>(),
+          f.getAttribute("bin_aggregation_observed_distances_cutoff").read<double>(),
+          f.getAttribute("interpolate").read<bool>(),
+          f.getAttribute("interpolation_qtile").read<double>(),
+          f.getAttribute("interpolation_window_size").read<std::uint32_t>()};
 }
 
 template <typename File>

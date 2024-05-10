@@ -40,6 +40,11 @@ struct ComputePvalConfig {
   double mad_max{5.0};
   std::uint64_t min_delta{40'000};
   std::uint64_t max_delta{std::numeric_limits<std::uint64_t>::max()};
+  double bin_aggregation_possible_distances_cutoff{0};
+  double bin_aggregation_observed_distances_cutoff{5'000};
+  bool interpolate_expected_values{true};
+  double interpolation_qtile{0.975};
+  std::uint32_t interpolation_window_size{750'000};
   double bad_bin_fraction{0.1};
 
   bool write_header{true};
@@ -79,7 +84,11 @@ struct ExpectedConfig {
   double mad_max{5.0};
   std::uint64_t min_delta{40'000};
   std::uint64_t max_delta{std::numeric_limits<std::uint64_t>::max()};
-  std::uint64_t num_quantiles{100};
+  double bin_aggregation_possible_distances_cutoff{1'000};
+  double bin_aggregation_observed_distances_cutoff{100'000};
+  bool interpolate_expected_values{true};
+  double interpolation_qtile{0.975};
+  std::uint32_t interpolation_window_size{750'000};
 
   std::uint8_t verbosity{3};
 };

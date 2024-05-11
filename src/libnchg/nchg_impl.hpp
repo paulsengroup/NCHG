@@ -35,6 +35,26 @@
 namespace nchg {
 
 template <typename File>
+bool NCHG<File>::Stats::operator<(const Stats &other) const noexcept {
+  return pixel.coords < other.pixel.coords;
+}
+
+template <typename File>
+bool NCHG<File>::Stats::operator>(const Stats &other) const noexcept {
+  return pixel.coords > other.pixel.coords;
+}
+
+template <typename File>
+bool NCHG<File>::Stats::operator==(const Stats &other) const noexcept {
+  return pixel.coords == other.pixel.coords;
+}
+
+template <typename File>
+bool NCHG<File>::Stats::operator!=(const Stats &other) const noexcept {
+  return !(*this == other);
+}
+
+template <typename File>
 inline NCHG<File>::NCHG(std::shared_ptr<const File> f, const hictk::Chromosome &chrom1,
                         const hictk::Chromosome &chrom2, const Params &params)
     : NCHG(f, chrom1, chrom2, ExpectedValues<File>::chromosome_pair(f, chrom1, chrom2, params)) {}

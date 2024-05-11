@@ -18,10 +18,6 @@
 
 #pragma once
 
-#ifndef _WIN32
-#include <csignal>
-#endif
-
 #include <atomic>
 #include <cstddef>
 
@@ -29,14 +25,7 @@
 
 namespace nchg {
 
-#ifdef _WIN32
-[[nodiscard]] int run_nchg_compute(const ComputePvalConfig& c, std::atomic<std::uint32_t*>& pids,
-                                   const std::atomic<std::size_t>& num_pids);
-#else
-[[nodiscard]] int run_nchg_compute(const ComputePvalConfig& c, std::atomic<pid_t*>& pids,
-                                   const std::atomic<std::size_t>& num_pids);
-#endif
-
+[[nodiscard]] int run_nchg_compute(const ComputePvalConfig& c);
 [[nodiscard]] int run_nchg_filter(const FilterConfig& c);
 [[nodiscard]] int run_nchg_expected(const ExpectedConfig& c);
 

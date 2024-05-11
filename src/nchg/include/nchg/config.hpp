@@ -28,6 +28,9 @@ namespace nchg {
 struct ComputePvalConfig {
   std::filesystem::path exec{};
   std::filesystem::path path_to_hic{};
+  std::filesystem::path output_prefix{};
+  bool force{false};
+
   std::uint32_t resolution{};
   std::string chrom1{"all"};
   std::string chrom2{"all"};
@@ -46,9 +49,6 @@ struct ComputePvalConfig {
   double interpolation_qtile{0.975};
   std::uint32_t interpolation_window_size{750'000};
   double bad_bin_fraction{0.1};
-
-  bool write_header{true};
-  bool write_eof_signal{false};
 
   std::size_t threads{1};
 

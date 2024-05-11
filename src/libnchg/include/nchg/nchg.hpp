@@ -45,6 +45,11 @@ class NCHG {
     double pval{};
     double odds_ratio{};
     double omega{};
+
+    bool operator<(const Stats& other) const noexcept;
+    bool operator>(const Stats& other) const noexcept;
+    bool operator==(const Stats& other) const noexcept;
+    bool operator!=(const Stats& other) const noexcept;
   };
 
  private:

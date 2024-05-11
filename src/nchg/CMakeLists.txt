@@ -16,6 +16,7 @@
 # with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
+find_package(Arrow REQUIRED)
 find_package(Boost REQUIRED COMPONENTS filesystem)
 find_package(bshoshany-thread-pool REQUIRED)
 find_package(CLI11 REQUIRED)
@@ -43,6 +44,7 @@ target_link_libraries(
   PRIVATE nchg_project_options
           nchg_project_warnings
           libnchg
+          arrow::arrow
           Boost::headers
           Boost::filesystem # Required by boost::process::v2
           bshoshany-thread-pool::bshoshany-thread-pool

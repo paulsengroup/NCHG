@@ -142,6 +142,13 @@ void Cli::make_compute_subcommand() {
     ->check(IsValidHiCFile | IsValidCoolerFile | IsValidMultiresCoolerFile)
     ->required();
   sc.add_option(
+    "output-prefix",
+    c.output_prefix,
+    "Path prefix to use for output.\n"
+    "Depending on the parameters used to invoke NCHG, this will result in one or more\n"
+    "files named myprefix.chrA.chrB.parquet.")
+    ->required();
+  sc.add_option(
     "--resolution",
     c.resolution,
     "Matrix resolution. Required when the input file is in .hic or .mcool format.");
@@ -234,16 +241,16 @@ void Cli::make_compute_subcommand() {
     "Has no effect when --domains is not used.")
   ->check(CLI::Bound(0.0, 1.0))
   ->capture_default_str();
-  sc.add_flag(
-    "--write-header,!--no-write-header",
-    c.write_header,
-    "Write the file header to stdout.")
-    ->capture_default_str();
   sc.add_option(
     "--threads",
     c.threads,
     "Number of worker threads")
     ->check(CLI::PositiveNumber)
+    ->capture_default_str();
+  sc.add_flag(
+    "--force",
+    c.force,
+    "Force overwrite existing output file(s).")
     ->capture_default_str();
   sc.add_option(
     "-v,--verbosity",
@@ -251,10 +258,6 @@ void Cli::make_compute_subcommand() {
     "Set verbosity of output to the console.")
     ->check(CLI::Range(1, 5))
     ->capture_default_str();
-  sc.add_flag(
-    "--write-eof",
-    c.write_eof_signal)
-    ->group("");
   // clang-format on
 
   sc.get_option("--chrom2")->needs("--chrom1");

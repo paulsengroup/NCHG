@@ -260,6 +260,15 @@ class RecordBatchBuilder {
         });
   }
 
+  void write(parquet::arrow::FileWriter &writer) {
+    const auto batch = get();
+    const auto status = writer.WriteRecordBatch(*batch);
+    if (!status.ok()) {
+      throw std::runtime_error(status.ToString());
+    }
+    reset();
+  }
+
  private:
   template <typename ArrayBuilder, typename T>
   void append(ArrayBuilder &builder, const T &data) {
@@ -298,19 +307,19 @@ class RecordBatchBuilder {
                      ->disable_statistics()
                      ->build();
 
-  if (threads > 2) {
-    auto status = arrow::SetCpuThreadPoolCapacity(static_cast<std::int32_t>(threads - 2));
+  if (threads > 1) {
+    auto status = arrow::SetCpuThreadPoolCapacity(static_cast<std::int32_t>(threads - 1));
     if (!status.ok()) {
       throw std::runtime_error(status.ToString());
     }
-    status = arrow::io::SetIOThreadPoolCapacity(static_cast<std::int32_t>(threads - 2));
+    status = arrow::io::SetIOThreadPoolCapacity(static_cast<std::int32_t>(threads - 1));
     if (!status.ok()) {
       throw std::runtime_error(status.ToString());
     }
   }
 
   auto arrow_properties =
-      parquet::ArrowWriterProperties::Builder().set_use_threads(threads > 2)->build();
+      parquet::ArrowWriterProperties::Builder().set_use_threads(threads > 1)->build();
 
   if (force) {
     std::filesystem::remove(path);

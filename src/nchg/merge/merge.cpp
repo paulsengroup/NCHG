@@ -130,12 +130,12 @@ int run_nchg_merge(const MergeConfig &c) {
   auto consumer = tpool.submit_task([&]() {
     try {
       auto writer = init_parquet_file_writer(c.output_path, c.force, c.compression_method,
-                                             c.compression_lvl, c.threads);
+                                             c.compression_lvl, c.threads - 2);
 
       std::size_t records_processed = 0;
       Stats buffer{};
 
-      std::size_t batch_size = 1'000'000;
+      const std::size_t batch_size = 1'000'000;
       RecordBatchBuilder builder{};
 
       auto t0 = std::chrono::steady_clock::now();
@@ -149,12 +149,7 @@ int run_nchg_merge(const MergeConfig &c) {
           break;
         }
         if (builder.size() == batch_size) {
-          auto batch = builder.get();
-          const auto status = writer->WriteRecordBatch(*batch);
-          if (!status.ok()) {
-            throw std::runtime_error(status.ToString());
-          }
-          builder.reset();
+          builder.write(*writer);
         }
         builder.append(buffer);
         ++records_processed;
@@ -173,11 +168,7 @@ int run_nchg_merge(const MergeConfig &c) {
       }
 
       if (builder.size() != 0) {
-        auto batch = builder.get();
-        const auto status = writer->WriteRecordBatch(*batch);
-        if (!status.ok()) {
-          throw std::runtime_error(status.ToString());
-        }
+        builder.write(*writer);
       }
 
       return records_processed;

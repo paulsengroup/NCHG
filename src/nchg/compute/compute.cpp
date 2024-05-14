@@ -44,65 +44,11 @@
 
 #include "nchg/common.hpp"
 #include "nchg/config.hpp"
+#include "nchg/io.hpp"
 #include "nchg/nchg.hpp"
 #include "nchg/tools.hpp"
 
 namespace nchg {
-
-[[nodiscard]] static parquet::Compression::type parse_parquet_compression(std::string_view method) {
-  if (method == "zstd") {
-    return parquet::Compression::ZSTD;
-  }
-  if (method == "lz4") {
-    return parquet::Compression::LZ4;
-  }
-  throw std::runtime_error(
-      fmt::format(FMT_STRING("unrecognized compression method \"{}\""), method));
-}
-
-[[nodiscard]] static std::unique_ptr<parquet::StreamWriter> init_parquet_file_writer(
-    const std::filesystem::path &path, bool force, std::string_view compression_method,
-    std::uint8_t compression_lvl) {
-  if (path.empty()) {
-    return {};
-  }
-
-  const parquet::schema::NodeVector fields{
-      // clang-format off
-      parquet::schema::PrimitiveNode::Make("chrom1",         parquet::Repetition::OPTIONAL, parquet::Type::BYTE_ARRAY, parquet::ConvertedType::UTF8),
-      parquet::schema::PrimitiveNode::Make("start1",         parquet::Repetition::REQUIRED, parquet::Type::INT32,      parquet::ConvertedType::UINT_32),
-      parquet::schema::PrimitiveNode::Make("end1",           parquet::Repetition::REQUIRED, parquet::Type::INT32,      parquet::ConvertedType::UINT_32),
-      parquet::schema::PrimitiveNode::Make("chrom2",         parquet::Repetition::OPTIONAL, parquet::Type::BYTE_ARRAY, parquet::ConvertedType::UTF8),
-      parquet::schema::PrimitiveNode::Make("start2",         parquet::Repetition::REQUIRED, parquet::Type::INT32,      parquet::ConvertedType::UINT_32),
-      parquet::schema::PrimitiveNode::Make("end2",           parquet::Repetition::REQUIRED, parquet::Type::INT32,      parquet::ConvertedType::UINT_32),
-      parquet::schema::PrimitiveNode::Make("pvalue",         parquet::Repetition::REQUIRED, parquet::Type::DOUBLE,     parquet::ConvertedType::NONE),
-      parquet::schema::PrimitiveNode::Make("observed_count", parquet::Repetition::REQUIRED, parquet::Type::INT32,      parquet::ConvertedType::UINT_32),
-      parquet::schema::PrimitiveNode::Make("expected_count", parquet::Repetition::REQUIRED, parquet::Type::DOUBLE,     parquet::ConvertedType::NONE),
-      parquet::schema::PrimitiveNode::Make("odds_ratio",     parquet::Repetition::REQUIRED, parquet::Type::DOUBLE,     parquet::ConvertedType::NONE),
-      parquet::schema::PrimitiveNode::Make("omega",          parquet::Repetition::REQUIRED, parquet::Type::DOUBLE,     parquet::ConvertedType::NONE)
-      // clang-format on
-  };
-
-  auto schema = std::static_pointer_cast<parquet::schema::GroupNode>(
-      parquet::schema::GroupNode::Make("schema", parquet::Repetition::REQUIRED, fields));
-  auto builder = parquet::WriterProperties::Builder()
-                     .created_by("NCHG v0.0.1")
-                     ->version(parquet::ParquetVersion::PARQUET_2_6)
-                     ->data_page_version(parquet::ParquetDataPageVersion::V2)
-                     ->compression(parse_parquet_compression(compression_method))
-                     ->compression_level(compression_lvl)
-                     ->build();
-
-  if (force) {
-    std::filesystem::remove(path);
-  }
-
-  std::shared_ptr<arrow::io::FileOutputStream> f{};
-  PARQUET_ASSIGN_OR_THROW(f, arrow::io::FileOutputStream::Open(path));
-
-  return std::make_unique<parquet::StreamWriter>(
-      parquet::ParquetFileWriter::Open(f, schema, builder));
-}
 
 [[nodiscard]] static std::string_view truncate_bed3_record(std::string_view record,
                                                            char sep = '\t') {
@@ -194,24 +140,6 @@ template <typename FilePtr, typename File = remove_cvref_t<decltype(*std::declva
        c.interpolation_qtile, c.interpolation_window_size});
 }
 
-template <typename Stats>
-static void write_record(std::unique_ptr<parquet::StreamWriter> &stream, const Stats &s) {
-  // clang-format off
-  *stream << s.pixel.coords.bin1.chrom().name()
-          << s.pixel.coords.bin1.start()
-          << s.pixel.coords.bin1.end()
-          << s.pixel.coords.bin2.chrom().name()
-          << s.pixel.coords.bin2.start()
-          << s.pixel.coords.bin2.end()
-          << s.pval
-          << s.pixel.count
-          << s.expected
-          << s.odds_ratio
-          << s.omega
-          << parquet::EndRow;
-  // clang-format on
-}
-
 static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
                                       const std::filesystem::path &path, bool force) {
   try {
@@ -248,8 +176,11 @@ template <typename FilePtr>
   }
 
   const auto nchg = init_nchg(f, c);
-  auto writer =
-      init_parquet_file_writer(c.output_prefix, c.force, c.compression_method, c.compression_lvl);
+  auto writer = init_parquet_file_writer(c.output_prefix, c.force, c.compression_method,
+                                         c.compression_lvl, c.threads);
+
+  std::size_t batch_size = 1'000'000;
+  RecordBatchBuilder builder{};
 
   std::size_t num_records = 0;
   for (std::size_t i = 0; i < domains.size(); ++i) {
@@ -261,9 +192,16 @@ template <typename FilePtr>
         continue;
       }
 
-      write_record(writer, nchg.compute(d1, d2, c.bad_bin_fraction));
+      if (builder.size() == batch_size) {
+        builder.write(*writer);
+      }
+      builder.append(nchg.compute(d1, d2, c.bad_bin_fraction));
       ++num_records;
     }
+  }
+
+  if (builder.size() != 0) {
+    builder.write(*writer);
   }
   return num_records;
 }
@@ -275,14 +213,24 @@ template <typename FilePtr>
   const auto &chrom2 = f->chromosomes().at(c.chrom2);
   auto nchg = init_nchg(f, c);
 
-  auto writer =
-      init_parquet_file_writer(c.output_prefix, c.force, c.compression_method, c.compression_lvl);
+  auto writer = init_parquet_file_writer(c.output_prefix, c.force, c.compression_method,
+                                         c.compression_lvl, c.threads);
+
+  const std::size_t batch_size = 1'000'000;
+  RecordBatchBuilder builder{};
 
   std::size_t num_records = 0;
   std::for_each(nchg.begin(chrom1, chrom2), nchg.end(chrom1, chrom2), [&](const auto &s) {
     ++num_records;
-    write_record(writer, s);
+    if (builder.size() == batch_size) {
+      builder.write(*writer);
+    }
+    builder.append(s);
   });
+
+  if (builder.size() != 0) {
+    builder.write(*writer);
+  }
   return num_records;
 }
 

@@ -50,6 +50,8 @@ struct ComputePvalConfig {
   std::uint32_t interpolation_window_size{750'000};
   double bad_bin_fraction{0.1};
 
+  std::string compression_method{"zstd"};
+  std::uint8_t compression_lvl{9};
   std::size_t threads{1};
 
   std::uint8_t verbosity{3};
@@ -93,6 +95,19 @@ struct ExpectedConfig {
   std::uint8_t verbosity{3};
 };
 
-using Config = std::variant<std::monostate, ComputePvalConfig, ExpectedConfig, FilterConfig>;
+struct MergeConfig {
+  std::filesystem::path input_prefix{};
+  std::filesystem::path output_path{};
+  bool force{false};
+
+  std::size_t threads{2};
+  std::string compression_method{"zstd"};
+  std::uint8_t compression_lvl{9};
+
+  std::uint8_t verbosity{3};
+};
+
+using Config =
+    std::variant<std::monostate, ComputePvalConfig, ExpectedConfig, FilterConfig, MergeConfig>;
 
 }  // namespace nchg

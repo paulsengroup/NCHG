@@ -64,6 +64,8 @@ auto Cli::parse_arguments() -> Config {
       _subcommand = subcommand::expected;
     } else if (_cli.get_subcommand("filter")->parsed()) {
       _subcommand = subcommand::filter;
+    } else if (_cli.get_subcommand("merge")->parsed()) {
+      _subcommand = subcommand::merge;
     } else {
       _subcommand = subcommand::help;
     }
@@ -104,6 +106,8 @@ std::string_view Cli::subcommand_to_str(subcommand s) noexcept {
       return "expected";
     case filter:
       return "filter";
+    case merge:
+      return "merge";
     default:
       assert(s == help);
       return "--help";
@@ -119,6 +123,7 @@ void Cli::make_cli() {
   make_compute_subcommand();
   make_expected_subcommand();
   make_filter_subcommand();
+  make_merge_subcommand();
 }
 
 void Cli::make_compute_subcommand() {
@@ -247,6 +252,18 @@ void Cli::make_compute_subcommand() {
     "Number of worker threads")
     ->check(CLI::PositiveNumber)
     ->capture_default_str();
+  sc.add_option(
+    "--compression-level",
+    c.compression_lvl,
+    "Compression level used to compress columns in the output .parquet file.")
+    ->check(CLI::Bound(1, 22))
+    ->capture_default_str();
+  sc.add_option(
+    "--compression-method",
+    c.compression_method,
+    "Method used to compress individual columns in the .parquet file.")
+    ->check(CLI::IsMember({"zstd", "lz4"}))
+    ->capture_default_str();
   sc.add_flag(
     "--force",
     c.force,
@@ -291,7 +308,7 @@ void Cli::make_expected_subcommand() {
            });
 
   _config = ExpectedConfig{};
-  [[maybe_unused]] auto &c = std::get<ExpectedConfig>(_config);
+  auto &c = std::get<ExpectedConfig>(_config);
 
   // clang-format off
   sc.add_option(
@@ -394,7 +411,7 @@ void Cli::make_filter_subcommand() {
            });
 
   _config = FilterConfig{};
-  [[maybe_unused]] auto &c = std::get<FilterConfig>(_config);
+  auto &c = std::get<FilterConfig>(_config);
 
   // clang-format off
   sc.add_option(
@@ -451,6 +468,57 @@ void Cli::make_filter_subcommand() {
   _config = std::monostate{};
 }
 
+void Cli::make_merge_subcommand() {
+  [[maybe_unused]] auto &sc =
+      *_cli.add_subcommand("merge", "Merge the output of NCHG compute into a single parquet file.")
+           ->fallthrough()
+           ->preparse_callback([this]([[maybe_unused]] std::size_t i) {
+             assert(_config.index() == 0);
+             _config = MergeConfig{};
+           });
+
+  _config = MergeConfig{};
+  auto &c = std::get<MergeConfig>(_config);
+
+  // clang-format off
+  sc.add_option(
+      "input-prefix",
+      c.input_prefix,
+      "Path prefix where the files produced by NCHG compute are located.")
+      ->required();
+  sc.add_option(
+      "output-path",
+      c.output_path,
+      "Output path.")
+      ->required();
+  sc.add_flag(
+      "--force",
+      c.force,
+      "Force overwrite existing output file(s).")
+      ->capture_default_str();
+  sc.add_option(
+      "--compression-level",
+      c.compression_lvl,
+      "Compression level used to compress columns in the output .parquet file.")
+      ->check(CLI::Bound(1, 22))
+      ->capture_default_str();
+  sc.add_option(
+      "--compression-method",
+      c.compression_method,
+      "Method used to compress individual columns in the .parquet file.")
+      ->check(CLI::IsMember({"zstd", "lz4"}))
+      ->capture_default_str();
+  sc.add_option(
+    "--threads",
+    c.threads,
+    "Number of worker threads")
+    ->check(CLI::Range(2U, std::max(2U, std::thread::hardware_concurrency())))
+    ->capture_default_str();
+  // clang-format on
+
+  _config = std::monostate{};
+}
+
 void Cli::validate_args() const {
   switch (get_subcommand()) {
     case compute:
@@ -459,6 +527,8 @@ void Cli::validate_args() const {
       return validate_expected_subcommand();  // NOLINT
     case filter:
       return validate_filter_subcommand();  // NOLINT
+    case merge:
+      return validate_merge_subcommand();  // NOLINT
     case help:
       return;
   }
@@ -490,6 +560,10 @@ void Cli::validate_compute_subcommand() const {
 
   if (trans_only_parsed && (min_delta_parsed || max_delta_parsed)) {
     warnings.emplace_back("--min-delta and --max-delta are ignored when --trans-only=true");
+  }
+
+  if (c.compression_method == "lz4" && c.compression_lvl > 9) {
+    warnings.emplace_back("compression method lz4 supports compression levels up to 9");
   }
 
   for (const auto &w : warnings) {
@@ -529,6 +603,20 @@ void Cli::validate_expected_subcommand() const {
 
 void Cli::validate_filter_subcommand() const {}
 
+void Cli::validate_merge_subcommand() const {
+  auto &c = std::get<MergeConfig>(_config);
+
+  std::vector<std::string> warnings;
+
+  if (c.compression_method == "lz4" && c.compression_lvl > 9) {
+    warnings.emplace_back("compression method lz4 supports compression levels up to 9");
+  }
+
+  for (const auto &w : warnings) {
+    SPDLOG_WARN(FMT_STRING("{}"), w);
+  }
+}
+
 void Cli::transform_args() {
   switch (get_subcommand()) {
     case compute:
@@ -537,6 +625,8 @@ void Cli::transform_args() {
       return transform_args_expected_subcommand();  // NOLINT
     case filter:
       return transform_args_filter_subcommand();  // NOLINT
+    case merge:
+      return transform_args_merge_subcommand();  // NOLINT
     case help:
       return;
   }
@@ -585,6 +675,10 @@ void Cli::transform_args_compute_subcommand() {
 
   c.exec = get_path_to_executable();
 
+  if (c.compression_method == "lz4") {
+    c.compression_lvl = std::min(c.compression_lvl, std::uint8_t{9});
+  }
+
   // in spdlog, high numbers correspond to low log levels
   assert(c.verbosity > 0 && c.verbosity <= SPDLOG_LEVEL_CRITICAL);
   c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
@@ -597,4 +691,15 @@ void Cli::transform_args_filter_subcommand() {
   c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
 }
 
+void Cli::transform_args_merge_subcommand() {
+  auto &c = std::get<MergeConfig>(_config);
+
+  if (c.compression_method == "lz4") {
+    c.compression_lvl = std::min(c.compression_lvl, std::uint8_t{9});
+  }
+
+  // in spdlog, high numbers correspond to low log levels
+  assert(c.verbosity > 0 && c.verbosity <= SPDLOG_LEVEL_CRITICAL);
+  c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
+}
 }  // namespace nchg

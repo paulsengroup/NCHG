@@ -18,6 +18,7 @@
 
 #include <arrow/io/file.h>
 #include <fmt/format.h>
+#include <fmt/ostream.h>
 #include <fmt/std.h>
 #include <parquet/stream_reader.h>
 #include <parquet/stream_writer.h>
@@ -48,8 +49,20 @@
 
 namespace nchg {
 
+[[nodiscard]] static parquet::Compression::type parse_parquet_compression(std::string_view method) {
+  if (method == "zstd") {
+    return parquet::Compression::ZSTD;
+  }
+  if (method == "lz4") {
+    return parquet::Compression::LZ4;
+  }
+  throw std::runtime_error(
+      fmt::format(FMT_STRING("unrecognized compression method \"{}\""), method));
+}
+
 [[nodiscard]] static std::unique_ptr<parquet::StreamWriter> init_parquet_file_writer(
-    const std::filesystem::path &path, bool force) {
+    const std::filesystem::path &path, bool force, std::string_view compression_method,
+    std::uint8_t compression_lvl) {
   if (path.empty()) {
     return {};
   }
@@ -76,12 +89,8 @@ namespace nchg {
                      .created_by("NCHG v0.0.1")
                      ->version(parquet::ParquetVersion::PARQUET_2_6)
                      ->data_page_version(parquet::ParquetDataPageVersion::V2)
-                     ->compression(parquet::Compression::ZSTD)
-                     ->compression_level(1)
-                     ->encoding("pvalue", parquet::Encoding::BYTE_STREAM_SPLIT)
-                     ->encoding("expected_count", parquet::Encoding::BYTE_STREAM_SPLIT)
-                     ->encoding("odds_ratio", parquet::Encoding::BYTE_STREAM_SPLIT)
-                     ->encoding("omega", parquet::Encoding::BYTE_STREAM_SPLIT)
+                     ->compression(parse_parquet_compression(compression_method))
+                     ->compression_level(compression_lvl)
                      ->build();
 
   if (force) {
@@ -203,6 +212,31 @@ static void write_record(std::unique_ptr<parquet::StreamWriter> &stream, const S
   // clang-format on
 }
 
+static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
+                                      const std::filesystem::path &path, bool force) {
+  try {
+    if (force) {
+      std::filesystem::remove(path);
+    }
+
+    if (std::filesystem::exists(path)) {
+      throw std::runtime_error(fmt::format(
+          FMT_STRING("Refusing to overwrite file {}. Pass --force to overwrite."), path));
+    }
+
+    std::ofstream fs{};
+    fs.exceptions(fs.exceptions() | std::ios::badbit | std::ios::failbit);
+    fs.open(path);
+
+    for (const auto &chrom : chroms) {
+      fmt::print(fs, FMT_STRING("{}\t{}\n"), chrom.name(), chrom.size());
+    }
+  } catch (const std::exception &e) {
+    throw std::runtime_error(
+        fmt::format(FMT_STRING("failed to write chromosomes to file {}: {}"), path, e.what()));
+  }
+}
+
 template <typename FilePtr>
 [[nodiscard]] static std::size_t process_domains(const FilePtr &f, const ComputePvalConfig &c) {
   assert(std::filesystem::exists(c.path_to_domains));
@@ -214,7 +248,8 @@ template <typename FilePtr>
   }
 
   const auto nchg = init_nchg(f, c);
-  auto writer = init_parquet_file_writer(c.output_prefix, c.force);
+  auto writer =
+      init_parquet_file_writer(c.output_prefix, c.force, c.compression_method, c.compression_lvl);
 
   std::size_t num_records = 0;
   for (std::size_t i = 0; i < domains.size(); ++i) {
@@ -240,7 +275,8 @@ template <typename FilePtr>
   const auto &chrom2 = f->chromosomes().at(c.chrom2);
   auto nchg = init_nchg(f, c);
 
-  auto writer = init_parquet_file_writer(c.output_prefix, c.force);
+  auto writer =
+      init_parquet_file_writer(c.output_prefix, c.force, c.compression_method, c.compression_lvl);
 
   std::size_t num_records = 0;
   std::for_each(nchg.begin(chrom1, chrom2), nchg.end(chrom1, chrom2), [&](const auto &s) {
@@ -268,11 +304,6 @@ template <typename FilePtr>
         },
         f_.get())};
   }();
-
-  const auto output_dir = c.output_prefix.parent_path();
-  if (!output_dir.empty() && output_dir != ".") {
-    std::filesystem::create_directories(output_dir);
-  }
 
   return std::visit(
       [&](const auto &f_) -> std::size_t {
@@ -368,6 +399,13 @@ static std::size_t process_queries(
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
     const ComputePvalConfig &c) {
   BS::thread_pool tpool(conditional_static_cast<BS::concurrency_t>(c.threads));
+
+  const auto output_dir = c.output_prefix.parent_path();
+  if (!output_dir.empty() && output_dir != ".") {
+    std::filesystem::create_directories(output_dir);
+  }
+  write_chrom_sizes_to_file(hictk::File(c.path_to_hic, c.resolution).chromosomes(),
+                            fmt::format(FMT_STRING("{}.chrom.sizes"), c.output_prefix), c.force);
 
   std::atomic<bool> early_return{false};
 

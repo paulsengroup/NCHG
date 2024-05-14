@@ -109,6 +109,9 @@ int main(int argc, char **argv) noexcept {
       case sc::filter: {
         return run_nchg_filter(std::get<FilterConfig>(config));
       }
+      case sc::merge: {
+        return run_nchg_merge(std::get<MergeConfig>(config));
+      }
       case sc::help:  // NOLINT
         break;
       default:

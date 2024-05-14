@@ -88,7 +88,7 @@ inline auto NCHG<File>::expected_matrix() const noexcept -> const ExpectedMatrix
   return *_exp_matrix;
 }
 
-[[nodiscard]] static double compute_odds_ratio(double n, double total_sum, double sum1,
+[[nodiscard]] inline double compute_odds_ratio(double n, double total_sum, double sum1,
                                                double sum2) {
   if (std::isnan(n) || sum1 == 0 || sum2 == 0) {
     return std::numeric_limits<double>::quiet_NaN();
@@ -274,7 +274,7 @@ inline auto NCHG<File>::iterator::operator++() -> iterator & {
 template <typename File>
 inline auto NCHG<File>::iterator::operator++(int) -> iterator {
   auto it = *this;
-  it._buffer = std::make_shared<std::vector<double>>();
+  it._str_buffer = std::make_shared<std::vector<double>>();
   std::ignore = ++(*this);
   return it;
 }

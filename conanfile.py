@@ -76,6 +76,7 @@ class NCHGConan(ConanFile):
         self.options["arrow"].parquet = True
         self.options["arrow"].with_boost = True
         self.options["arrow"].with_thrift = True
+        self.options["arrow"].with_lz4 = True
         self.options["arrow"].with_zstd = True
         self.options["boost"].system_no_deprecated = True
         self.options["boost"].asio_no_deprecated = True

@@ -33,6 +33,7 @@
 
 #include <BS_thread_pool.hpp>
 #include <atomic>
+#include <boost/mpl/has_xxx.hpp>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -56,9 +57,12 @@ class ParquetStatsFile {
 
  public:
   class iterator;
+  ParquetStatsFile(const hictk::Reference &chroms, const std::filesystem::path &path)
+      : ParquetStatsFile(std::make_shared<const hictk::Reference>(chroms), path) {}
 
-  ParquetStatsFile(hictk::Reference chroms, const std::filesystem::path &path)
-      : _chroms(std::make_shared<const hictk::Reference>(std::move(chroms))) {
+  ParquetStatsFile(std::shared_ptr<const hictk::Reference> chroms,
+                   const std::filesystem::path &path)
+      : _chroms(std::move(chroms)) {
     std::shared_ptr<arrow::io::ReadableFile> fp;
     PARQUET_ASSIGN_OR_THROW(fp, arrow::io::ReadableFile::Open(path));
 
@@ -126,12 +130,12 @@ class ParquetStatsFile {
       std::uint32_t observed_count{};
 
       *_sr >> *_buffer;
-      const auto &chrom1 = _chroms->at(*_buffer);
+      const auto chrom1 = !!_chroms ? _chroms->at(*_buffer) : hictk::Chromosome{0, *_buffer, 1};
       *_sr >> start1;
       *_sr >> end1;
 
       *_sr >> *_buffer;
-      const auto &chrom2 = _chroms->at(*_buffer);
+      const auto chrom2 = !!_chroms ? _chroms->at(*_buffer) : hictk::Chromosome{0, *_buffer, 1};
       *_sr >> start2;
       *_sr >> end2;
 
@@ -178,6 +182,10 @@ class ParquetStatsFile {
   });
 }
 
+// Define has_pval_corrected<T> and has_log_ratio<T> checks
+BOOST_MPL_HAS_XXX_TRAIT_DEF(pval_corrected);
+BOOST_MPL_HAS_XXX_TRAIT_DEF(log_ratio);
+
 class RecordBatchBuilder {
   std::size_t _i{};
 
@@ -190,8 +198,10 @@ class RecordBatchBuilder {
   arrow::UInt32Builder _end2{};
 
   arrow::DoubleBuilder _pvalue{};
+  arrow::DoubleBuilder _pvalue_corrected{};
   arrow::UInt32Builder _observed{};
   arrow::DoubleBuilder _expected{};
+  arrow::DoubleBuilder _log_ratio{};
   arrow::DoubleBuilder _odds{};
   arrow::DoubleBuilder _omega{};
 
@@ -219,6 +229,13 @@ class RecordBatchBuilder {
     append(_odds, s.odds_ratio);
     append(_omega, s.omega);
 
+    if constexpr (has_pval_corrected<Stats>::value) {
+      append(_pvalue_corrected, s.pvalue_corrected);
+    }
+    if constexpr (has_log_ratio<Stats>::value) {
+      append(_log_ratio, s.log_ratio);
+    }
+
     ++_i;
   }
 
@@ -232,8 +249,10 @@ class RecordBatchBuilder {
     _end2.Reset();
 
     _pvalue.Reset();
+    _pvalue_corrected.Reset();
     _observed.Reset();
     _expected.Reset();
+    _log_ratio.Reset();
     _odds.Reset();
     _omega.Reset();
 
@@ -241,23 +260,34 @@ class RecordBatchBuilder {
   }
 
   [[nodiscard]] std::shared_ptr<arrow::RecordBatch> get() {
-    return arrow::RecordBatch::Make(
-        get_schema(), static_cast<std::int64_t>(size()),
-        {
-            // clang-format off
-        finish(_chrom1),
-        finish(_start1),
-        finish(_end1),
-        finish(_chrom2),
-        finish(_start2),
-        finish(_end2),
-        finish(_pvalue),
-        finish(_observed),
-        finish(_expected),
-        finish(_odds),
-        finish(_omega)
-            // clang-format on
-        });
+    std::vector<std::shared_ptr<arrow::Array>> columns{};
+    columns.reserve(13);
+
+    columns.emplace_back(finish(_chrom1));
+    columns.emplace_back(finish(_start1));
+    columns.emplace_back(finish(_end1));
+
+    columns.emplace_back(finish(_chrom2));
+    columns.emplace_back(finish(_start2));
+    columns.emplace_back(finish(_end2));
+
+    columns.emplace_back(finish(_pvalue));
+
+    if (_pvalue_corrected.length() != 0) {
+      columns.emplace_back(finish(_pvalue_corrected));
+    }
+
+    columns.emplace_back(finish(_observed));
+    columns.emplace_back(finish(_expected));
+
+    if (_log_ratio.length() != 0) {
+      columns.emplace_back(finish(_log_ratio));
+    }
+
+    columns.emplace_back(finish(_odds));
+    columns.emplace_back(finish(_omega));
+
+    return arrow::RecordBatch::Make(get_schema(), static_cast<std::int64_t>(size()), columns);
   }
 
   void write(parquet::arrow::FileWriter &writer) {
@@ -318,8 +348,10 @@ class RecordBatchBuilder {
     }
   }
 
-  auto arrow_properties =
-      parquet::ArrowWriterProperties::Builder().set_use_threads(threads > 1)->build();
+  auto arrow_properties = parquet::ArrowWriterProperties::Builder()
+                              .set_use_threads(threads > 1)
+                              ->store_schema()
+                              ->build();
 
   if (force) {
     std::filesystem::remove(path);

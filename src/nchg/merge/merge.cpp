@@ -50,13 +50,11 @@
 
 namespace nchg {
 
-using Stats = NCHG<hictk::File>::Stats;
-
-[[nodiscard]] static std::pair<std::vector<ParquetStatsFile<Stats>::iterator>,
-                               std::vector<ParquetStatsFile<Stats>::iterator>>
+[[nodiscard]] static std::pair<std::vector<ParquetStatsFile<NCHGResult>::iterator>,
+                               std::vector<ParquetStatsFile<NCHGResult>::iterator>>
 init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference &chroms) {
-  std::vector<ParquetStatsFile<Stats>::iterator> heads{};
-  std::vector<ParquetStatsFile<Stats>::iterator> tails{};
+  std::vector<ParquetStatsFile<NCHGResult>::iterator> heads{};
+  std::vector<ParquetStatsFile<NCHGResult>::iterator> tails{};
 
   SPDLOG_INFO(FMT_STRING("enumerating chrom-chrom tables under prefix {}..."), prefix);
   for (std::uint32_t chrom1_id = 0; chrom1_id < chroms.size(); ++chrom1_id) {
@@ -69,7 +67,7 @@ init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference 
       const auto path = fmt::format(FMT_STRING("{}.{}.{}.parquet"), prefix.string(), chrom1.name(),
                                     chrom2.name());
       if (std::filesystem::exists(path)) {
-        ParquetStatsFile<Stats> f(chroms, path);
+        ParquetStatsFile<NCHGResult> f(chroms, path);
         auto first = f.begin();
         auto last = f.end();
         if (first != last) {
@@ -95,7 +93,7 @@ int run_nchg_merge(const MergeConfig &c) {
   const auto chroms = hictk::Reference::from_chrom_sizes(path_to_chrom_sizes);
   SPDLOG_INFO(FMT_STRING("read {} chromosomes!"), chroms.size());
 
-  moodycamel::BlockingConcurrentQueue<Stats> queue(64 * 1024);
+  moodycamel::BlockingConcurrentQueue<NCHGResult> queue(64 * 1024);
 
   BS::thread_pool tpool(static_cast<BS::concurrency_t>(std::min(2UL, c.threads)));
 
@@ -114,7 +112,7 @@ int run_nchg_merge(const MergeConfig &c) {
         }
       }
 
-      Stats s{};
+      NCHGResult s{};
       s.pval = -1;
       queue.enqueue(s);  // EOQ
     } catch (const std::exception &e) {
@@ -133,7 +131,7 @@ int run_nchg_merge(const MergeConfig &c) {
                                              c.compression_lvl, c.threads - 2);
 
       std::size_t records_processed = 0;
-      Stats buffer{};
+      NCHGResult buffer{};
 
       const std::size_t batch_size = 1'000'000;
       RecordBatchBuilder builder{};

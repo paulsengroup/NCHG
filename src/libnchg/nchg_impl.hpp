@@ -34,23 +34,19 @@
 
 namespace nchg {
 
-template <typename File>
-bool NCHG<File>::Stats::operator<(const Stats &other) const noexcept {
+inline bool NCHGResult::operator<(const NCHGResult &other) const noexcept {
   return pixel.coords < other.pixel.coords;
 }
 
-template <typename File>
-bool NCHG<File>::Stats::operator>(const Stats &other) const noexcept {
+inline bool NCHGResult::operator>(const NCHGResult &other) const noexcept {
   return pixel.coords > other.pixel.coords;
 }
 
-template <typename File>
-bool NCHG<File>::Stats::operator==(const Stats &other) const noexcept {
+inline bool NCHGResult::operator==(const NCHGResult &other) const noexcept {
   return pixel.coords == other.pixel.coords;
 }
 
-template <typename File>
-bool NCHG<File>::Stats::operator!=(const Stats &other) const noexcept {
+inline bool NCHGResult::operator!=(const NCHGResult &other) const noexcept {
   return !(*this == other);
 }
 

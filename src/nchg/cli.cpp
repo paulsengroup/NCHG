@@ -415,12 +415,21 @@ void Cli::make_filter_subcommand() {
 
   // clang-format off
   sc.add_option(
-      "tsv",
-      c.path,
-      "Path to the TSV produced by NCHG compute.\n"
-      "Pass - to read from stdin.")
-      ->check(CLI::ExistingFile | CLI::IsMember({"-"}))
+      "input-parquet",
+      c.input_path,
+      "Path to the parquet file produced by NCHG merge or compute.")
+      ->check(CLI::ExistingFile)
       ->required();
+  sc.add_option(
+      "output-parquet",
+      c.output_path,
+      "Path where to store the output table in parquet format.")
+      ->required();
+  sc.add_flag(
+      "--force",
+      c.force,
+      "Force overwrite existing output file(s).")
+      ->capture_default_str();
   sc.add_option(
       "--fdr",
        c.fdr,
@@ -448,15 +457,17 @@ void Cli::make_filter_subcommand() {
       c.correct_cis_trans_separately,
       "Perform multiple hypothesis correction by treating cis and trans matrices as two separate experiments.")
       ->capture_default_str();
-  sc.add_flag(
-      "--write-header,!--no-write-header",
-      c.write_header,
-      "Write the file header to stdout.")
+  sc.add_option(
+      "--compression-level",
+      c.compression_lvl,
+      "Compression level used to compress columns in the output .parquet file.")
+      ->check(CLI::Bound(1, 22))
       ->capture_default_str();
-  sc.add_flag(
-      "--sorted,!--unsorted",
-      c.sorted,
-      "Sort records by their genomic coordinates.")
+  sc.add_option(
+      "--compression-method",
+      c.compression_method,
+      "Method used to compress individual columns in the .parquet file.")
+      ->check(CLI::IsMember({"zstd", "lz4"}))
       ->capture_default_str();
   // clang-format on
 

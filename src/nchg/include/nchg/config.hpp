@@ -58,7 +58,9 @@ struct ComputePvalConfig {
 };
 
 struct FilterConfig {
-  std::filesystem::path path{};
+  std::filesystem::path input_path{};
+  std::filesystem::path output_path{};
+  bool force{};
 
   double fdr{0.01};
   double log_ratio{2.0};
@@ -67,8 +69,9 @@ struct FilterConfig {
   bool correct_cis_trans_separately{true};
   bool correct_chrom_chrom_separately{false};
 
-  bool write_header{true};
-  bool sorted{true};
+  std::size_t threads{2};
+  std::string compression_method{"zstd"};
+  std::uint8_t compression_lvl{9};
 
   std::uint8_t verbosity{3};
 };

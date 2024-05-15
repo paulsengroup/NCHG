@@ -51,7 +51,7 @@ class NCHGConan(ConanFile):
 
     def requirements(self):
         self.requires("arrow/16.0.0#c0b940c80fddf319983165f7588c279d")
-        self.requires("boost/1.84.0#5cc9767cd47ba6b5e1b53ab4670f07fc", override=True)
+        self.requires("boost/1.85.0#7926babdab0a9779cc164d0af6c28d5e", force=True)
         self.requires("bshoshany-thread-pool/4.1.0#be1802a8768416a6c9b1393cf0ce5e9c")
         self.requires("catch2/3.5.4#d346ca291f8f62040fd9c1a891654711")
         self.requires("cli11/2.4.1#afacffd31f631bbb8b7c7d6425fe7a66")
@@ -63,8 +63,8 @@ class NCHGConan(ConanFile):
         self.requires("parallel-hashmap/1.3.11#1e67f4855a3f7cdeb977cc472113baf7")
         self.requires("readerwriterqueue/1.0.6#aaa5ff6fac60c2aee591e9e51b063b83")
         self.requires("spdlog/1.13.0#8e88198fd5b9ee31d329431a6d0ccaa2")
-        self.requires("thrift/0.18.1#4e5674c24f99dde562c3926f9cb2ff9d", override=True)
-        self.requires("zstd/1.5.6#67383dae85d33f43823e7751a6745ea1", override=True)
+        self.requires("thrift/0.18.1#4e5674c24f99dde562c3926f9cb2ff9d", force=True)
+        self.requires("zstd/1.5.6#67383dae85d33f43823e7751a6745ea1", force=True)
 
     def validate(self):
         if self.settings.get_safe("compiler.cppstd"):

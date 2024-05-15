@@ -33,7 +33,6 @@
 
 #include <BS_thread_pool.hpp>
 #include <atomic>
-#include <boost/mpl/has_xxx.hpp>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -47,6 +46,7 @@
 #include <utility>
 #include <vector>
 
+#include "io.hpp"
 #include "nchg/k_merger.hpp"
 
 namespace nchg {
@@ -182,9 +182,38 @@ class ParquetStatsFile {
   });
 }
 
-// Define has_pval_corrected<T> and has_log_ratio<T> checks
-BOOST_MPL_HAS_XXX_TRAIT_DEF(pval_corrected);
-BOOST_MPL_HAS_XXX_TRAIT_DEF(log_ratio);
+[[nodiscard]] static std::shared_ptr<arrow::Schema> get_schema_padj() {
+  return arrow::schema({
+      // clang-format off
+      arrow::field("chrom1",           arrow::utf8()),
+      arrow::field("start1",           arrow::uint32()),
+      arrow::field("end1",             arrow::uint32()),
+      arrow::field("chrom2",           arrow::utf8()),
+      arrow::field("start2",           arrow::uint32()),
+      arrow::field("end2",             arrow::uint32()),
+      arrow::field("pvalue",           arrow::float64()),
+      arrow::field("pvalue_corrected" ,arrow::float64()),
+      arrow::field("observed_count",   arrow::uint32()),
+      arrow::field("expected_count",   arrow::float64()),
+      arrow::field("log_ratio",        arrow::float64()),
+      arrow::field("odds_ratio",       arrow::float64()),
+      arrow::field("omega",            arrow::float64())
+      // clang-format on
+  });
+}
+
+// https://stackoverflow.com/a/16000226
+template <typename T, typename = int>
+struct has_pval_corrected : std::false_type {};
+
+template <typename T>
+struct has_pval_corrected<T, decltype((void)T::pval_corrected, 0)> : std::true_type {};
+
+template <typename T, typename = int>
+struct has_log_ratio : std::false_type {};
+
+template <typename T>
+struct has_log_ratio<T, decltype((void)T::log_ratio, 0)> : std::true_type {};
 
 class RecordBatchBuilder {
   std::size_t _i{};
@@ -230,7 +259,7 @@ class RecordBatchBuilder {
     append(_omega, s.omega);
 
     if constexpr (has_pval_corrected<Stats>::value) {
-      append(_pvalue_corrected, s.pvalue_corrected);
+      append(_pvalue_corrected, s.pval_corrected);
     }
     if constexpr (has_log_ratio<Stats>::value) {
       append(_log_ratio, s.log_ratio);
@@ -287,6 +316,10 @@ class RecordBatchBuilder {
     columns.emplace_back(finish(_odds));
     columns.emplace_back(finish(_omega));
 
+    if (columns.size() == 13) {
+      return arrow::RecordBatch::Make(get_schema_padj(), static_cast<std::int64_t>(size()),
+                                      columns);
+    }
     return arrow::RecordBatch::Make(get_schema(), static_cast<std::int64_t>(size()), columns);
   }
 
@@ -319,6 +352,7 @@ class RecordBatchBuilder {
   }
 };
 
+template <typename Record>
 [[nodiscard]] static std::unique_ptr<parquet::arrow::FileWriter> init_parquet_file_writer(
     const std::filesystem::path &path, bool force, std::string_view compression_method,
     std::uint8_t compression_lvl, std::size_t threads) {
@@ -326,7 +360,7 @@ class RecordBatchBuilder {
     return {};
   }
 
-  const auto schema = *get_schema();
+  const auto schema = has_pval_corrected<Record>::value ? *get_schema_padj() : *get_schema();
 
   auto builder = parquet::WriterProperties::Builder()
                      .created_by("NCHG v0.0.1")

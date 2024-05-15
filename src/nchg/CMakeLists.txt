@@ -25,6 +25,7 @@ find_package(FMT REQUIRED)
 find_package(hictk REQUIRED)
 find_package(Filesystem REQUIRED)
 find_package(HighFive REQUIRED)
+find_package(readerwriterqueue REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -54,6 +55,7 @@ target_link_libraries(
           fmt::fmt-header-only
           hictk::libhictk
           HighFive
+          readerwriterqueue::readerwriterqueue
           spdlog::spdlog_header_only
           std::filesystem
           Threads::Threads)

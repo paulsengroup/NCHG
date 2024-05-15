@@ -61,6 +61,7 @@ class NCHGConan(ConanFile):
         self.requires("hictk/0.0.12#8e413cd45528da38b5a41ccffee41d6d")
         self.requires("highfive/2.9.0#c57477beed8b0110fadeb6da8f48bcc5")
         self.requires("parallel-hashmap/1.3.11#1e67f4855a3f7cdeb977cc472113baf7")
+        self.requires("readerwriterqueue/1.0.6#aaa5ff6fac60c2aee591e9e51b063b83")
         self.requires("spdlog/1.13.0#8e88198fd5b9ee31d329431a6d0ccaa2")
         self.requires("thrift/0.18.1#4e5674c24f99dde562c3926f9cb2ff9d", override=True)
         self.requires("zstd/1.5.6#67383dae85d33f43823e7751a6745ea1", override=True)

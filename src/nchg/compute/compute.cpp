@@ -176,8 +176,8 @@ template <typename FilePtr>
   }
 
   const auto nchg = init_nchg(f, c);
-  auto writer = init_parquet_file_writer(c.output_prefix, c.force, c.compression_method,
-                                         c.compression_lvl, c.threads);
+  auto writer = init_parquet_file_writer<NCHGResult>(c.output_prefix, c.force, c.compression_method,
+                                                     c.compression_lvl, c.threads);
 
   std::size_t batch_size = 1'000'000;
   RecordBatchBuilder builder{};
@@ -213,8 +213,8 @@ template <typename FilePtr>
   const auto &chrom2 = f->chromosomes().at(c.chrom2);
   auto nchg = init_nchg(f, c);
 
-  auto writer = init_parquet_file_writer(c.output_prefix, c.force, c.compression_method,
-                                         c.compression_lvl, c.threads);
+  auto writer = init_parquet_file_writer<NCHGResult>(c.output_prefix, c.force, c.compression_method,
+                                                     c.compression_lvl, c.threads);
 
   const std::size_t batch_size = 1'000'000;
   RecordBatchBuilder builder{};

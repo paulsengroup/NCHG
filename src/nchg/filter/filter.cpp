@@ -20,8 +20,10 @@
 #include <fmt/format.h>
 #include <fmt/std.h>
 #include <parallel_hashmap/btree.h>
+#include <readerwriterqueue/readerwriterqueue.h>
 #include <spdlog/spdlog.h>
 
+#include <BS_thread_pool.hpp>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
@@ -90,7 +92,7 @@ struct CorrectedPvalue {
 using ChromPair = std::pair<std::string, std::string>;
 
 [[nodiscard]] static auto read_records(const std::filesystem::path& path) {
-  SPDLOG_INFO(FMT_STRING("parsing records from {}"), path);
+  SPDLOG_INFO(FMT_STRING("reading records from {}"), path);
   phmap::btree_map<ChromPair, std::vector<CorrectedPvalue>> records{};
 
   ParquetStatsFile<NCHGResult> f(nullptr, path);
@@ -188,36 +190,91 @@ struct NCHGFilterResult {
   double omega{};
 };
 
+static_assert(has_pval_corrected<NCHGFilterResult>::value);
+static_assert(has_log_ratio<NCHGFilterResult>::value);
+
 int run_nchg_filter(const FilterConfig& c) {
   auto corrected_pvalues = correct_pvalues(read_records(c.input_path), c);
 
   std::sort(corrected_pvalues.begin(), corrected_pvalues.end(),
             [&](const auto& r1, const auto& r2) { return r1.id < r2.id; });
 
-  auto writer = init_parquet_file_writer(c.output_path, c.force, c.compression_method,
-                                         c.compression_lvl, c.threads - 1);
+  BS::thread_pool tpool(2);
 
-  const std::size_t batch_size = 1'000'000;
-  RecordBatchBuilder builder{};
+  moodycamel::BlockingReaderWriterQueue<NCHGFilterResult> queue{64 * 1024};
+  std::atomic<bool> early_return{};
 
-  std::size_t i = 0;
-  for (const auto& r : ParquetStatsFile<NCHGResult>(nullptr, c.input_path)) {
-    const auto pvalue_corrected = corrected_pvalues[i++].pvalue_corrected;
-    const auto log_ratio = std::log2(r.odds_ratio) - std::log2(r.omega);
+  auto producer = tpool.submit_task([&]() {
+    std::size_t i = 0;
+    try {
+      for (const auto& r : ParquetStatsFile<NCHGResult>(nullptr, c.input_path)) {
+        if (early_return) {
+          return;
+        }
+        const auto pvalue_corrected = corrected_pvalues[i++].pvalue_corrected;
+        const auto log_ratio = std::log2(r.odds_ratio) - std::log2(r.omega);
 
-    if (!c.drop_non_significant || (pvalue_corrected <= c.fdr && log_ratio >= c.log_ratio)) {
-      NCHGFilterResult res{r.pixel,   r.expected,   r.pval, pvalue_corrected,
-                           log_ratio, r.odds_ratio, r.omega};
+        if (!c.drop_non_significant || (pvalue_corrected <= c.fdr && log_ratio >= c.log_ratio)) {
+          const NCHGFilterResult res{r.pixel,   r.expected,   r.pval, pvalue_corrected,
+                                     log_ratio, r.odds_ratio, r.omega};
+          while (!queue.try_enqueue(res)) {
+            if (early_return) {
+              return;
+            }
+          }
+        }
+      }
+
+      NCHGFilterResult eoq{};
+      eoq.pval = -1;
+      queue.enqueue(eoq);
+
+    } catch (const std::exception& e) {
+      early_return = true;
+      throw std::runtime_error(
+          fmt::format(FMT_STRING("an exception occurred in producer thread: {}"), e.what()));
+    } catch (...) {
+      early_return = true;
+      throw;
+    }
+  });
+
+  auto consumer = tpool.submit_task([&]() {
+    SPDLOG_INFO(FMT_STRING("writing records to output file {}"), c.output_path);
+    auto writer = init_parquet_file_writer<NCHGFilterResult>(
+        c.output_path, c.force, c.compression_method, c.compression_lvl, c.threads - 2);
+
+    const std::size_t batch_size = 1'000'000;
+    RecordBatchBuilder builder{};
+
+    NCHGFilterResult res{};
+
+    while (!early_return) {
+      while (!queue.wait_dequeue_timed(res, std::chrono::milliseconds(20))) {
+        if (early_return) {
+          return;
+        }
+      }
+
+      if (res.pval == -1) {
+        // EOQ
+        if (builder.size() != 0) {
+          builder.write(*writer);
+        }
+        return;
+      }
+
       if (builder.size() == batch_size) {
         builder.write(*writer);
+        builder.reset();
       }
       builder.append(res);
     }
+  });
 
-    if (builder.size() != 0) {
-      builder.write(*writer);
-    }
-  }
+  producer.wait();
+  consumer.wait();
+
   return 0;
 }
 

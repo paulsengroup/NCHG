@@ -127,8 +127,8 @@ int run_nchg_merge(const MergeConfig &c) {
 
   auto consumer = tpool.submit_task([&]() {
     try {
-      auto writer = init_parquet_file_writer(c.output_path, c.force, c.compression_method,
-                                             c.compression_lvl, c.threads - 2);
+      auto writer = init_parquet_file_writer<NCHGResult>(
+          c.output_path, c.force, c.compression_method, c.compression_lvl, c.threads - 2);
 
       std::size_t records_processed = 0;
       NCHGResult buffer{};

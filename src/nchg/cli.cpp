@@ -249,7 +249,7 @@ void Cli::make_compute_subcommand() {
   sc.add_option(
     "--threads",
     c.threads,
-    "Number of worker threads")
+    "Number of worker threads.")
     ->check(CLI::PositiveNumber)
     ->capture_default_str();
   sc.add_option(
@@ -469,6 +469,12 @@ void Cli::make_filter_subcommand() {
       "Method used to compress individual columns in the .parquet file.")
       ->check(CLI::IsMember({"zstd", "lz4"}))
       ->capture_default_str();
+  sc.add_option(
+      "--threads",
+      c.threads,
+      "Number of worker threads used for compression.")
+      ->check(CLI::Bound(2U, std::thread::hardware_concurrency()))
+      ->capture_default_str();
   // clang-format on
 
   sc.get_option("--keep-non-significant")->excludes(sc.get_option("--fdr"));
@@ -522,7 +528,7 @@ void Cli::make_merge_subcommand() {
   sc.add_option(
     "--threads",
     c.threads,
-    "Number of worker threads")
+    "Number of worker threads.")
     ->check(CLI::Range(2U, std::max(2U, std::thread::hardware_concurrency())))
     ->capture_default_str();
   // clang-format on
@@ -612,7 +618,22 @@ void Cli::validate_expected_subcommand() const {
   }
 }
 
-void Cli::validate_filter_subcommand() const {}
+void Cli::validate_filter_subcommand() const {
+  const auto &c = std::get<FilterConfig>(_config);
+
+  std::vector<std::string> errors;
+  if (!c.force && std::filesystem::exists(c.input_path)) {
+    errors.emplace_back(fmt::format(
+        FMT_STRING("Refusing to overwrite file {}. Pass --force to overwrite."), c.output_path));
+  }
+
+  if (!errors.empty()) {
+    throw std::runtime_error(
+        fmt::format(FMT_STRING("the following error(s) where encountered while validating CLI "
+                               "arguments and input file(s):\n - {}"),
+                    fmt::join(errors, "\n - ")));
+  }
+}
 
 void Cli::validate_merge_subcommand() const {
   auto &c = std::get<MergeConfig>(_config);

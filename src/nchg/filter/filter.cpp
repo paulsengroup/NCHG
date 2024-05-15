@@ -82,54 +82,39 @@ template <typename N>
   return hictk::internal::parse_numeric_or_throw<N>(tok);
 }
 
-struct CorrectedPvalue {
-  std::size_t id{};
-
-  double pvalue{};
-  double pvalue_corrected{};
-};
-
 using ChromPair = std::pair<std::string, std::string>;
 
 [[nodiscard]] static auto read_records(const std::filesystem::path& path) {
   SPDLOG_INFO(FMT_STRING("reading records from {}"), path);
-  phmap::btree_map<ChromPair, std::vector<CorrectedPvalue>> records{};
+  phmap::btree_map<ChromPair, std::vector<double>> records{};
 
   ParquetStatsFile<NCHGResult> f(nullptr, path);
 
-  std::size_t i = 0;
   for (const auto& record : f) {
-    CorrectedPvalue pv{
-        i++,
-        record.pval,
-        1.0,
-    };
-
     auto [it, inserted] =
         records.try_emplace(std::make_pair(std::string{record.pixel.coords.bin1.chrom().name()},
                                            std::string{record.pixel.coords.bin2.chrom().name()}),
-                            std::vector<CorrectedPvalue>{pv});
+                            std::vector<double>{record.pval});
 
     if (!inserted) {
-      it->second.emplace_back(pv);
+      it->second.emplace_back(record.pval);
     }
   }
 
   return records;
 }
 
-[[nodiscard]] static std::vector<CorrectedPvalue> correct_pvalues_chrom_chrom(
-    const phmap::btree_map<ChromPair, std::vector<CorrectedPvalue>>& records) {
+[[nodiscard]] static std::vector<double> correct_pvalues_chrom_chrom(
+    const phmap::btree_map<ChromPair, std::vector<double>>& records) {
   SPDLOG_INFO(
       FMT_STRING("proceeding to correct pvalues for individual chromosme pairs separately..."));
-  std::vector<CorrectedPvalue> corrected_records{};
-  BH_FDR<CorrectedPvalue> bh{};
+  std::vector<double> corrected_records{};
+  BH_FDR<double> bh{};
   for (const auto& [cp, values] : records) {
     SPDLOG_INFO(FMT_STRING("processing {}:{} values..."), cp.first, cp.second);
     bh.clear();
     bh.add_records(values.begin(), values.end());
-    auto chrom_chrom_corrected_records =
-        bh.correct([](CorrectedPvalue& s) -> double& { return s.pvalue_corrected; });
+    auto chrom_chrom_corrected_records = bh.correct();
     corrected_records.insert(corrected_records.end(),
                              std::make_move_iterator(chrom_chrom_corrected_records.begin()),
                              std::make_move_iterator(chrom_chrom_corrected_records.end()));
@@ -137,11 +122,11 @@ using ChromPair = std::pair<std::string, std::string>;
   return corrected_records;
 }
 
-[[nodiscard]] static std::vector<CorrectedPvalue> correct_pvalues_cis_trans(
-    const phmap::btree_map<ChromPair, std::vector<CorrectedPvalue>>& records) {
+[[nodiscard]] static std::vector<double> correct_pvalues_cis_trans(
+    const phmap::btree_map<ChromPair, std::vector<double>>& records) {
   SPDLOG_INFO(FMT_STRING("proceeding to correct pvalues for cis and trans matrices separately..."));
-  BH_FDR<CorrectedPvalue> bh_cis{};
-  BH_FDR<CorrectedPvalue> bh_trans{};
+  BH_FDR<double> bh_cis{};
+  BH_FDR<double> bh_trans{};
   for (const auto& [chroms, values] : records) {
     if (chroms.first == chroms.second) {
       bh_cis.add_records(values.begin(), values.end());
@@ -150,19 +135,16 @@ using ChromPair = std::pair<std::string, std::string>;
     }
   }
 
-  auto corrected_records =
-      bh_cis.correct([](CorrectedPvalue& s) -> double& { return s.pvalue_corrected; });
-  auto corrected_records_trans =
-      bh_trans.correct([](CorrectedPvalue& s) -> double& { return s.pvalue_corrected; });
+  auto corrected_records = bh_cis.correct();
+  auto corrected_records_trans = bh_trans.correct();
   corrected_records.insert(corrected_records.end(),
                            std::make_move_iterator(corrected_records_trans.begin()),
                            std::make_move_iterator(corrected_records_trans.end()));
   return corrected_records;
 }
 
-[[nodiscard]] static std::vector<CorrectedPvalue> correct_pvalues(
-    const phmap::btree_map<ChromPair, std::vector<CorrectedPvalue>>& records,
-    const FilterConfig& c) {
+[[nodiscard]] static std::vector<double> correct_pvalues(
+    const phmap::btree_map<ChromPair, std::vector<double>>& records, const FilterConfig& c) {
   if (c.correct_chrom_chrom_separately) {
     return correct_pvalues_chrom_chrom(records);
   }
@@ -172,12 +154,12 @@ using ChromPair = std::pair<std::string, std::string>;
   }
 
   SPDLOG_INFO(FMT_STRING("proceeding to correct all pvalues in one go"));
-  BH_FDR<CorrectedPvalue> bh{};
+  BH_FDR<double> bh{};
   for (const auto& [_, values] : records) {
     bh.add_records(values.begin(), values.end());
   }
 
-  return bh.correct([](CorrectedPvalue& s) -> double& { return s.pvalue_corrected; });
+  return bh.correct();
 }
 
 struct NCHGFilterResult {
@@ -196,9 +178,6 @@ static_assert(has_log_ratio<NCHGFilterResult>::value);
 int run_nchg_filter(const FilterConfig& c) {
   auto corrected_pvalues = correct_pvalues(read_records(c.input_path), c);
 
-  std::sort(corrected_pvalues.begin(), corrected_pvalues.end(),
-            [&](const auto& r1, const auto& r2) { return r1.id < r2.id; });
-
   BS::thread_pool tpool(2);
 
   moodycamel::BlockingReaderWriterQueue<NCHGFilterResult> queue{64 * 1024};
@@ -211,12 +190,12 @@ int run_nchg_filter(const FilterConfig& c) {
         if (early_return) {
           return;
         }
-        const auto pvalue_corrected = corrected_pvalues[i++].pvalue_corrected;
-        const auto log_ratio = std::log2(r.odds_ratio) - std::log2(r.omega);
 
-        if (!c.drop_non_significant || (pvalue_corrected <= c.fdr && log_ratio >= c.log_ratio)) {
-          const NCHGFilterResult res{r.pixel,   r.expected,   r.pval, pvalue_corrected,
-                                     log_ratio, r.odds_ratio, r.omega};
+        const auto pvalue_corrected = corrected_pvalues[i++];
+
+        if (!c.drop_non_significant || (pvalue_corrected <= c.fdr && r.log_ratio >= c.log_ratio)) {
+          const NCHGFilterResult res{r.pixel,     r.expected,   r.pval, pvalue_corrected,
+                                     r.log_ratio, r.odds_ratio, r.omega};
           while (!queue.try_enqueue(res)) {
             if (early_return) {
               return;

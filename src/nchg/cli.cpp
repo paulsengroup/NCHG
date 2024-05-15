@@ -312,32 +312,32 @@ void Cli::make_expected_subcommand() {
 
   // clang-format off
   sc.add_option(
-      "hic-matrix",
-      c.input_path,
-      "Path to a matrix in .hic, .cool or .mcool file with interactions to be processed.")
-      ->check(IsValidHiCFile | IsValidCoolerFile | IsValidMultiresCoolerFile)
-      ->required();
+    "hic-matrix",
+    c.input_path,
+    "Path to a matrix in .hic, .cool or .mcool file with interactions to be processed.")
+    ->check(IsValidHiCFile | IsValidCoolerFile | IsValidMultiresCoolerFile)
+    ->required();
   sc.add_option(
-      "--output",
-      c.output_path,
-      "Path where to store the expected profiles.")
-      ->required();
+    "--output",
+    c.output_path,
+    "Path where to store the expected profiles.")
+    ->required();
   sc.add_option(
-      "--resolution",
-      c.resolution,
-      "Matrix resolution. Required when the input file is in .hic or .mcool format.");
+    "--resolution",
+    c.resolution,
+    "Matrix resolution. Required when the input file is in .hic or .mcool format.");
   sc.add_option(
-      "--chrom1",
-      c.chrom1,
-      "Name of the first chromosome.\n"
-      "Used to compute p-values only for a chromosome-chromosome matrix of interest.")
-      ->capture_default_str();
+    "--chrom1",
+    c.chrom1,
+    "Name of the first chromosome.\n"
+    "Used to compute p-values only for a chromosome-chromosome matrix of interest.")
+    ->capture_default_str();
   sc.add_option(
-      "--chrom2",
-      c.chrom2,
-      "Name of the second chromosome.\n"
-      "Used to compute p-values only for a chromosome-chromosome matrix of interest.")
-      ->capture_default_str();
+    "--chrom2",
+    c.chrom2,
+    "Name of the second chromosome.\n"
+    "Used to compute p-values only for a chromosome-chromosome matrix of interest.")
+    ->capture_default_str();
   sc.add_option(
     "--min-delta",
     c.min_delta,
@@ -382,16 +382,16 @@ void Cli::make_expected_subcommand() {
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
   sc.add_option(
-      "--mad-max",
-      c.mad_max,
-      "Cutoff used by the MAD-max filter to mask bad bins.")
-      ->check(CLI::NonNegativeNumber)
-      ->capture_default_str();
+    "--mad-max",
+    c.mad_max,
+    "Cutoff used by the MAD-max filter to mask bad bins.")
+    ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
   sc.add_flag(
-      "--force",
-      c.force,
-      "Force overwrite existing output file(s).")
-      ->capture_default_str();
+    "--force",
+    c.force,
+    "Force overwrite existing output file(s).")
+    ->capture_default_str();
   // clang-format on
 
   sc.get_option("--chrom2")->needs("--chrom1");
@@ -415,66 +415,66 @@ void Cli::make_filter_subcommand() {
 
   // clang-format off
   sc.add_option(
-      "input-parquet",
-      c.input_path,
-      "Path to the parquet file produced by NCHG merge or compute.")
-      ->check(CLI::ExistingFile)
-      ->required();
+    "input-parquet",
+    c.input_path,
+    "Path to a parquet file produced by NCHG merge or compute.")
+    ->check(CLI::ExistingFile)
+    ->required();
   sc.add_option(
-      "output-parquet",
-      c.output_path,
-      "Path where to store the output table in parquet format.")
-      ->required();
+    "output-parquet",
+    c.output_path,
+    "Path where to store the output table in parquet format.")
+    ->required();
   sc.add_flag(
-      "--force",
-      c.force,
-      "Force overwrite existing output file(s).")
-      ->capture_default_str();
+    "--force",
+    c.force,
+    "Force overwrite existing output file(s).")
+    ->capture_default_str();
   sc.add_option(
-      "--fdr",
-       c.fdr,
-      "FDR threshold used to identify significant interactions.")
-      ->check(CLI::Bound(0.0, 1.0))
-      ->capture_default_str();
+    "--fdr",
+     c.fdr,
+    "FDR threshold used to identify significant interactions.")
+    ->check(CLI::Bound(0.0, 1.0))
+    ->capture_default_str();
   sc.add_option(
-      "--log-ratio",
-      c.log_ratio,
-      "Log-ratio cutoff used to identify significant interactions.")
-      ->check(CLI::NonNegativeNumber)
-      ->capture_default_str();
+    "--log-ratio",
+    c.log_ratio,
+    "Log-ratio cutoff used to identify significant interactions.")
+    ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
   sc.add_flag(
-      "--drop-non-significant,!--keep-non-significant",
-      c.drop_non_significant,
-      "Drop non-significant interactions based on the --fdr and --log-ratio cutoffs.")
-      ->capture_default_str();
+    "--drop-non-significant,!--keep-non-significant",
+    c.drop_non_significant,
+    "Drop non-significant interactions based on the --fdr and --log-ratio cutoffs.")
+    ->capture_default_str();
   sc.add_flag(
-      "--correct-pvals-chrom-by-chrom",
-      c.correct_chrom_chrom_separately,
-      "Perform multiple hypothesis correction by treating each pair of chromosomes as independent experiments.")
-      ->capture_default_str();
+    "--correct-pvals-chrom-by-chrom",
+    c.correct_chrom_chrom_separately,
+    "Perform multiple hypothesis correction by treating each pair of chromosomes as independent experiments.")
+    ->capture_default_str();
   sc.add_flag(
-      "--correct-pvals-cis-trans,!--correct-pvals-all",
-      c.correct_cis_trans_separately,
-      "Perform multiple hypothesis correction by treating cis and trans matrices as two separate experiments.")
-      ->capture_default_str();
+    "--correct-pvals-cis-trans,!--correct-pvals-all",
+    c.correct_cis_trans_separately,
+    "Perform multiple hypothesis correction by treating cis and trans matrices as two separate experiments.")
+    ->capture_default_str();
   sc.add_option(
-      "--compression-level",
-      c.compression_lvl,
-      "Compression level used to compress columns in the output .parquet file.")
-      ->check(CLI::Bound(1, 22))
-      ->capture_default_str();
+    "--compression-level",
+    c.compression_lvl,
+    "Compression level used to compress columns in the output .parquet file.")
+    ->check(CLI::Bound(1, 22))
+    ->capture_default_str();
   sc.add_option(
-      "--compression-method",
-      c.compression_method,
-      "Method used to compress individual columns in the .parquet file.")
-      ->check(CLI::IsMember({"zstd", "lz4"}))
-      ->capture_default_str();
+    "--compression-method",
+    c.compression_method,
+    "Method used to compress individual columns in the .parquet file.")
+    ->check(CLI::IsMember({"zstd", "lz4"}))
+    ->capture_default_str();
   sc.add_option(
-      "--threads",
-      c.threads,
-      "Number of worker threads used for compression.")
-      ->check(CLI::Bound(2U, std::thread::hardware_concurrency()))
-      ->capture_default_str();
+    "--threads",
+    c.threads,
+    "Number of worker threads used for compression.")
+    ->check(CLI::Bound(2U, std::thread::hardware_concurrency()))
+    ->capture_default_str();
   // clang-format on
 
   sc.get_option("--keep-non-significant")->excludes(sc.get_option("--fdr"));
@@ -499,32 +499,32 @@ void Cli::make_merge_subcommand() {
 
   // clang-format off
   sc.add_option(
-      "input-prefix",
-      c.input_prefix,
-      "Path prefix where the files produced by NCHG compute are located.")
-      ->required();
+    "input-prefix",
+    c.input_prefix,
+    "Path prefix where the files produced by NCHG compute are located.")
+    ->required();
   sc.add_option(
-      "output-path",
-      c.output_path,
-      "Output path.")
-      ->required();
+    "output-path",
+    c.output_path,
+    "Output path.")
+    ->required();
   sc.add_flag(
-      "--force",
-      c.force,
-      "Force overwrite existing output file(s).")
-      ->capture_default_str();
+    "--force",
+    c.force,
+    "Force overwrite existing output file(s).")
+    ->capture_default_str();
   sc.add_option(
-      "--compression-level",
-      c.compression_lvl,
-      "Compression level used to compress columns in the output .parquet file.")
-      ->check(CLI::Bound(1, 22))
-      ->capture_default_str();
+    "--compression-level",
+    c.compression_lvl,
+    "Compression level used to compress columns in the output .parquet file.")
+    ->check(CLI::Bound(1, 22))
+    ->capture_default_str();
   sc.add_option(
-      "--compression-method",
-      c.compression_method,
-      "Method used to compress individual columns in the .parquet file.")
-      ->check(CLI::IsMember({"zstd", "lz4"}))
-      ->capture_default_str();
+    "--compression-method",
+    c.compression_method,
+    "Method used to compress individual columns in the .parquet file.")
+    ->check(CLI::IsMember({"zstd", "lz4"}))
+    ->capture_default_str();
   sc.add_option(
     "--threads",
     c.threads,

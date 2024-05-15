@@ -220,27 +220,29 @@ inline auto NCHG<File>::iterator::operator*() const -> const_reference {
 
   const auto delta = intra_matrix ? p.coords.bin2.start() - p.coords.bin1.start() : _min_delta;
   if (delta < _min_delta || delta >= _max_delta) {
-    _value = {p, exp, 1.0, 0.0, 0.0};
+    _value = {p, exp, 1.0, 0.0, 0.0, 0.0};
     return _value;
   }
 
   const auto odds_ratio = compute_odds_ratio(obs, static_cast<double>(obs_sum), N1, N2);
   const auto omega = intra_matrix ? compute_odds_ratio(exp, exp_sum, L1, L2) : 1;
 
+  const auto log_ratio = std::log2(odds_ratio) - std::log2(omega);
+
   if ((L1 - exp) * (L2 - exp) <= cutoff) {
-    _value = {p, exp, 1.0, odds_ratio, omega};
+    _value = {p, exp, 1.0, log_ratio, odds_ratio, omega};
     return _value;
   }
 
   if (!std::isfinite(omega) || omega > odds_ratio) {
-    _value = {p, exp, 1.0, odds_ratio, omega};
+    _value = {p, exp, 1.0, log_ratio, odds_ratio, omega};
     return _value;
   }
 
   const auto pvalue =
       compute_pvalue_nchg(*_buffer, static_cast<std::uint64_t>(obs), static_cast<std::uint64_t>(N1),
                           static_cast<std::uint64_t>(N2), obs_sum, omega);
-  _value = {p, exp, pvalue, odds_ratio, omega};
+  _value = {p, exp, pvalue, log_ratio, odds_ratio, omega};
 
   return _value;
 }
@@ -370,24 +372,26 @@ inline auto NCHG<File>::compute(const hictk::GenomicInterval &range1,
   // clang-format on
 
   if (obs == 0) {
-    return {p, exp, 1.0, 0.0, 0.0};
+    return {p, exp, 1.0, 0.0, 0.0, 0.0};
   }
 
   const auto odds_ratio = compute_odds_ratio(obs, static_cast<double>(obs_sum), N1, N2);
   const auto omega = intra_matrix ? compute_odds_ratio(exp, exp_sum, L1, L2) : 1;
 
+  const auto log_ratio = std::log2(odds_ratio) - std::log2(omega);
+
   if ((L1 - exp) * (L2 - exp) <= cutoff) {
-    return {p, exp, 1.0, odds_ratio, omega};
+    return {p, exp, 1.0, log_ratio, odds_ratio, omega};
   }
 
   if (!std::isfinite(omega) || omega > odds_ratio) {
-    return {p, exp, 1.0, odds_ratio, omega};
+    return {p, exp, 1.0, log_ratio, odds_ratio, omega};
   }
 
   const auto pvalue = compute_pvalue_nchg(_nchg_pval_buffer, static_cast<std::uint64_t>(obs),
                                           static_cast<std::uint64_t>(N1),
                                           static_cast<std::uint64_t>(N2), obs_sum, omega);
-  return {p, exp, pvalue, odds_ratio, omega};
+  return {p, exp, pvalue, log_ratio, odds_ratio, omega};
 }
 
 template <typename File>

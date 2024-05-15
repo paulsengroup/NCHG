@@ -38,6 +38,7 @@ struct NCHGResult {
   hictk::Pixel<std::uint32_t> pixel{};
   double expected{};
   double pval{};
+  double log_ratio{};
   double odds_ratio{};
   double omega{};
 

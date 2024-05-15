@@ -90,6 +90,7 @@ static void print_header() {
                  "pvalue\t"
                  "observed_count\t"
                  "expected_count\t"
+                 "log_ratio\t"
                  "odds_ratio\t"
                  "omega\n"));
 }
@@ -129,13 +130,18 @@ static void process_record(const NCHGComputeResult& record, bool filter_by_coord
     return;
   }
 
+  if (std::isfinite(record.log_ratio) && record.log_ratio < log_ratio_cutoff) {
+    return;
+  }
+
   fmt::print(FMT_COMPILE("{:s}\t{:d}\t{:d}\t"
                          "{:s}\t{:d}\t{:d}\t"
-                         "{:g}\t{:d}\t{:g}\t{:g}\n"),
+                         "{:g}\t{:d}\t{:g}\t{:g}\t{:g}\n"),
              record.pixel.coords.bin1.chrom().name(), record.pixel.coords.bin1.start(),
              record.pixel.coords.bin1.end(), record.pixel.coords.bin2.chrom().name(),
              record.pixel.coords.bin2.start(), record.pixel.coords.bin2.end(), record.pval,
-             record.pixel.count, record.expected, record.odds_ratio, record.omega);
+             record.pixel.count, record.expected, record.log_ratio, record.odds_ratio,
+             record.omega);
 }
 
 static void process_record(const NCHGFilterResult& record, bool filter_by_coords1,

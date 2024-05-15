@@ -78,6 +78,11 @@ init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference 
     }
   }
 
+  if (heads.empty()) {
+    throw std::runtime_error(
+        fmt::format(FMT_STRING("unable to find any table under prefix {}"), prefix));
+  }
+
   SPDLOG_INFO(FMT_STRING("enumerated {} non-empty tables"), heads.size());
 
   return std::make_pair(std::move(heads), std::move(tails));

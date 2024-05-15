@@ -117,6 +117,7 @@ class ParquetStatsFile {
         "pvalue",
         "observed_count",
         "expected_count",
+        "log_ratio",
         "odds_ratio",
         "omega",
     };
@@ -292,6 +293,7 @@ class ParquetStatsFile {
       arrow::field("pvalue",         arrow::float64()),
       arrow::field("observed_count", arrow::uint32()),
       arrow::field("expected_count", arrow::float64()),
+      arrow::field("log_ratio",      arrow::float64()),
       arrow::field("odds_ratio",     arrow::float64()),
       arrow::field("omega",          arrow::float64())
       // clang-format on
@@ -358,14 +360,12 @@ class RecordBatchBuilder {
     append(_pvalue, s.pval);
     append(_observed, s.pixel.count);
     append(_expected, s.expected);
+    append(_log_ratio, s.log_ratio);
     append(_odds, s.odds_ratio);
     append(_omega, s.omega);
 
     if constexpr (has_pval_corrected<Stats>::value) {
       append(_pvalue_corrected, s.pval_corrected);
-    }
-    if constexpr (has_log_ratio<Stats>::value) {
-      append(_log_ratio, s.log_ratio);
     }
 
     ++_i;
@@ -412,10 +412,7 @@ class RecordBatchBuilder {
     columns.emplace_back(finish(_observed));
     columns.emplace_back(finish(_expected));
 
-    if (_log_ratio.length() != 0) {
-      columns.emplace_back(finish(_log_ratio));
-    }
-
+    columns.emplace_back(finish(_log_ratio));
     columns.emplace_back(finish(_odds));
     columns.emplace_back(finish(_omega));
 

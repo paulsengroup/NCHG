@@ -66,6 +66,8 @@ auto Cli::parse_arguments() -> Config {
       _subcommand = subcommand::filter;
     } else if (_cli.get_subcommand("merge")->parsed()) {
       _subcommand = subcommand::merge;
+    } else if (_cli.get_subcommand("view")->parsed()) {
+      _subcommand = subcommand::view;
     } else {
       _subcommand = subcommand::help;
     }
@@ -108,6 +110,8 @@ std::string_view Cli::subcommand_to_str(subcommand s) noexcept {
       return "filter";
     case merge:
       return "merge";
+    case view:
+      return "view";
     default:
       assert(s == help);
       return "--help";
@@ -124,6 +128,7 @@ void Cli::make_cli() {
   make_expected_subcommand();
   make_filter_subcommand();
   make_merge_subcommand();
+  make_view_subcommand();
 }
 
 void Cli::make_compute_subcommand() {
@@ -536,6 +541,57 @@ void Cli::make_merge_subcommand() {
   _config = std::monostate{};
 }
 
+void Cli::make_view_subcommand() {
+  [[maybe_unused]] auto &sc =
+      *_cli.add_subcommand("view", "View records stored in a .parquet file.")
+           ->fallthrough()
+           ->preparse_callback([this]([[maybe_unused]] std::size_t i) {
+             assert(_config.index() == 0);
+             _config = ViewConfig{};
+           });
+
+  _config = ViewConfig{};
+  auto &c = std::get<ViewConfig>(_config);
+
+  // clang-format off
+  sc.add_option(
+    "parquet",
+    c.input_path,
+    "Path to the .parquet file to be viewed.")
+    ->check(CLI::ExistingFile)
+    ->required();
+  sc.add_option(
+    "--range",
+    c.range1,
+    "Coordinates of the genomic regions to be fetched following UCSC-style notation (chr1:0-1000).")
+    ->capture_default_str();
+  sc.add_option(
+    "--range2",
+    c.range2,
+    "Coordinates of the genomic regions to be fetched following UCSC-style notation (chr1:0-1000).")
+    ->capture_default_str();
+  sc.add_option(
+    "--pvalue-cutoff",
+    c.pvalue_cutoff,
+    "P-value cutoff used to filter records.")
+    ->check(CLI::Bound(0.0, 1.0))
+    ->capture_default_str();
+  sc.add_option(
+    "--log-ratio-cutoff",
+    c.log_ratio_cutoff,
+    "Log-ratio cutoff used to filter records.")
+    ->capture_default_str();
+  sc.add_flag(
+    "--write-header,!--no-write-header",
+    c.with_header,
+    "Write the file header to stdout.")
+    ->capture_default_str();
+
+  // clang-format on
+
+  _config = std::monostate{};
+}
+
 void Cli::validate_args() const {
   switch (get_subcommand()) {
     case compute:
@@ -546,6 +602,8 @@ void Cli::validate_args() const {
       return validate_filter_subcommand();  // NOLINT
     case merge:
       return validate_merge_subcommand();  // NOLINT
+    case view:
+      return validate_view_subcommand();  // NOLINT
     case help:
       return;
   }
@@ -649,6 +707,8 @@ void Cli::validate_merge_subcommand() const {
   }
 }
 
+void Cli::validate_view_subcommand() const {}
+
 void Cli::transform_args() {
   switch (get_subcommand()) {
     case compute:
@@ -659,6 +719,8 @@ void Cli::transform_args() {
       return transform_args_filter_subcommand();  // NOLINT
     case merge:
       return transform_args_merge_subcommand();  // NOLINT
+    case view:
+      return transform_args_view_subcommand();  // NOLINT
     case help:
       return;
   }
@@ -734,4 +796,7 @@ void Cli::transform_args_merge_subcommand() {
   assert(c.verbosity > 0 && c.verbosity <= SPDLOG_LEVEL_CRITICAL);
   c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
 }
+
+void Cli::transform_args_view_subcommand() {}
+
 }  // namespace nchg

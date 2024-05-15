@@ -192,10 +192,16 @@ template <typename FilePtr>
         continue;
       }
 
+      const auto s = nchg.compute(d1, d2, c.bad_bin_fraction);
+
       if (builder.size() == batch_size) {
         builder.write(*writer);
       }
-      builder.append(nchg.compute(d1, d2, c.bad_bin_fraction));
+
+      if (std::isfinite(s.odds_ratio) && s.omega != 0) {
+        builder.append(s);
+      }
+
       ++num_records;
     }
   }
@@ -222,10 +228,14 @@ template <typename FilePtr>
   std::size_t num_records = 0;
   std::for_each(nchg.begin(chrom1, chrom2), nchg.end(chrom1, chrom2), [&](const auto &s) {
     ++num_records;
+
     if (builder.size() == batch_size) {
       builder.write(*writer);
     }
-    builder.append(s);
+
+    if (std::isfinite(s.odds_ratio) && s.omega != 0) {
+      builder.append(s);
+    }
   });
 
   if (builder.size() != 0) {

@@ -26,6 +26,7 @@
 #include <arrow/util/thread_pool.h>
 #include <fmt/format.h>
 #include <moodycamel/blockingconcurrentqueue.h>
+#include <parquet/arrow/reader.h>
 #include <parquet/arrow/writer.h>
 #include <parquet/file_writer.h>
 #include <parquet/stream_reader.h>
@@ -50,6 +51,20 @@
 #include "nchg/k_merger.hpp"
 
 namespace nchg {
+
+// https://stackoverflow.com/a/16000226
+template <typename T, typename = int>
+struct has_pval_corrected : std::false_type {};
+
+template <typename T>
+struct has_pval_corrected<T, decltype((void)T::pval_corrected, 0)> : std::true_type {};
+
+template <typename T, typename = int>
+struct has_log_ratio : std::false_type {};
+
+template <typename T>
+struct has_log_ratio<T, decltype((void)T::log_ratio, 0)> : std::true_type {};
+
 template <typename Stats>
 class ParquetStatsFile {
   std::shared_ptr<const hictk::Reference> _chroms{};
@@ -57,6 +72,7 @@ class ParquetStatsFile {
 
  public:
   class iterator;
+  ParquetStatsFile() = default;
   ParquetStatsFile(const hictk::Reference &chroms, const std::filesystem::path &path)
       : ParquetStatsFile(std::make_shared<const hictk::Reference>(chroms), path) {}
 
@@ -70,6 +86,100 @@ class ParquetStatsFile {
     props.set_buffer_size(1'000'000);
 
     _sr = std::make_shared<parquet::StreamReader>(parquet::ParquetFileReader::Open(fp, props));
+  }
+
+  [[nodiscard]] static bool is_nchg_compute_parquet(const std::filesystem::path &path) {
+    std::shared_ptr<arrow::io::ReadableFile> fp;
+    PARQUET_ASSIGN_OR_THROW(fp, arrow::io::ReadableFile::Open(path));
+
+    std::unique_ptr<parquet::arrow::FileReader> reader;
+    auto status = parquet::arrow::OpenFile(fp, arrow::default_memory_pool(), &reader);
+    if (!status.ok()) {
+      throw std::runtime_error(status.ToString());
+    }
+
+    std::unique_ptr<arrow::RecordBatchReader> batch_reader{};
+    status = reader->GetRecordBatchReader(&batch_reader);
+    if (!status.ok()) {
+      throw std::runtime_error(status.ToString());
+    }
+
+    auto schema = batch_reader->schema();
+
+    // clang-format off
+    const std::vector<std::string> expected_columns{
+        "chrom1",
+        "start1",
+        "end1",
+        "chrom2",
+        "start2",
+        "end2",
+        "pvalue",
+        "observed_count",
+        "expected_count",
+        "odds_ratio",
+        "omega",
+    };
+    // clang-format on
+
+    if (static_cast<std::size_t>(schema->num_fields()) != expected_columns.size()) {
+      return false;
+    }
+
+    for (std::int64_t i = 0; i < schema->num_fields(); ++i) {
+      if (!schema->GetFieldByName(expected_columns[static_cast<std::size_t>(i)])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  [[nodiscard]] static bool is_nchg_filter_parquet(const std::filesystem::path &path) {
+    std::shared_ptr<arrow::io::ReadableFile> fp;
+    PARQUET_ASSIGN_OR_THROW(fp, arrow::io::ReadableFile::Open(path));
+
+    std::unique_ptr<parquet::arrow::FileReader> reader;
+    auto status = parquet::arrow::OpenFile(fp, arrow::default_memory_pool(), &reader);
+    if (!status.ok()) {
+      throw std::runtime_error(status.ToString());
+    }
+
+    std::unique_ptr<arrow::RecordBatchReader> batch_reader{};
+    status = reader->GetRecordBatchReader(&batch_reader);
+    if (!status.ok()) {
+      throw std::runtime_error(status.ToString());
+    }
+
+    auto schema = batch_reader->schema();
+
+    // clang-format off
+    const std::vector<std::string> expected_columns{
+        "chrom1",
+        "start1",
+        "end1",
+        "chrom2",
+        "start2",
+        "end2",
+        "pvalue",
+        "pvalue_corrected",
+        "observed_count",
+        "expected_count",
+        "log_ratio",
+        "odds_ratio",
+        "omega",
+    };
+    // clang-format on
+
+    if (static_cast<std::size_t>(schema->num_fields()) != expected_columns.size()) {
+      return false;
+    }
+
+    for (std::int64_t i = 0; i < schema->num_fields(); ++i) {
+      if (!schema->GetFieldByName(expected_columns[static_cast<std::size_t>(i)])) {
+        return false;
+      }
+    }
+    return true;
   }
 
   [[nodiscard]] auto begin() -> iterator { return {_chroms, _sr, true}; }
@@ -140,8 +250,14 @@ class ParquetStatsFile {
       *_sr >> end2;
 
       *_sr >> _value.pval;
+      if constexpr (has_pval_corrected<Stats>()) {
+        *_sr >> _value.pval_corrected;
+      }
       *_sr >> observed_count;
       *_sr >> _value.expected;
+      if constexpr (has_log_ratio<Stats>()) {
+        *_sr >> _value.log_ratio;
+      }
       *_sr >> _value.odds_ratio;
       *_sr >> _value.omega;
       *_sr >> parquet::EndRow;
@@ -153,7 +269,7 @@ class ParquetStatsFile {
   };
 };
 
-[[nodiscard]] static parquet::Compression::type parse_parquet_compression(std::string_view method) {
+[[nodiscard]] inline parquet::Compression::type parse_parquet_compression(std::string_view method) {
   if (method == "zstd") {
     return parquet::Compression::ZSTD;
   }
@@ -192,7 +308,7 @@ class ParquetStatsFile {
       arrow::field("start2",           arrow::uint32()),
       arrow::field("end2",             arrow::uint32()),
       arrow::field("pvalue",           arrow::float64()),
-      arrow::field("pvalue_corrected" ,arrow::float64()),
+      arrow::field("pvalue_corrected", arrow::float64()),
       arrow::field("observed_count",   arrow::uint32()),
       arrow::field("expected_count",   arrow::float64()),
       arrow::field("log_ratio",        arrow::float64()),
@@ -201,19 +317,6 @@ class ParquetStatsFile {
       // clang-format on
   });
 }
-
-// https://stackoverflow.com/a/16000226
-template <typename T, typename = int>
-struct has_pval_corrected : std::false_type {};
-
-template <typename T>
-struct has_pval_corrected<T, decltype((void)T::pval_corrected, 0)> : std::true_type {};
-
-template <typename T, typename = int>
-struct has_log_ratio : std::false_type {};
-
-template <typename T>
-struct has_log_ratio<T, decltype((void)T::log_ratio, 0)> : std::true_type {};
 
 class RecordBatchBuilder {
   std::size_t _i{};

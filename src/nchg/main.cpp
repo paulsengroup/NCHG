@@ -112,6 +112,9 @@ int main(int argc, char **argv) noexcept {
       case sc::merge: {
         return run_nchg_merge(std::get<MergeConfig>(config));
       }
+      case sc::view: {
+        return run_nchg_view(std::get<ViewConfig>(config));
+      }
       case sc::help:  // NOLINT
         break;
       default:

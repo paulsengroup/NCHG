@@ -37,6 +37,7 @@ target_sources(
           "${CMAKE_CURRENT_SOURCE_DIR}/expected/expected.cpp"
           "${CMAKE_CURRENT_SOURCE_DIR}/filter/filter.cpp"
           "${CMAKE_CURRENT_SOURCE_DIR}/merge/merge.cpp"
+          "${CMAKE_CURRENT_SOURCE_DIR}/view/view.cpp"
           "${CMAKE_CURRENT_SOURCE_DIR}/cli.cpp"
           "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
 

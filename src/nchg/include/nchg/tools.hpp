@@ -29,5 +29,6 @@ namespace nchg {
 [[nodiscard]] int run_nchg_expected(const ExpectedConfig& c);
 [[nodiscard]] int run_nchg_filter(const FilterConfig& c);
 [[nodiscard]] int run_nchg_merge(const MergeConfig& c);
+[[nodiscard]] int run_nchg_view(const ViewConfig& c);
 
 }  // namespace nchg

@@ -110,7 +110,28 @@ struct MergeConfig {
   std::uint8_t verbosity{3};
 };
 
-using Config =
-    std::variant<std::monostate, ComputePvalConfig, ExpectedConfig, FilterConfig, MergeConfig>;
+struct ViewConfig {
+  std::filesystem::path input_path{};
+
+  std::string range1{"all"};
+  std::string range2{"all"};
+
+  double pvalue_cutoff{1.0};
+  double log_ratio_cutoff{-std::numeric_limits<double>::infinity()};
+
+  bool with_header{true};
+
+  std::uint8_t verbosity{3};
+};
+
+// clang-format off
+using Config = std::variant<
+    std::monostate,
+    ComputePvalConfig,
+    ExpectedConfig,
+    FilterConfig,
+    MergeConfig,
+    ViewConfig>;
+// clang-format on
 
 }  // namespace nchg

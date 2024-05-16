@@ -88,7 +88,7 @@ using ChromPair = std::pair<std::string, std::string>;
   SPDLOG_INFO(FMT_STRING("reading records from {}"), path);
   phmap::btree_map<ChromPair, std::vector<double>> records{};
 
-  ParquetStatsFile<NCHGResult> f(nullptr, path);
+  ParquetStatsFile<NCHGResult> f(path);
 
   for (const auto& record : f) {
     auto [it, inserted] =
@@ -186,7 +186,7 @@ int run_nchg_filter(const FilterConfig& c) {
   auto producer = tpool.submit_task([&]() {
     std::size_t i = 0;
     try {
-      for (const auto& r : ParquetStatsFile<NCHGResult>(nullptr, c.input_path)) {
+      for (const auto& r : ParquetStatsFile<NCHGResult>(c.input_path)) {
         if (early_return) {
           return;
         }
@@ -220,11 +220,13 @@ int run_nchg_filter(const FilterConfig& c) {
 
   auto consumer = tpool.submit_task([&]() {
     SPDLOG_INFO(FMT_STRING("writing records to output file {}"), c.output_path);
+    const auto chroms = *ParquetStatsFile<NCHGResult>(c.input_path).chromosomes();
+
     auto writer = init_parquet_file_writer<NCHGFilterResult>(
-        c.output_path, c.force, c.compression_method, c.compression_lvl, c.threads - 2);
+        chroms, c.output_path, c.force, c.compression_method, c.compression_lvl, c.threads - 2);
 
     const std::size_t batch_size = 1'000'000;
-    RecordBatchBuilder builder{};
+    RecordBatchBuilder builder{chroms};
 
     NCHGFilterResult res{};
 

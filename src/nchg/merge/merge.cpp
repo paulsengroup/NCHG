@@ -67,7 +67,7 @@ init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference 
       const auto path = fmt::format(FMT_STRING("{}.{}.{}.parquet"), prefix.string(), chrom1.name(),
                                     chrom2.name());
       if (std::filesystem::exists(path)) {
-        ParquetStatsFile<NCHGResult> f(chroms, path);
+        ParquetStatsFile<NCHGResult> f(path);
         auto first = f.begin();
         auto last = f.end();
         if (first != last) {
@@ -133,13 +133,13 @@ int run_nchg_merge(const MergeConfig &c) {
   auto consumer = tpool.submit_task([&]() {
     try {
       auto writer = init_parquet_file_writer<NCHGResult>(
-          c.output_path, c.force, c.compression_method, c.compression_lvl, c.threads - 2);
+          chroms, c.output_path, c.force, c.compression_method, c.compression_lvl, c.threads - 2);
 
       std::size_t records_processed = 0;
       NCHGResult buffer{};
 
       const std::size_t batch_size = 1'000'000;
-      RecordBatchBuilder builder{};
+      RecordBatchBuilder builder(chroms);
 
       auto t0 = std::chrono::steady_clock::now();
       for (std::size_t i = 0; true; ++i) {

@@ -23,18 +23,15 @@
 #include <arrow/io/concurrency.h>
 #include <arrow/io/file.h>
 #include <arrow/record_batch.h>
+#include <arrow/util/key_value_metadata.h>
 #include <arrow/util/thread_pool.h>
 #include <fmt/format.h>
-#include <moodycamel/blockingconcurrentqueue.h>
 #include <parquet/arrow/reader.h>
 #include <parquet/arrow/writer.h>
-#include <parquet/file_writer.h>
+#include <parquet/encoding.h>
 #include <parquet/stream_reader.h>
 #include <spdlog/spdlog.h>
 
-#include <BS_thread_pool.hpp>
-#include <atomic>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -47,7 +44,6 @@
 #include <utility>
 #include <vector>
 
-#include "io.hpp"
 #include "nchg/k_merger.hpp"
 
 namespace nchg {
@@ -65,6 +61,25 @@ struct has_log_ratio : std::false_type {};
 template <typename T>
 struct has_log_ratio<T, decltype((void)T::log_ratio, 0)> : std::true_type {};
 
+inline std::shared_ptr<arrow::Array> make_chrom_dict(const hictk::Reference &chroms) {
+  arrow::StringBuilder builder{};
+  for (const auto &chrom : chroms) {
+    if (!chrom.is_all()) {
+      const auto status = builder.Append(std::string{chrom.name()});
+      if (!status.ok()) {
+        throw std::runtime_error(status.ToString());
+      }
+    }
+  }
+
+  auto result = builder.Finish();
+  if (!result.status().ok()) {
+    throw std::runtime_error(result.status().ToString());
+  }
+
+  return result.MoveValueUnsafe();
+}
+
 template <typename Stats>
 class ParquetStatsFile {
   std::shared_ptr<const hictk::Reference> _chroms{};
@@ -73,17 +88,35 @@ class ParquetStatsFile {
  public:
   class iterator;
   ParquetStatsFile() = default;
-  ParquetStatsFile(const hictk::Reference &chroms, const std::filesystem::path &path)
-      : ParquetStatsFile(std::make_shared<const hictk::Reference>(chroms), path) {}
-
-  ParquetStatsFile(std::shared_ptr<const hictk::Reference> chroms,
-                   const std::filesystem::path &path)
-      : _chroms(std::move(chroms)) {
+  explicit ParquetStatsFile(const std::filesystem::path &path) {
     std::shared_ptr<arrow::io::ReadableFile> fp;
     PARQUET_ASSIGN_OR_THROW(fp, arrow::io::ReadableFile::Open(path));
 
     auto props = parquet::default_reader_properties();
     props.set_buffer_size(1'000'000);
+
+    std::unique_ptr<parquet::arrow::FileReader> reader;
+    auto status = parquet::arrow::OpenFile(fp, arrow::default_memory_pool(), &reader);
+    if (!status.ok()) {
+      throw std::runtime_error(status.ToString());
+    }
+
+    std::unique_ptr<arrow::RecordBatchReader> batch_reader{};
+    status = reader->GetRecordBatchReader(&batch_reader);
+    if (!status.ok()) {
+      throw std::runtime_error(status.ToString());
+    }
+
+    auto schema = batch_reader->schema();
+    const auto metadata = schema->field(0)->metadata();
+    const auto chrom_names = metadata->keys();
+    std::vector<std::uint32_t> chrom_sizes(chrom_names.size(), 0);
+    std::transform(metadata->values().begin(), metadata->values().end(), chrom_sizes.begin(),
+                   [](const auto &size) {
+                     return hictk::internal::parse_numeric_or_throw<std::uint32_t>(size);
+                   });
+    _chroms = std::make_shared<const hictk::Reference>(chrom_names.begin(), chrom_names.end(),
+                                                       chrom_sizes.begin());
 
     _sr = std::make_shared<parquet::StreamReader>(parquet::ParquetFileReader::Open(fp, props));
   }
@@ -181,6 +214,10 @@ class ParquetStatsFile {
       }
     }
     return true;
+  }
+
+  [[nodiscard]] std::shared_ptr<const hictk::Reference> chromosomes() const noexcept {
+    return _chroms;
   }
 
   [[nodiscard]] auto begin() -> iterator { return {_chroms, _sr, true}; }
@@ -281,41 +318,68 @@ class ParquetStatsFile {
       fmt::format(FMT_STRING("unrecognized compression method \"{}\""), method));
 }
 
-[[nodiscard]] static std::shared_ptr<arrow::Schema> get_schema() {
+[[nodiscard]] static std::shared_ptr<arrow::Schema> get_schema(const hictk::Reference &chroms) {
+  auto chrom_dtype = arrow::dictionary(arrow::int32(), arrow::utf8());
+
+  std::vector<std::string> keys{};
+  std::vector<std::string> values{};
+  for (const auto &chrom : chroms) {
+    if (!chrom.is_all()) {
+      keys.emplace_back(std::string{chrom.name()});
+      values.emplace_back(fmt::to_string(chrom.size()));
+    }
+  }
+
+  auto metadata = std::make_shared<arrow::KeyValueMetadata>(keys, values);
+
   return arrow::schema({
       // clang-format off
-      arrow::field("chrom1",         arrow::utf8()),
-      arrow::field("start1",         arrow::uint32()),
-      arrow::field("end1",           arrow::uint32()),
-      arrow::field("chrom2",         arrow::utf8()),
-      arrow::field("start2",         arrow::uint32()),
-      arrow::field("end2",           arrow::uint32()),
-      arrow::field("pvalue",         arrow::float64()),
-      arrow::field("observed_count", arrow::uint32()),
-      arrow::field("expected_count", arrow::float64()),
-      arrow::field("log_ratio",      arrow::float64()),
-      arrow::field("odds_ratio",     arrow::float64()),
-      arrow::field("omega",          arrow::float64())
+      arrow::field("chrom1",         chrom_dtype,          false, metadata),
+      arrow::field("start1",         arrow::uint32(),  false),
+      arrow::field("end1",           arrow::uint32(),  false),
+      arrow::field("chrom2",         chrom_dtype,          false, metadata),
+      arrow::field("start2",         arrow::uint32(),  false),
+      arrow::field("end2",           arrow::uint32(),  false),
+      arrow::field("pvalue",         arrow::float64(), false),
+      arrow::field("observed_count", arrow::uint32(),  false),
+      arrow::field("expected_count", arrow::float64(), false),
+      arrow::field("log_ratio",      arrow::float64(), false),
+      arrow::field("odds_ratio",     arrow::float64(), false),
+      arrow::field("omega",          arrow::float64(), false)
       // clang-format on
   });
 }
 
-[[nodiscard]] static std::shared_ptr<arrow::Schema> get_schema_padj() {
+[[nodiscard]] static std::shared_ptr<arrow::Schema> get_schema_padj(
+    const hictk::Reference &chroms) {
+  auto chrom_dtype = arrow::dictionary(arrow::int32(), arrow::utf8());
+
+  std::vector<std::string> keys{};
+  std::vector<std::string> values{};
+  for (const auto &chrom : chroms) {
+    if (!chrom.is_all()) {
+      keys.emplace_back(std::string{chrom.name()});
+      values.emplace_back(fmt::to_string(chrom.size()));
+    }
+  }
+
+  auto metadata = std::make_shared<arrow::KeyValueMetadata>(keys, values);
+
   return arrow::schema({
       // clang-format off
-      arrow::field("chrom1",           arrow::utf8()),
-      arrow::field("start1",           arrow::uint32()),
-      arrow::field("end1",             arrow::uint32()),
-      arrow::field("chrom2",           arrow::utf8()),
-      arrow::field("start2",           arrow::uint32()),
-      arrow::field("end2",             arrow::uint32()),
-      arrow::field("pvalue",           arrow::float64()),
-      arrow::field("pvalue_corrected", arrow::float64()),
-      arrow::field("observed_count",   arrow::uint32()),
-      arrow::field("expected_count",   arrow::float64()),
-      arrow::field("log_ratio",        arrow::float64()),
-      arrow::field("odds_ratio",       arrow::float64()),
-      arrow::field("omega",            arrow::float64())
+      arrow::field("chrom1",           chrom_dtype,          false, metadata),
+      arrow::field("start1",           arrow::uint32(),  false),
+      arrow::field("end1",             arrow::uint32(),  false),
+      arrow::field("chrom2",           chrom_dtype,          false, metadata),
+      arrow::field("start2",           arrow::uint32(),  false),
+      arrow::field("end2",             arrow::uint32(),  false),
+      arrow::field("pvalue",           arrow::float64(), false),
+      arrow::field("pvalue_corrected", arrow::float64(), false),
+      arrow::field("observed_count",   arrow::uint32(),  false),
+      arrow::field("expected_count",   arrow::float64(), false),
+      arrow::field("log_ratio",        arrow::float64(), false),
+      arrow::field("odds_ratio",       arrow::float64(), false),
+      arrow::field("omega",            arrow::float64(), false)
       // clang-format on
   });
 }
@@ -323,11 +387,13 @@ class ParquetStatsFile {
 class RecordBatchBuilder {
   std::size_t _i{};
 
-  arrow::StringBuilder _chrom1{};
+  hictk::Reference _chroms{};
+
+  arrow::StringDictionary32Builder _chrom1{};
   arrow::UInt32Builder _start1{};
   arrow::UInt32Builder _end1{};
 
-  arrow::StringBuilder _chrom2{};
+  arrow::StringDictionary32Builder _chrom2{};
   arrow::UInt32Builder _start2{};
   arrow::UInt32Builder _end2{};
 
@@ -340,7 +406,18 @@ class RecordBatchBuilder {
   arrow::DoubleBuilder _omega{};
 
  public:
-  RecordBatchBuilder() = default;
+  RecordBatchBuilder(const hictk::Reference &chroms) : _chroms(chroms) {
+    auto dict = make_chrom_dict(_chroms);
+    auto status = _chrom1.InsertMemoValues(*dict);
+    if (!status.ok()) {
+      throw std::runtime_error(status.ToString());
+    }
+
+    status = _chrom2.InsertMemoValues(*dict);
+    if (!status.ok()) {
+      throw std::runtime_error(status.ToString());
+    }
+  }
 
   [[nodiscard]] std::size_t size() const noexcept { return _i; }
   [[nodiscard]] std::size_t capacity() const noexcept {
@@ -417,10 +494,11 @@ class RecordBatchBuilder {
     columns.emplace_back(finish(_omega));
 
     if (columns.size() == 13) {
-      return arrow::RecordBatch::Make(get_schema_padj(), static_cast<std::int64_t>(size()),
+      return arrow::RecordBatch::Make(get_schema_padj(_chroms), static_cast<std::int64_t>(size()),
                                       columns);
     }
-    return arrow::RecordBatch::Make(get_schema(), static_cast<std::int64_t>(size()), columns);
+    return arrow::RecordBatch::Make(get_schema(_chroms), static_cast<std::int64_t>(size()),
+                                    columns);
   }
 
   void write(parquet::arrow::FileWriter &writer) {
@@ -454,13 +532,14 @@ class RecordBatchBuilder {
 
 template <typename Record>
 [[nodiscard]] static std::unique_ptr<parquet::arrow::FileWriter> init_parquet_file_writer(
-    const std::filesystem::path &path, bool force, std::string_view compression_method,
-    std::uint8_t compression_lvl, std::size_t threads) {
+    const hictk::Reference &chroms, const std::filesystem::path &path, bool force,
+    std::string_view compression_method, std::uint8_t compression_lvl, std::size_t threads) {
   if (path.empty()) {
     return {};
   }
 
-  const auto schema = has_pval_corrected<Record>::value ? *get_schema_padj() : *get_schema();
+  const auto schema =
+      has_pval_corrected<Record>::value ? *get_schema_padj(chroms) : *get_schema(chroms);
 
   auto builder = parquet::WriterProperties::Builder()
                      .created_by("NCHG v0.0.1")

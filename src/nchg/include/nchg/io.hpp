@@ -265,7 +265,7 @@ class ParquetStatsFile {
     auto operator*() const noexcept -> const_reference { return _value; }
     auto operator->() const noexcept -> const_pointer { return &_value; }
 
-    [[nodiscard]] auto operator++() -> iterator & {
+    auto operator++() -> iterator & {
       if (_sr->eof()) {
         *this = at_end(_chroms, _sr);
         return *this;

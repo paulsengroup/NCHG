@@ -85,19 +85,6 @@ inline auto KMerger<It>::read_all() const -> std::vector<T> {
 
 template <typename It>
 template <typename ItInternal>
-inline KMerger<It>::iterator<ItInternal>::iterator(std::shared_ptr<std::vector<ItInternal>> heads,
-                                                   std::shared_ptr<std::vector<ItInternal>> tails)
-    : _pqueue(std::make_shared<PQueueT>()), _heads(std::move(heads)), _tails(std::move(tails)) {
-  assert(_heads->size() == _tails->size());
-  for (auto &it : *_heads) {
-    _pqueue->emplace(Node{*it, _pqueue->size()});
-    std::ignore = ++it;
-  }
-  _value = next();
-}
-
-template <typename It>
-template <typename ItInternal>
 inline KMerger<It>::iterator<ItInternal>::iterator(const iterator &other)
     : _value(other._value),
       _pqueue(other._pqueue ? std::make_shared<PQueueT>(*other._pqueue) : nullptr),

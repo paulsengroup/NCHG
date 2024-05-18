@@ -141,7 +141,7 @@ int run_nchg_merge(const MergeConfig &c) {
       const std::size_t batch_size = 1'000'000;
       RecordBatchBuilder builder(chroms);
 
-      auto t0 = std::chrono::steady_clock::now();
+      auto t1 = std::chrono::steady_clock::now();
       for (std::size_t i = 0; true; ++i) {
         while (!queue.wait_dequeue_timed(buffer, std::chrono::milliseconds(10))) {
           if (early_return) {
@@ -158,14 +158,14 @@ int run_nchg_merge(const MergeConfig &c) {
         ++records_processed;
 
         if (i == 10'000'000) {
-          const auto t1 = std::chrono::steady_clock::now();
+          const auto t2 = std::chrono::steady_clock::now();
           const auto delta =
               static_cast<double>(
-                  std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count()) /
+                  std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()) /
               1000.0;
 
           SPDLOG_INFO(FMT_STRING("merging {:.0f} records/s..."), static_cast<double>(i) / delta);
-          t0 = t1;
+          t1 = t2;
           i = 0;
         }
       }

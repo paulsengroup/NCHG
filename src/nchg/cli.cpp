@@ -680,7 +680,7 @@ void Cli::validate_filter_subcommand() const {
   const auto &c = std::get<FilterConfig>(_config);
 
   std::vector<std::string> errors;
-  if (!c.force && std::filesystem::exists(c.input_path)) {
+  if (!c.force && std::filesystem::exists(c.output_path)) {
     errors.emplace_back(fmt::format(
         FMT_STRING("Refusing to overwrite file {}. Pass --force to overwrite."), c.output_path));
   }

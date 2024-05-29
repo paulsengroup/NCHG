@@ -345,7 +345,7 @@ jobs:
 
       - name: Test NCHG compute
         run: |
-          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$(nproc)" out
+          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$NPROC" out
 
       - name: Test NCHG merge
         run: |

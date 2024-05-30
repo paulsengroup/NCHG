@@ -53,8 +53,8 @@ class NCHGConan(ConanFile):
         self.requires("arrow/16.0.0#c0b940c80fddf319983165f7588c279d")
         self.requires("boost/1.85.0#7926babdab0a9779cc164d0af6c28d5e", force=True)
         self.requires("bshoshany-thread-pool/4.1.0#be1802a8768416a6c9b1393cf0ce5e9c")
-        self.requires("catch2/3.5.4#d346ca291f8f62040fd9c1a891654711")
-        self.requires("cli11/2.4.1#afacffd31f631bbb8b7c7d6425fe7a66")
+        self.requires("catch2/3.6.0#819bc5a82c2cb626916fc18ee1dbc45f")
+        self.requires("cli11/2.4.2#1b431bda2fb2cd3efed633899abcd8cc")
         self.requires("concurrentqueue/1.0.4#1e48e1c712bcfd892087c9c622a51502")
         self.requires("fmt/10.2.1#9199a7a0611866dea5c8849a77467b25")
         self.requires("hdf5/1.14.3#31ccd8d4de83844f5db48471df1944a1")
@@ -62,9 +62,9 @@ class NCHGConan(ConanFile):
         self.requires("highfive/2.9.0#c57477beed8b0110fadeb6da8f48bcc5")
         self.requires("parallel-hashmap/1.3.11#1e67f4855a3f7cdeb977cc472113baf7")
         self.requires("readerwriterqueue/1.0.6#aaa5ff6fac60c2aee591e9e51b063b83")
-        self.requires("spdlog/1.13.0#8e88198fd5b9ee31d329431a6d0ccaa2")
+        self.requires("spdlog/1.14.1#972bbf70be1da4bc57ea589af0efde03", force=True)
         self.requires("thrift/0.18.1#4e5674c24f99dde562c3926f9cb2ff9d", force=True)
-        self.requires("zstd/1.5.6#67383dae85d33f43823e7751a6745ea1", force=True)
+        self.requires("zstd/1.5.6#afefe79a309bc2a7b9f56c2093504c8b", force=True)
 
     def validate(self):
         if self.settings.get_safe("compiler.cppstd"):
@@ -88,6 +88,7 @@ class NCHGConan(ConanFile):
         self.options["boost"].lzma = False
         self.options["boost"].zstd = False
         self.options["boost"].without_atomic = False
+        self.options["boost"].without_charconv = True
         self.options["boost"].without_chrono = True
         self.options["boost"].without_container = True
         self.options["boost"].without_context = True
@@ -130,4 +131,6 @@ class NCHGConan(ConanFile):
         self.options["highfive"].with_opencv = False
         self.options["highfive"].with_xtensor = False
         self.options["spdlog"].header_only = True
+        self.options["thrift"].with_libevent = False
+        self.options["thrift"].with_openssl = False
         self.options["zstd"].build_programs = False

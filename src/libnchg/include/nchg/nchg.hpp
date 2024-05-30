@@ -34,18 +34,25 @@
 
 namespace nchg {
 
+struct NCHGResult {
+  hictk::Pixel<std::uint32_t> pixel{};
+  double expected{};
+  double pval{};
+  double log_ratio{};
+  double odds_ratio{};
+  double omega{};
+
+  bool operator<(const NCHGResult& other) const noexcept;
+  bool operator>(const NCHGResult& other) const noexcept;
+  bool operator==(const NCHGResult& other) const noexcept;
+  bool operator!=(const NCHGResult& other) const noexcept;
+};
+
 template <typename File>
 class NCHG {
  public:
   class iterator;
-
-  struct Stats {
-    hictk::Pixel<std::uint32_t> pixel{};
-    double expected{};
-    double pval{};
-    double odds_ratio{};
-    double omega{};
-  };
+  using Stats = NCHGResult;
 
  private:
   using N = std::uint32_t;

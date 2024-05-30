@@ -34,6 +34,22 @@
 
 namespace nchg {
 
+inline bool NCHGResult::operator<(const NCHGResult &other) const noexcept {
+  return pixel.coords < other.pixel.coords;
+}
+
+inline bool NCHGResult::operator>(const NCHGResult &other) const noexcept {
+  return pixel.coords > other.pixel.coords;
+}
+
+inline bool NCHGResult::operator==(const NCHGResult &other) const noexcept {
+  return pixel.coords == other.pixel.coords;
+}
+
+inline bool NCHGResult::operator!=(const NCHGResult &other) const noexcept {
+  return !(*this == other);
+}
+
 template <typename File>
 inline NCHG<File>::NCHG(std::shared_ptr<const File> f, const hictk::Chromosome &chrom1,
                         const hictk::Chromosome &chrom2, const Params &params)
@@ -68,7 +84,7 @@ inline auto NCHG<File>::expected_matrix() const noexcept -> const ExpectedMatrix
   return *_exp_matrix;
 }
 
-[[nodiscard]] static double compute_odds_ratio(double n, double total_sum, double sum1,
+[[nodiscard]] inline double compute_odds_ratio(double n, double total_sum, double sum1,
                                                double sum2) {
   if (std::isnan(n) || sum1 == 0 || sum2 == 0) {
     return std::numeric_limits<double>::quiet_NaN();
@@ -204,27 +220,29 @@ inline auto NCHG<File>::iterator::operator*() const -> const_reference {
 
   const auto delta = intra_matrix ? p.coords.bin2.start() - p.coords.bin1.start() : _min_delta;
   if (delta < _min_delta || delta >= _max_delta) {
-    _value = {p, exp, 1.0, 0.0, 0.0};
+    _value = {p, exp, 1.0, 0.0, 0.0, 0.0};
     return _value;
   }
 
   const auto odds_ratio = compute_odds_ratio(obs, static_cast<double>(obs_sum), N1, N2);
   const auto omega = intra_matrix ? compute_odds_ratio(exp, exp_sum, L1, L2) : 1;
 
+  const auto log_ratio = std::log2(odds_ratio) - std::log2(omega);
+
   if ((L1 - exp) * (L2 - exp) <= cutoff) {
-    _value = {p, exp, 1.0, odds_ratio, omega};
+    _value = {p, exp, 1.0, log_ratio, odds_ratio, omega};
     return _value;
   }
 
   if (!std::isfinite(omega) || omega > odds_ratio) {
-    _value = {p, exp, 1.0, odds_ratio, omega};
+    _value = {p, exp, 1.0, log_ratio, odds_ratio, omega};
     return _value;
   }
 
   const auto pvalue =
       compute_pvalue_nchg(*_buffer, static_cast<std::uint64_t>(obs), static_cast<std::uint64_t>(N1),
                           static_cast<std::uint64_t>(N2), obs_sum, omega);
-  _value = {p, exp, pvalue, odds_ratio, omega};
+  _value = {p, exp, pvalue, log_ratio, odds_ratio, omega};
 
   return _value;
 }
@@ -254,7 +272,7 @@ inline auto NCHG<File>::iterator::operator++() -> iterator & {
 template <typename File>
 inline auto NCHG<File>::iterator::operator++(int) -> iterator {
   auto it = *this;
-  it._buffer = std::make_shared<std::vector<double>>();
+  it._str_buffer = std::make_shared<std::vector<double>>();
   std::ignore = ++(*this);
   return it;
 }
@@ -354,24 +372,26 @@ inline auto NCHG<File>::compute(const hictk::GenomicInterval &range1,
   // clang-format on
 
   if (obs == 0) {
-    return {p, exp, 1.0, 0.0, 0.0};
+    return {p, exp, 1.0, 0.0, 0.0, 0.0};
   }
 
   const auto odds_ratio = compute_odds_ratio(obs, static_cast<double>(obs_sum), N1, N2);
   const auto omega = intra_matrix ? compute_odds_ratio(exp, exp_sum, L1, L2) : 1;
 
+  const auto log_ratio = std::log2(odds_ratio) - std::log2(omega);
+
   if ((L1 - exp) * (L2 - exp) <= cutoff) {
-    return {p, exp, 1.0, odds_ratio, omega};
+    return {p, exp, 1.0, log_ratio, odds_ratio, omega};
   }
 
   if (!std::isfinite(omega) || omega > odds_ratio) {
-    return {p, exp, 1.0, odds_ratio, omega};
+    return {p, exp, 1.0, log_ratio, odds_ratio, omega};
   }
 
   const auto pvalue = compute_pvalue_nchg(_nchg_pval_buffer, static_cast<std::uint64_t>(obs),
                                           static_cast<std::uint64_t>(N1),
                                           static_cast<std::uint64_t>(N2), obs_sum, omega);
-  return {p, exp, pvalue, odds_ratio, omega};
+  return {p, exp, pvalue, log_ratio, odds_ratio, omega};
 }
 
 template <typename File>

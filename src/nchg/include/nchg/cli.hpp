@@ -214,6 +214,8 @@ class Cli {
     compute,
     expected,
     filter,
+    merge,
+    view,
   };
 
   Cli(int argc, char** argv);
@@ -236,16 +238,22 @@ class Cli {
   void make_compute_subcommand();
   void make_expected_subcommand();
   void make_filter_subcommand();
+  void make_merge_subcommand();
+  void make_view_subcommand();
   void make_cli();
 
   void validate_compute_subcommand() const;
   void validate_expected_subcommand() const;
   void validate_filter_subcommand() const;
+  void validate_merge_subcommand() const;
+  void validate_view_subcommand() const;
   void validate_args() const;
 
   void transform_args_compute_subcommand();
   void transform_args_expected_subcommand();
   void transform_args_filter_subcommand();
+  void transform_args_merge_subcommand();
+  void transform_args_view_subcommand();
   void transform_args();
 };
 

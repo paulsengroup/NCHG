@@ -28,6 +28,9 @@ namespace nchg {
 struct ComputePvalConfig {
   std::filesystem::path exec{};
   std::filesystem::path path_to_hic{};
+  std::filesystem::path output_prefix{};
+  bool force{false};
+
   std::uint32_t resolution{};
   std::string chrom1{"all"};
   std::string chrom2{"all"};
@@ -47,16 +50,17 @@ struct ComputePvalConfig {
   std::uint32_t interpolation_window_size{750'000};
   double bad_bin_fraction{0.1};
 
-  bool write_header{true};
-  bool write_eof_signal{false};
-
+  std::string compression_method{"zstd"};
+  std::uint8_t compression_lvl{9};
   std::size_t threads{1};
 
   std::uint8_t verbosity{3};
 };
 
 struct FilterConfig {
-  std::filesystem::path path{};
+  std::filesystem::path input_path{};
+  std::filesystem::path output_path{};
+  bool force{};
 
   double fdr{0.01};
   double log_ratio{2.0};
@@ -65,8 +69,9 @@ struct FilterConfig {
   bool correct_cis_trans_separately{true};
   bool correct_chrom_chrom_separately{false};
 
-  bool write_header{true};
-  bool sorted{true};
+  std::size_t threads{2};
+  std::string compression_method{"zstd"};
+  std::uint8_t compression_lvl{9};
 
   std::uint8_t verbosity{3};
 };
@@ -93,6 +98,40 @@ struct ExpectedConfig {
   std::uint8_t verbosity{3};
 };
 
-using Config = std::variant<std::monostate, ComputePvalConfig, ExpectedConfig, FilterConfig>;
+struct MergeConfig {
+  std::filesystem::path input_prefix{};
+  std::filesystem::path output_path{};
+  bool force{false};
+
+  std::size_t threads{2};
+  std::string compression_method{"zstd"};
+  std::uint8_t compression_lvl{9};
+
+  std::uint8_t verbosity{3};
+};
+
+struct ViewConfig {
+  std::filesystem::path input_path{};
+
+  std::string range1{"all"};
+  std::string range2{"all"};
+
+  double pvalue_cutoff{1.0};
+  double log_ratio_cutoff{-std::numeric_limits<double>::infinity()};
+
+  bool with_header{true};
+
+  std::uint8_t verbosity{3};
+};
+
+// clang-format off
+using Config = std::variant<
+    std::monostate,
+    ComputePvalConfig,
+    ExpectedConfig,
+    FilterConfig,
+    MergeConfig,
+    ViewConfig>;
+// clang-format on
 
 }  // namespace nchg

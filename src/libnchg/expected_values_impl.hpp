@@ -336,13 +336,13 @@ inline void ExpectedValues<File>::compute_expected_values_cis() {
     auto first = sel.template begin<N>();
     auto last = sel.template end<N>();
 
-    if (first != last) {
-      if (!_bin_masks.contains(std::make_pair(chrom, chrom))) {
-        const hictk::transformers::JoinGenomicCoords jsel(first, last, _fp->bins_ptr());
-        add_bin_mask(
-            chrom, mad_max_filtering(jsel.begin(), jsel.end(), chrom, _fp->resolution(), _mad_max));
-      }
+    if (!_bin_masks.contains(std::make_pair(chrom, chrom))) {
+      const hictk::transformers::JoinGenomicCoords jsel(first, last, _fp->bins_ptr());
+      add_bin_mask(chrom,
+                   mad_max_filtering(jsel.begin(), jsel.end(), chrom, _fp->resolution(), _mad_max));
+    }
 
+    if (first != last) {
       heads.emplace_back(std::move(first));
       tails.emplace_back(std::move(last));
       sels.emplace_back(std::move(sel));

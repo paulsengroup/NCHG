@@ -28,7 +28,7 @@ on:
       - "src/**"
       - "test/**"
       - "CMakeLists.txt"
-      - "conanfile.txt"
+      - "conanfile.py"
     tags:
       - 'v*.*.*'
 
@@ -40,7 +40,7 @@ on:
       - "src/**"
       - "test/**"
       - "CMakeLists.txt"
-      - "conanfile.txt"
+      - "conanfile.py"
 
 # https://stackoverflow.com/a/72408109
 concurrency:
@@ -76,7 +76,7 @@ jobs:
       - name: Generate cache key
         id: cache-key
         run: |
-          hash="${{ hashFiles('conanfile.txt', '.github/workflows/codecov.yml') }}"
+          hash="${{ hashFiles('conanfile.py', '.github/workflows/codecov.yml') }}"
 
           # This can be used by to always update a cache entry (useful e.g. for ccache)
           current_date="$(date '+%s')"
@@ -168,8 +168,11 @@ jobs:
 
       - name: Run integration tests
         run: |
-          build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$(nproc)" > out.txt
-          build/src/nchg/NCHG filter out.txt --keep-non-significant > /dev/null
+          build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$(nproc)" out
+          build/src/nchg/NCHG merge out out.parquet
+          build/src/nchg/NCHG filter out.parquet out.filtered.parquet --keep-non-significant
+          build/src/nchg/NCHG view out.parquet > /dev/null
+          build/src/nchg/NCHG view out.filtered.parquet > /dev/null
           build/src/nchg/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5
 
       - name: Upload coverage reports to Codecov

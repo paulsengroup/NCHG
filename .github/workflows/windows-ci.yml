@@ -27,7 +27,7 @@ on:
       - "src/**"
       - "test/**"
       - "CMakeLists.txt"
-      - "conanfile.txt"
+      - "conanfile.py"
     tags:
       - 'v*.*.*'
 
@@ -38,7 +38,7 @@ on:
       - "src/**"
       - "test/**"
       - "CMakeLists.txt"
-      - "conanfile.txt"
+      - "conanfile.py"
 
 # https://stackoverflow.com/a/72408109
 concurrency:
@@ -101,9 +101,9 @@ jobs:
           compiler="${{ matrix.compiler-name }}"
           build_type="${{ matrix.build_type }}"
 
-          conanfile_hash="${{ hashFiles('conanfile.txt') }}"
+          conanfile_hash="${{ hashFiles('conanfile.py') }}"
           workflow_hash="${{ hashFiles('.github/workflows/windows-ci.yml') }}"
-          combined_hash="${{ hashFiles('conanfile.txt', '.github/workflows/windows-ci.yml') }}"
+          combined_hash="${{ hashFiles('conanfile.py', '.github/workflows/windows-ci.yml') }}"
 
           # This can be used by to always update a cache entry (useful e.g. for ccache)
           current_date="$(date '+%s')"
@@ -212,11 +212,20 @@ jobs:
 
       - name: Test NCHG compute
         run: |
-          dest/bin/NCHG.exe compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads $CTEST_PARALLEL_LEVEL > out.txt
+          dest/bin/NCHG.exe compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$(nproc)" out
+
+      - name: Test NCHG merge
+        run: |
+          bin/NCHG merge out out.parquet
 
       - name: Test NCHG filter
         run: |
-          dest/bin/NCHG.exe filter out.txt --keep-non-significant > /dev/null
+          bin/NCHG filter out.parquet out.filtered.parquet
+
+      - name: Test NCHG filter
+        run: |
+          bin/NCHG view out.parquet > /dev/null
+          bin/NCHG view out.filtered.parquet > /dev/null
 
       - name: Test NCHG expected
         run: |

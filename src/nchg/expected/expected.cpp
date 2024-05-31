@@ -61,23 +61,26 @@ static void process_one_chromosome_pair(FilePtr f, const ExpectedConfig &c) {
   evs.serialize(c.output_path);
 }
 
-int run_nchg_expected(const ExpectedConfig &c) {
-  // clang-format off
-  using FilePtr =
+// clang-format off
+  using HiCFilePtr =
       std::variant<
           std::shared_ptr<const hictk::cooler::File>,
           std::shared_ptr<const hictk::hic::File>>;
-  // clang-format on
+// clang-format on
 
-  const auto f = [&]() -> FilePtr {
-    hictk::File f_(c.input_path.string(), c.resolution);
-    return {std::visit(
-        [&](auto &&ff) {
-          using FileT = std::remove_reference_t<decltype(ff)>;
-          return FilePtr{std::make_shared<const FileT>(std::forward<FileT>(ff))};
-        },
-        f_.get())};
-  }();
+[[nodiscard]] static HiCFilePtr open_file_ptr(const std::filesystem::path &path,
+                                               std::uint32_t resolution) {
+  hictk::File f_(path.string(), resolution);
+  return {std::visit(
+      [&](auto &&ff) {
+        using FileT = std::remove_reference_t<decltype(ff)>;
+        return HiCFilePtr{std::make_shared<const FileT>(std::forward<FileT>(ff))};
+      },
+      f_.get())};
+}
+
+int run_nchg_expected(const ExpectedConfig &c) {
+  const auto f = open_file_ptr(c.input_path, c.resolution);
 
   std::visit(
       [&](const auto &f_) {

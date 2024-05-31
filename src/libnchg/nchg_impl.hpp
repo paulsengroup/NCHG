@@ -116,7 +116,9 @@ inline NCHG<File>::iterator::iterator(PixelIt pixel_it, PixelIt sentinel_it,
       _bin_mask1(std::move(bin_mask1)),
       _bin_mask2(std::move(bin_mask2)),
       _min_delta(min_delta),
-      _max_delta(max_delta) {}
+      _max_delta(max_delta) {
+  jump_to_next_valid_pixel();
+}
 
 template <typename File>
 inline NCHG<File>::iterator::iterator(const iterator &other)
@@ -255,17 +257,8 @@ inline auto NCHG<File>::iterator::operator->() const -> const_pointer {
 
 template <typename File>
 inline auto NCHG<File>::iterator::operator++() -> iterator & {
-  while (++_pixel_it != _sentinel_it) {
-    const auto bin1_id = _pixel_it->coords.bin1.rel_id();
-    const auto bin2_id = _pixel_it->coords.bin2.rel_id();
-
-    const auto bin1_masked = (*_bin_mask1)[bin1_id];
-    const auto bin2_masked = (*_bin_mask2)[bin2_id];
-
-    if (!bin1_masked && !bin2_masked) {
-      break;
-    }
-  }
+  std::ignore = ++_pixel_it;
+  jump_to_next_valid_pixel();
   return *this;
 }
 
@@ -275,6 +268,22 @@ inline auto NCHG<File>::iterator::operator++(int) -> iterator {
   it._str_buffer = std::make_shared<std::vector<double>>();
   std::ignore = ++(*this);
   return it;
+}
+
+template <typename File>
+inline void NCHG<File>::iterator::jump_to_next_valid_pixel() {
+  while (_pixel_it != _sentinel_it) {
+    const auto bin1_id = _pixel_it->coords.bin1.rel_id();
+    const auto bin2_id = _pixel_it->coords.bin2.rel_id();
+
+    const auto bin1_masked = (*_bin_mask1)[bin1_id];
+    const auto bin2_masked = (*_bin_mask2)[bin2_id];
+
+    if (!bin1_masked && !bin2_masked) {
+      break;
+    }
+    std::ignore = ++_pixel_it;
+  }
 }
 
 template <typename File>

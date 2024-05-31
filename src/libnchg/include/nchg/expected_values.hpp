@@ -85,6 +85,9 @@ class ExpectedValues {
   };
   // clang-format on
 
+  template <typename OtherFile>
+  friend class ExpectedValues;
+
   explicit ExpectedValues(std::shared_ptr<const File> file, const Params& params_ = DefaultParams);
   static ExpectedValues cis_only(std::shared_ptr<const File> file,
                                  const Params& params_ = DefaultParams);
@@ -96,6 +99,9 @@ class ExpectedValues {
                                         const Params& params_ = DefaultParams);
 
   static ExpectedValues deserialize(const std::filesystem::path& path);
+
+  template <typename OutFile>
+  [[nodiscard]] ExpectedValues<OutFile> cast() const;
 
   [[nodiscard]] const std::vector<double>& weights() const noexcept;
   [[nodiscard]] auto params() const noexcept -> Params;

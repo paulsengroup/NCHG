@@ -169,6 +169,10 @@ template <typename FilePtr>
 [[nodiscard]] static std::size_t process_domains(const FilePtr &f, const ComputePvalConfig &c) {
   assert(std::filesystem::exists(c.path_to_domains));
 
+  auto writer =
+      init_parquet_file_writer<NCHGResult>(f->chromosomes(), c.output_prefix, c.force,
+                                           c.compression_method, c.compression_lvl, c.threads);
+
   const auto domains = parse_domains(f->chromosomes(), c.path_to_domains, c.chrom1, c.chrom2);
 
   if (domains.empty()) {
@@ -176,9 +180,6 @@ template <typename FilePtr>
   }
 
   const auto nchg = init_nchg(f, c);
-  auto writer =
-      init_parquet_file_writer<NCHGResult>(f->chromosomes(), c.output_prefix, c.force,
-                                           c.compression_method, c.compression_lvl, c.threads);
 
   std::size_t batch_size = 1'000'000;
   RecordBatchBuilder builder(f->bins().chromosomes());
@@ -355,18 +356,10 @@ init_trans_chromosomes(const hictk::Reference &chroms) {
   return proc;
 }
 
-static std::size_t process_queries(
+static std::size_t process_queries_mt(
+    BS::thread_pool &tpool,
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
     const ComputePvalConfig &c) {
-  BS::thread_pool tpool(conditional_static_cast<BS::concurrency_t>(c.threads));
-
-  const auto output_dir = c.output_prefix.parent_path();
-  if (!output_dir.empty() && output_dir != ".") {
-    std::filesystem::create_directories(output_dir);
-  }
-  write_chrom_sizes_to_file(hictk::File(c.path_to_hic, c.resolution).chromosomes(),
-                            fmt::format(FMT_STRING("{}.chrom.sizes"), c.output_prefix), c.force);
-
   std::atomic<bool> early_return{false};
 
   auto workers = tpool.submit_blocks(
@@ -398,6 +391,8 @@ static std::size_t process_queries(
           const auto records_processed =
               parquet::StreamReader{parquet::ParquetFileReader::Open(fp)}.num_rows();
 
+          SPDLOG_INFO(FMT_STRING("done processing {}:{} ({} records)!"), chrom1.name(),
+                      chrom2.name(), records_processed);
           return static_cast<std::size_t>(records_processed);
 
         } catch (const std::exception &e) {
@@ -421,6 +416,62 @@ static std::size_t process_queries(
   return num_records;
 }
 
+static std::size_t process_queries_st(
+    const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
+    const ComputePvalConfig &c) {
+  std::size_t tot_num_records = 0;
+  for (const auto &pair : chrom_pairs) {
+    const auto &chrom1 = pair.first;
+    const auto &chrom2 = pair.second;
+
+    try {
+      auto config = c;
+      config.chrom1 = chrom1.name();
+      config.chrom2 = chrom2.name();
+
+      config.output_prefix = fmt::format(FMT_STRING("{}.{}.{}.parquet"), c.output_prefix.string(),
+                                         chrom1.name(), chrom2.name());
+
+      const auto t0 = std::chrono::system_clock::now();
+      const auto num_records = run_nchg_compute_worker(config);
+      tot_num_records += num_records;
+
+      const auto t1 = std::chrono::system_clock::now();
+      const auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+      SPDLOG_INFO(FMT_STRING("Processed {} records in {}s!"), num_records,
+                  static_cast<double>(delta) / 1000.0);
+
+    } catch (const std::exception &e) {
+      throw std::runtime_error(fmt::format(FMT_STRING("error in while processing {}:{}: {}"),
+                                           chrom1.name(), chrom2.name(), e.what()));
+    } catch (...) {
+      throw std::runtime_error(
+          fmt::format(FMT_STRING("An unknown error occurred while processing {}:{}"), chrom1.name(),
+                      chrom2.name()));
+    }
+  }
+
+  return tot_num_records;
+}
+
+static std::size_t process_queries(
+    const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
+    const ComputePvalConfig &c) {
+  const auto output_dir = c.output_prefix.parent_path();
+  if (!output_dir.empty() && output_dir != ".") {
+    std::filesystem::create_directories(output_dir);
+  }
+
+  write_chrom_sizes_to_file(hictk::File(c.path_to_hic, c.resolution).chromosomes(),
+                            fmt::format(FMT_STRING("{}.chrom.sizes"), c.output_prefix), c.force);
+
+  if (c.threads > 1) {
+    BS::thread_pool tpool(conditional_static_cast<BS::concurrency_t>(c.threads));
+    return process_queries_mt(tpool, chrom_pairs, c);
+  }
+  return process_queries_st(chrom_pairs, c);
+}
+
 int run_nchg_compute(const ComputePvalConfig &c) {
   const auto t0 = std::chrono::system_clock::now();
 
@@ -429,7 +480,7 @@ int run_nchg_compute(const ComputePvalConfig &c) {
     const auto interactions_processed = run_nchg_compute_worker(c);
     const auto t1 = std::chrono::system_clock::now();
     const auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
-    SPDLOG_INFO(FMT_STRING("Processed {} interactions in {}s!"), interactions_processed,
+    SPDLOG_INFO(FMT_STRING("Processed {} records in {}s!"), interactions_processed,
                 static_cast<double>(delta) / 1000.0);
     return 0;
   }
@@ -453,7 +504,7 @@ int run_nchg_compute(const ComputePvalConfig &c) {
 
   const auto t1 = std::chrono::system_clock::now();
   const auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
-  SPDLOG_INFO(FMT_STRING("Processed {} interactions in {}s!"), interactions_processed,
+  SPDLOG_INFO(FMT_STRING("Processed {} records in {}s!"), interactions_processed,
               static_cast<double>(delta) / 1000.0);
 
   return 0;

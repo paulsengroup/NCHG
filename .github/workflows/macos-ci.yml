@@ -345,11 +345,11 @@ jobs:
 
       - name: Test NCHG compute (mt)
         run: |
-          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --threads "$NPROC" out --force
+          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --threads "$NPROC" out
 
       - name: Test NCHG compute (st)
         run: |
-          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads 1 out
+          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads 1 out --force
 
       - name: Test NCHG merge
         run: |

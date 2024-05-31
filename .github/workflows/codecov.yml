@@ -169,7 +169,8 @@ jobs:
       - name: Run integration tests
         run: |
           build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --threads "$(nproc)" out
-          build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads 1 out --force
+          rm out*
+          build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads 1 out
           build/src/nchg/NCHG merge out out.parquet --threads "$(nproc)"
           build/src/nchg/NCHG filter out.parquet out.filtered.parquet --threads "$(nproc)"
           build/src/nchg/NCHG view out.parquet > /dev/null

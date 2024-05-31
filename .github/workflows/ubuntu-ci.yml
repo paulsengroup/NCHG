@@ -401,10 +401,11 @@ jobs:
       - name: Test NCHG compute (mt)
         run: |
           bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --threads "$(nproc)" out
+          rm out*
 
       - name: Test NCHG compute (st)
         run: |
-          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads 1 out --force
+          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads 1 out
 
       - name: Test NCHG merge
         run: |

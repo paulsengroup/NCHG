@@ -352,10 +352,6 @@ init_trans_chromosomes(const hictk::Reference &chroms) {
       "1",
       "--verbosity",
       "2",
-      "--min-delta",
-      fmt::to_string(c.min_delta),
-      "--max-delta",
-      fmt::to_string(c.max_delta),
       "--resolution",
       fmt::to_string(c.resolution),
       c.path_to_hic.string(),
@@ -367,7 +363,12 @@ init_trans_chromosomes(const hictk::Reference &chroms) {
     args.emplace_back(c.path_to_domains.string());
   }
 
-  if (!c.path_to_expected_values.empty()) {
+  if (c.path_to_expected_values.empty()) {
+    args.emplace_back("--min-delta");
+    args.emplace_back(fmt::to_string(c.min_delta));
+    args.emplace_back("--max-delta");
+    args.emplace_back(fmt::to_string(c.max_delta));
+  } else {
     args.emplace_back("--expected-values");
     args.emplace_back(c.path_to_expected_values.string());
   }
@@ -396,9 +397,18 @@ static std::size_t process_queries_mt(
   std::atomic<bool> early_return{false};
 
   auto config = c;
-  if (expected_values.has_value()) {
+  if (c.path_to_expected_values.empty() && expected_values.has_value()) {
     config.path_to_expected_values =
-        fmt::format(FMT_STRING("{}_expected_values.h5"), c.output_prefix.string());
+        fmt::format(FMT_STRING("{}_expected_values.h5"), config.output_prefix.string());
+
+    if (!config.force && std::filesystem::exists(config.path_to_expected_values)) {
+      throw std::runtime_error(
+          fmt::format(FMT_STRING("Refusing to overwrite file {}. Pass --force to overwrite."),
+                      config.path_to_expected_values));
+    }
+
+    std::filesystem::remove(config.path_to_expected_values);
+
     expected_values->serialize(config.path_to_expected_values);
   }
 
@@ -417,7 +427,14 @@ static std::size_t process_queries_mt(
               fmt::format(FMT_STRING("{}.{}.{}.parquet"), config.output_prefix.string(),
                           chrom1.name(), chrom2.name());
 
-          auto proc = spawn_compute_process(config, output_path, chrom1, chrom2);
+          const auto trans_expected_values_avail = !c.path_to_expected_values.empty();
+
+          auto child_config = config;
+          if (!trans_expected_values_avail && chrom1 != chrom2) {
+            child_config.path_to_expected_values.clear();
+          }
+
+          auto proc = spawn_compute_process(child_config, output_path, chrom1, chrom2);
           proc.wait();
 
           if (proc.exit_code() != 0) {

@@ -189,6 +189,9 @@ class NCHG {
 
     auto operator++() -> iterator&;
     auto operator++(int) -> iterator;
+
+  private:
+      void jump_to_next_valid_pixel();
   };
 };
 

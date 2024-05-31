@@ -486,6 +486,8 @@ static std::size_t process_queries_st(
       auto config = c;
       config.chrom1 = chrom1.name();
       config.chrom2 = chrom2.name();
+      config.cis_only = false;
+      config.trans_only = false;
 
       config.output_prefix = fmt::format(FMT_STRING("{}.{}.{}.parquet"), c.output_prefix.string(),
                                          chrom1.name(), chrom2.name());

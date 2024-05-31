@@ -216,7 +216,7 @@ jobs:
 
       - name: Test NCHG compute (mt)
         run: |
-          dest/bin/NCHG.exe compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$(nproc)" out --force
+          dest/bin/NCHG.exe compute test/data/ENCFF447ERX.1000000.cool --threads "$(nproc)" out --force
 
       - name: Test NCHG merge
         run: |

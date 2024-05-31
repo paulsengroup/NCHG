@@ -349,7 +349,7 @@ jobs:
 
       - name: Test NCHG compute (mt)
         run: |
-          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$NPROC" out --force
+          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --threads "$NPROC" out --force
 
       - name: Test NCHG merge
         run: |

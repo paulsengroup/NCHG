@@ -343,23 +343,23 @@ jobs:
 
           echo "NPROC=$ncpus" >> $GITHUB_ENV
 
-      - name: Test NCHG compute (st)
-        run: |
-          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads 1 out
-
       - name: Test NCHG compute (mt)
         run: |
           bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --threads "$NPROC" out --force
 
+      - name: Test NCHG compute (st)
+        run: |
+          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads 1 out
+
       - name: Test NCHG merge
         run: |
-          bin/NCHG merge out out.parquet
+          bin/NCHG merge out out.parquet --threads "$NPROC"
 
       - name: Test NCHG filter
         run: |
-          bin/NCHG filter out.parquet out.filtered.parquet
+          bin/NCHG filter out.parquet out.filtered.parquet --threads "$NPROC"
 
-      - name: Test NCHG filter
+      - name: Test NCHG view
         run: |
           bin/NCHG view out.parquet > /dev/null
           bin/NCHG view out.filtered.parquet > /dev/null

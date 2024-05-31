@@ -343,9 +343,13 @@ jobs:
 
           echo "NPROC=$ncpus" >> $GITHUB_ENV
 
-      - name: Test NCHG compute
+      - name: Test NCHG compute (st)
         run: |
-          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$NPROC" out
+          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads 1 out
+
+      - name: Test NCHG compute (mt)
+        run: |
+          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$NPROC" out --force
 
       - name: Test NCHG merge
         run: |

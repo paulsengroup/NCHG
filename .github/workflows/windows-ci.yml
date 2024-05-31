@@ -210,9 +210,13 @@ jobs:
         run: |
           cmake --install build --component Runtime
 
-      - name: Test NCHG compute
+      - name: Test NCHG compute (st)
         run: |
-          dest/bin/NCHG.exe compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$(nproc)" out
+          dest/bin/NCHG.exe compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads 1 out
+
+      - name: Test NCHG compute (mt)
+        run: |
+          dest/bin/NCHG.exe compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads "$(nproc)" out --force
 
       - name: Test NCHG merge
         run: |

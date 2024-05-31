@@ -99,7 +99,7 @@ inline ExpectedValues<File> ExpectedValues<File>::chromosome_pair(std::shared_pt
                                                                   const hictk::Chromosome &chrom1,
                                                                   const hictk::Chromosome &chrom2,
                                                                   const Params &params) {
-  SPDLOG_INFO(FMT_STRING("computing expected values for {}:{}..."), chrom1.name(), chrom2.name());
+  SPDLOG_INFO(FMT_STRING("[{}:{}] computing expected values..."), chrom1.name(), chrom2.name());
 
   ExpectedValues ev(nullptr, params);
   ev._fp = std::move(file);
@@ -150,6 +150,32 @@ inline ExpectedValues<File> ExpectedValues<File>::deserialize(const std::filesys
   ev._expected_values_trans = deserialize_trans_profiles(f);
 
   return ev;
+}
+
+template <typename File>
+template <typename OutFile>
+inline ExpectedValues<OutFile> ExpectedValues<File>::cast() const {
+  if constexpr (std::is_same_v<File, OutFile>) {
+    return *this;
+  }
+
+  ExpectedValues<OutFile> evs{nullptr};
+  evs._expected_weights = _expected_weights;
+  evs._expected_scaling_factors = _expected_scaling_factors;
+  evs._bin_masks = _bin_masks;
+
+  evs._expected_values_trans = _expected_values_trans;
+
+  evs._mad_max = _mad_max;
+  evs._min_delta = _min_delta;
+  evs._max_delta = _max_delta;
+  evs._bin_aggregation_possible_distances_cutoff = _bin_aggregation_possible_distances_cutoff;
+  evs._bin_aggregation_observed_distances_cutoff = _bin_aggregation_observed_distances_cutoff;
+  evs._interpolate = _interpolate;
+  evs._interpolation_qtile = _interpolation_qtile;
+  evs._interpolation_window_size = _interpolation_window_size;
+
+  return evs;
 }
 
 template <typename File>
@@ -315,7 +341,7 @@ inline void ExpectedValues<File>::serialize(const std::filesystem::path &path) c
 
 template <typename File>
 inline void ExpectedValues<File>::compute_expected_values_cis() {
-  SPDLOG_INFO(FMT_STRING("initializing expected matrix weights from genome-wide interactions..."));
+  SPDLOG_INFO(FMT_STRING("initializing expected matrix weights from cis interactions..."));
   if (!_fp) {
     throw std::logic_error("ExpectedValues::expected_matrix() was called on a null file");
   }

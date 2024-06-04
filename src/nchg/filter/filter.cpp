@@ -221,7 +221,7 @@ int run_nchg_filter(const FilterConfig& c) {
         }
 
         const auto pvalue_corrected = corrected_pvalues[i++];
-        assert(r.pval >= pvalue_corrected);
+        assert(r.pval <= pvalue_corrected);
 
         if (!c.drop_non_significant || (pvalue_corrected <= c.fdr && r.log_ratio >= c.log_ratio)) {
           const NCHGFilterResult res{r.pixel,     r.expected,   r.pval, pvalue_corrected,

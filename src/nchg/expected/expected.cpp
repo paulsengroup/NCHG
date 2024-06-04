@@ -44,6 +44,32 @@ static void process_all_chromosomes(FilePtr f, const ExpectedConfig &c) {
 }
 
 template <typename FilePtr>
+static void process_cis_chromosomes(FilePtr f, const ExpectedConfig &c) {
+  using File = remove_cvref_t<decltype(*f)>;
+  const auto evs = ExpectedValues<File>::cis_only(
+      f, {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
+          c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
+          c.interpolation_qtile, c.interpolation_window_size});
+  if (c.force) {
+    std::filesystem::remove(c.output_path);
+  }
+  evs.serialize(c.output_path);
+}
+
+template <typename FilePtr>
+static void process_trans_chromosomes(FilePtr f, const ExpectedConfig &c) {
+  using File = remove_cvref_t<decltype(*f)>;
+  const auto evs = ExpectedValues<File>::trans_only(
+      f, {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
+          c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
+          c.interpolation_qtile, c.interpolation_window_size});
+  if (c.force) {
+    std::filesystem::remove(c.output_path);
+  }
+  evs.serialize(c.output_path);
+}
+
+template <typename FilePtr>
 static void process_one_chromosome_pair(FilePtr f, const ExpectedConfig &c) {
   assert(c.chrom1 != "all");
   const auto &chrom1 = f->chromosomes().at(c.chrom1);
@@ -69,7 +95,7 @@ static void process_one_chromosome_pair(FilePtr f, const ExpectedConfig &c) {
 // clang-format on
 
 [[nodiscard]] static HiCFilePtr open_file_ptr(const std::filesystem::path &path,
-                                               std::uint32_t resolution) {
+                                              std::uint32_t resolution) {
   hictk::File f_(path.string(), resolution);
   return {std::visit(
       [&](auto &&ff) {
@@ -84,6 +110,14 @@ int run_nchg_expected(const ExpectedConfig &c) {
 
   std::visit(
       [&](const auto &f_) {
+        if (c.cis_only) {
+          process_cis_chromosomes(f_, c);
+          return;
+        }
+        if (c.trans_only) {
+          process_trans_chromosomes(f_, c);
+          return;
+        }
         if (c.chrom1 == "all") {
           assert(c.chrom2 == "all");
           process_all_chromosomes(f_, c);

@@ -85,6 +85,8 @@ struct ExpectedConfig {
 
   std::string chrom1{"all"};
   std::string chrom2{"all"};
+  bool cis_only{false};
+  bool trans_only{false};
 
   double mad_max{5.0};
   std::uint64_t min_delta{40'000};

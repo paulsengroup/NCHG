@@ -343,6 +343,16 @@ void Cli::make_expected_subcommand() {
     "Name of the second chromosome.\n"
     "Used to compute p-values only for a chromosome-chromosome matrix of interest.")
     ->capture_default_str();
+  sc.add_flag(
+    "--cis-only",
+    c.cis_only,
+    "Compute expected values from cis interactions only.")
+    ->capture_default_str();
+  sc.add_flag(
+    "--trans-only",
+    c.trans_only,
+    "Compute expected values from trans interactions only.")
+    ->capture_default_str();
   sc.add_option(
     "--min-delta",
     c.min_delta,
@@ -400,6 +410,13 @@ void Cli::make_expected_subcommand() {
   // clang-format on
 
   sc.get_option("--chrom2")->needs("--chrom1");
+
+  sc.get_option("--cis-only")->excludes("--trans-only");
+  sc.get_option("--cis-only")->excludes("--chrom1");
+  sc.get_option("--cis-only")->excludes("--chrom2");
+
+  sc.get_option("--trans-only")->excludes("--chrom1");
+  sc.get_option("--trans-only")->excludes("--chrom2");
 
   _config = std::monostate{};
 }

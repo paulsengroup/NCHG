@@ -536,7 +536,7 @@ static std::optional<ExpectedValues<hictk::File>> init_cis_expected_values(
 
 static std::size_t process_queries(
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
-    const ComputePvalConfig &c) {
+    const std::optional<ExpectedValues<hictk::File>> &expected_values, const ComputePvalConfig &c) {
   const auto output_dir = c.output_prefix.parent_path();
   if (!output_dir.empty() && output_dir != ".") {
     std::filesystem::create_directories(output_dir);
@@ -544,8 +544,6 @@ static std::size_t process_queries(
 
   write_chrom_sizes_to_file(hictk::File(c.path_to_hic, c.resolution).chromosomes(),
                             fmt::format(FMT_STRING("{}.chrom.sizes"), c.output_prefix), c.force);
-
-  const auto expected_values = init_cis_expected_values(c);
 
   if (c.threads > 1) {
     BS::thread_pool tpool(conditional_static_cast<BS::concurrency_t>(c.threads));
@@ -569,8 +567,10 @@ int run_nchg_compute(const ComputePvalConfig &c) {
 
   const hictk::File f(c.path_to_hic.string(), c.resolution);
   std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> chrom_pairs{};
+  std::optional<ExpectedValues<hictk::File>> expected_values{};
   if (c.cis_only) {
     chrom_pairs = init_cis_chromosomes(f.chromosomes());
+    expected_values = init_cis_expected_values(c);
   }
   if (c.trans_only) {
     chrom_pairs = init_trans_chromosomes(f.chromosomes());
@@ -582,7 +582,7 @@ int run_nchg_compute(const ComputePvalConfig &c) {
     std::copy(chrom_pairs2.begin(), chrom_pairs2.end(), std::back_inserter(chrom_pairs));
   }
 
-  const auto interactions_processed = process_queries(chrom_pairs, c);
+  const auto interactions_processed = process_queries(chrom_pairs, expected_values, c);
 
   const auto t1 = std::chrono::system_clock::now();
   const auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();

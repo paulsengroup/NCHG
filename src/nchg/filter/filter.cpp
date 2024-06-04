@@ -84,49 +84,70 @@ template <typename N>
 
 using ChromPair = std::pair<std::string, std::string>;
 
+struct PValue {
+  std::size_t i{};
+  double pvalue{};
+};
+
 [[nodiscard]] static auto read_records(const std::filesystem::path& path) {
   SPDLOG_INFO(FMT_STRING("reading records from {}"), path);
-  phmap::btree_map<ChromPair, std::vector<double>> records{};
+  phmap::btree_map<ChromPair, std::vector<PValue>> records{};
 
   ParquetStatsFile<NCHGResult> f(path);
 
+  std::size_t i = 0;
   for (const auto& record : f) {
     auto [it, inserted] =
         records.try_emplace(std::make_pair(std::string{record.pixel.coords.bin1.chrom().name()},
                                            std::string{record.pixel.coords.bin2.chrom().name()}),
-                            std::vector<double>{record.pval});
+                            std::vector<PValue>{{i, record.pval}});
 
     if (!inserted) {
-      it->second.emplace_back(record.pval);
+      it->second.emplace_back(PValue{i, record.pval});
     }
+    ++i;
   }
 
   return records;
 }
 
-[[nodiscard]] static std::vector<double> correct_pvalues_chrom_chrom(
-    const phmap::btree_map<ChromPair, std::vector<double>>& records) {
+static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<PValue>>& records) {
+  std::size_t num_records = 0;
+  for (const auto& [_, v] : records) {
+    num_records += v.size();
+  }
+
+  return phmap::flat_hash_map<std::size_t, double>(num_records);
+}
+
+[[nodiscard]] static phmap::flat_hash_map<std::size_t, double> correct_pvalues_chrom_chrom(
+    const phmap::btree_map<ChromPair, std::vector<PValue>>& records) {
   SPDLOG_INFO(
       FMT_STRING("proceeding to correct pvalues for individual chromosme pairs separately..."));
-  std::vector<double> corrected_records{};
-  BH_FDR<double> bh{};
+
+  auto corrected_records = alloc_pvalue_hashmap(records);
+
+  BH_FDR<PValue> bh;
   for (const auto& [cp, values] : records) {
     SPDLOG_INFO(FMT_STRING("processing {}:{} values..."), cp.first, cp.second);
     bh.clear();
     bh.add_records(values.begin(), values.end());
-    auto chrom_chrom_corrected_records = bh.correct();
-    corrected_records.insert(corrected_records.end(),
-                             std::make_move_iterator(chrom_chrom_corrected_records.begin()),
-                             std::make_move_iterator(chrom_chrom_corrected_records.end()));
+
+    for (auto&& record : bh.correct([](auto& record) -> double& { return record.pvalue; })) {
+      corrected_records.emplace(std::make_pair(record.i, record.pvalue));
+    }
   }
   return corrected_records;
 }
 
-[[nodiscard]] static std::vector<double> correct_pvalues_cis_trans(
-    const phmap::btree_map<ChromPair, std::vector<double>>& records) {
+[[nodiscard]] static phmap::flat_hash_map<std::size_t, double> correct_pvalues_cis_trans(
+    const phmap::btree_map<ChromPair, std::vector<PValue>>& records) {
   SPDLOG_INFO(FMT_STRING("proceeding to correct pvalues for cis and trans matrices separately..."));
-  BH_FDR<double> bh_cis{};
-  BH_FDR<double> bh_trans{};
+
+  auto corrected_records = alloc_pvalue_hashmap(records);
+
+  BH_FDR<PValue> bh_cis{};
+  BH_FDR<PValue> bh_trans{};
   for (const auto& [chroms, values] : records) {
     if (chroms.first == chroms.second) {
       bh_cis.add_records(values.begin(), values.end());
@@ -135,16 +156,19 @@ using ChromPair = std::pair<std::string, std::string>;
     }
   }
 
-  auto corrected_records = bh_cis.correct();
-  auto corrected_records_trans = bh_trans.correct();
-  corrected_records.insert(corrected_records.end(),
-                           std::make_move_iterator(corrected_records_trans.begin()),
-                           std::make_move_iterator(corrected_records_trans.end()));
+  for (auto&& record : bh_cis.correct([](auto& record) -> double& { return record.pvalue; })) {
+    corrected_records.emplace(std::make_pair(record.i, record.pvalue));
+  }
+
+  for (auto&& record : bh_trans.correct([](auto& record) -> double& { return record.pvalue; })) {
+    corrected_records.emplace(std::make_pair(record.i, record.pvalue));
+  }
+
   return corrected_records;
 }
 
-[[nodiscard]] static std::vector<double> correct_pvalues(
-    const phmap::btree_map<ChromPair, std::vector<double>>& records, const FilterConfig& c) {
+[[nodiscard]] static phmap::flat_hash_map<std::size_t, double> correct_pvalues(
+    const phmap::btree_map<ChromPair, std::vector<PValue>>& records, const FilterConfig& c) {
   if (c.correct_chrom_chrom_separately) {
     return correct_pvalues_chrom_chrom(records);
   }
@@ -154,12 +178,17 @@ using ChromPair = std::pair<std::string, std::string>;
   }
 
   SPDLOG_INFO(FMT_STRING("proceeding to correct all pvalues in one go"));
-  BH_FDR<double> bh{};
+  BH_FDR<PValue> bh{};
   for (const auto& [_, values] : records) {
     bh.add_records(values.begin(), values.end());
   }
 
-  return bh.correct();
+  auto corrected_records = alloc_pvalue_hashmap(records);
+
+  for (auto&& record : bh.correct([](auto& record) -> double& { return record.pvalue; })) {
+    corrected_records.emplace(std::make_pair(record.i, record.pvalue));
+  }
+  return corrected_records;
 }
 
 struct NCHGFilterResult {
@@ -192,6 +221,7 @@ int run_nchg_filter(const FilterConfig& c) {
         }
 
         const auto pvalue_corrected = corrected_pvalues[i++];
+        assert(r.pval <= pvalue_corrected);
 
         if (!c.drop_non_significant || (pvalue_corrected <= c.fdr && r.log_ratio >= c.log_ratio)) {
           const NCHGFilterResult res{r.pixel,     r.expected,   r.pval, pvalue_corrected,

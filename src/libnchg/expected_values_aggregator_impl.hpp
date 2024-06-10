@@ -176,6 +176,12 @@ inline std::size_t ExpectedValuesAggregator::aggregate_low_cov_bins(
     ++i;
   }
 
+  auto last_nnz = std::find_if(_observed_distances.rbegin(), _observed_distances.rend(),
+                               [](const auto n) { return n != 0; });
+  if (last_nnz != _observed_distances.rbegin()) {
+    --last_nnz;
+  }
+
   std::size_t i1{};
   for (; i < _observed_distances.size(); ++i) {
     auto pos_sum = _possible_distances[i];
@@ -196,6 +202,8 @@ inline std::size_t ExpectedValuesAggregator::aggregate_low_cov_bins(
       _observed_distances[i] = obs_sum / static_cast<double>(n);
     }
   }
+
+  i1 = std::min(i1, static_cast<std::size_t>(std::distance(last_nnz, _observed_distances.rend())));
 
   auto it1 = _observed_distances.begin() + static_cast<std::ptrdiff_t>(i1);
   auto it2 = _observed_distances.end();

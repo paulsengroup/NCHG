@@ -96,6 +96,7 @@ struct ExpectedConfig {
   bool interpolate_expected_values{true};
   double interpolation_qtile{0.975};
   std::uint32_t interpolation_window_size{750'000};
+  std::filesystem::path path_to_bin_mask{};
 
   std::uint8_t verbosity{3};
 };

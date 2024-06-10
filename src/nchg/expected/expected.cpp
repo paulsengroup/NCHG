@@ -27,16 +27,20 @@
 #include "nchg/common.hpp"
 #include "nchg/config.hpp"
 #include "nchg/expected_values.hpp"
+#include "nchg/io.hpp"
 #include "nchg/tools.hpp"
 
 namespace nchg {
 
 template <typename FilePtr>
 static void process_all_chromosomes(FilePtr f, const ExpectedConfig &c) {
+  const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
   const ExpectedValues evs(
-      f, {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
-          c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
-          c.interpolation_qtile, c.interpolation_window_size});
+      f,
+      {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
+       c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
+       c.interpolation_qtile, c.interpolation_window_size},
+      mask);
   if (c.force) {
     std::filesystem::remove(c.output_path);
   }
@@ -45,11 +49,15 @@ static void process_all_chromosomes(FilePtr f, const ExpectedConfig &c) {
 
 template <typename FilePtr>
 static void process_cis_chromosomes(FilePtr f, const ExpectedConfig &c) {
+  const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
+
   using File = remove_cvref_t<decltype(*f)>;
   const auto evs = ExpectedValues<File>::cis_only(
-      f, {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
-          c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
-          c.interpolation_qtile, c.interpolation_window_size});
+      f,
+      {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
+       c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
+       c.interpolation_qtile, c.interpolation_window_size},
+      mask);
   if (c.force) {
     std::filesystem::remove(c.output_path);
   }
@@ -58,11 +66,15 @@ static void process_cis_chromosomes(FilePtr f, const ExpectedConfig &c) {
 
 template <typename FilePtr>
 static void process_trans_chromosomes(FilePtr f, const ExpectedConfig &c) {
+  const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
+
   using File = remove_cvref_t<decltype(*f)>;
   const auto evs = ExpectedValues<File>::trans_only(
-      f, {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
-          c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
-          c.interpolation_qtile, c.interpolation_window_size});
+      f,
+      {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
+       c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
+       c.interpolation_qtile, c.interpolation_window_size},
+      mask);
   if (c.force) {
     std::filesystem::remove(c.output_path);
   }
@@ -71,6 +83,8 @@ static void process_trans_chromosomes(FilePtr f, const ExpectedConfig &c) {
 
 template <typename FilePtr>
 static void process_one_chromosome_pair(FilePtr f, const ExpectedConfig &c) {
+  const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
+
   assert(c.chrom1 != "all");
   const auto &chrom1 = f->chromosomes().at(c.chrom1);
   const auto &chrom2 = f->chromosomes().at(c.chrom2);
@@ -80,7 +94,8 @@ static void process_one_chromosome_pair(FilePtr f, const ExpectedConfig &c) {
       f, chrom1, chrom2,
       {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
        c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
-       c.interpolation_qtile, c.interpolation_window_size});
+       c.interpolation_qtile, c.interpolation_window_size},
+      mask);
   if (c.force) {
     std::filesystem::remove(c.output_path);
   }

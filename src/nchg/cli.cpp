@@ -402,6 +402,12 @@ void Cli::make_expected_subcommand() {
     "Cutoff used by the MAD-max filter to mask bad bins.")
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
+  sc.add_option(
+    "--bin-mask",
+    c.path_to_bin_mask,
+    "Path to a BED3+ file with a list of domains that should be masked.")
+    ->check(CLI::ExistingFile)
+    ->capture_default_str();
   sc.add_flag(
     "--force",
     c.force,

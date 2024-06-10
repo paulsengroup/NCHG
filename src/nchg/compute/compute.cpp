@@ -50,21 +50,6 @@
 
 namespace nchg {
 
-[[nodiscard]] static std::string_view truncate_bed3_record(std::string_view record,
-                                                           char sep = '\t') {
-  const auto pos1 = record.find(sep);
-  if (pos1 == std::string_view::npos) {
-    throw std::runtime_error("invalid bed record, expected 3 tokens, found 1");
-  }
-  const auto pos2 = record.find('\t', pos1 + 1);
-  if (pos2 == std::string_view::npos) {
-    throw std::runtime_error("invalid bed record, expected 3 tokens, found 2");
-  }
-  const auto pos3 = record.find('\t', pos2 + 1);
-
-  return record.substr(0, pos3);
-}
-
 [[nodiscard]] static std::vector<hictk::GenomicInterval> parse_domains(
     const hictk::Reference &chroms, const std::filesystem::path &path, std::string_view chrom1,
     std::string_view chrom2) {
@@ -105,9 +90,7 @@ namespace nchg {
       }
     }
 
-    std::sort(domains.begin(), domains.end());
-
-  } catch (const std::exception &e) {
+  } catch (const std::exception &) {
     if (!fs.eof()) {
       throw;
     }

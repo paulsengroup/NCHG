@@ -252,6 +252,12 @@ void Cli::make_compute_subcommand() {
   ->check(CLI::Bound(0.0, 1.0))
   ->capture_default_str();
   sc.add_option(
+    "--bin-mask",
+    c.path_to_bin_mask,
+    "Path to a BED3+ file with a list of domains that should be masked.")
+    ->check(CLI::ExistingFile)
+    ->capture_default_str();
+  sc.add_option(
     "--threads",
     c.threads,
     "Number of worker threads.")
@@ -299,6 +305,7 @@ void Cli::make_compute_subcommand() {
   sc.get_option("--expected-values")->excludes("--interpolate-expected-values");
   sc.get_option("--expected-values")->excludes("--evs-interpolation-qtile");
   sc.get_option("--expected-values")->excludes("--evs-interpolation-window");
+  sc.get_option("--expected-values")->excludes("--bin-mask");
 
   _config = std::monostate{};
 }

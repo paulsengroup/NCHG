@@ -123,11 +123,16 @@ template <typename File>
     return NCHG(f, chrom1, chrom2, ExpectedValues<File>::deserialize(c.path_to_expected_values));
   }
 
-  return NCHG<File>(
+  const auto bin_mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
+
+  const auto evs = ExpectedValues<File>::chromosome_pair(
       f, chrom1, chrom2,
       {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
        c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
-       c.interpolation_qtile, c.interpolation_window_size});
+       c.interpolation_qtile, c.interpolation_window_size},
+      bin_mask);
+
+  return NCHG<File>(f, chrom1, chrom2, evs);
 }
 
 static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
@@ -333,10 +338,16 @@ init_trans_chromosomes(const hictk::Reference &chroms) {
       std::string{chrom2.name()},
       "--threads",
       "1",
-      "--verbosity",
-      "2",
       "--resolution",
       fmt::to_string(c.resolution),
+      "--bad-bin-fraction",
+      fmt::to_string(c.bad_bin_fraction),
+      "--compression-level",
+      fmt::to_string(c.compression_lvl),
+      "--compression-method",
+      fmt::to_string(c.compression_method),
+      "--verbosity",
+      "2",
       c.path_to_hic.string(),
       output_path.string(),
   };
@@ -351,6 +362,25 @@ init_trans_chromosomes(const hictk::Reference &chroms) {
     args.emplace_back(fmt::to_string(c.min_delta));
     args.emplace_back("--max-delta");
     args.emplace_back(fmt::to_string(c.max_delta));
+    args.emplace_back("--bin-aggregation-possible-distances-cutoff");
+    args.emplace_back(fmt::to_string(c.bin_aggregation_possible_distances_cutoff));
+    args.emplace_back("--bin-aggregation-observed-distances-cutoff");
+    args.emplace_back(fmt::to_string(c.bin_aggregation_observed_distances_cutoff));
+    if (c.interpolate_expected_values) {
+      args.emplace_back("--interpolate-expected-values");
+    } else {
+      args.emplace_back("--no-interpolate-expected-values");
+    }
+    args.emplace_back("--evs-interpolation-qtile");
+    args.emplace_back(fmt::to_string(c.interpolation_qtile));
+    args.emplace_back("--evs-interpolation-window");
+    args.emplace_back(fmt::to_string(c.interpolation_window_size));
+    args.emplace_back("--mad-max");
+    args.emplace_back(fmt::to_string(c.mad_max));
+    if (!c.path_to_bin_mask.empty()) {
+      args.emplace_back("--bin-mask");
+      args.emplace_back(c.path_to_bin_mask.string());
+    }
   } else {
     args.emplace_back("--expected-values");
     args.emplace_back(c.path_to_expected_values.string());
@@ -508,10 +538,14 @@ static std::optional<ExpectedValues<hictk::File>> init_cis_expected_values(
     SPDLOG_INFO(FMT_STRING("initializing expected values for cis matrices..."));
     const auto f = std::make_shared<hictk::File>(c.path_to_hic.string(), c.resolution);
 
+    const auto bin_mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
+
     return {ExpectedValues<hictk::File>::cis_only(
-        f, {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
-            c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
-            c.interpolation_qtile, c.interpolation_window_size})};
+        f,
+        {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
+         c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
+         c.interpolation_qtile, c.interpolation_window_size},
+        bin_mask)};
   }
 
   return {};

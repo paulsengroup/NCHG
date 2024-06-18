@@ -175,7 +175,8 @@ jobs:
           build/src/nchg/NCHG filter out.parquet out.filtered.parquet --threads "$(nproc)"
           build/src/nchg/NCHG view out.parquet > /dev/null
           build/src/nchg/NCHG view out.filtered.parquet > /dev/null
-          build/src/nchg/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5
+          printf 'chr1\t0\t248956422' > mask.bed
+          build/src/nchg/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5 --bin-mask  mask.bed
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3

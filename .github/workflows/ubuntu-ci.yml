@@ -422,7 +422,8 @@ jobs:
 
       - name: Test NCHG expected
         run: |
-          bin/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5
+          printf 'chr1\t0\t248956422' > mask.bed
+          bin/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5 --bin-mask mask.bed
 
   ubuntu-ci-status-check:
     name: Status Check (Ubuntu CI)

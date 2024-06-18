@@ -49,6 +49,7 @@ struct ComputePvalConfig {
   double interpolation_qtile{0.975};
   std::uint32_t interpolation_window_size{750'000};
   double bad_bin_fraction{0.1};
+  std::filesystem::path path_to_bin_mask{};
 
   std::string compression_method{"zstd"};
   std::uint8_t compression_lvl{9};
@@ -96,6 +97,7 @@ struct ExpectedConfig {
   bool interpolate_expected_values{true};
   double interpolation_qtile{0.975};
   std::uint32_t interpolation_window_size{750'000};
+  std::filesystem::path path_to_bin_mask{};
 
   std::uint8_t verbosity{3};
 };

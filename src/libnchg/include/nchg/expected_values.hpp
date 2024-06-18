@@ -88,15 +88,19 @@ class ExpectedValues {
   template <typename OtherFile>
   friend class ExpectedValues;
 
-  explicit ExpectedValues(std::shared_ptr<const File> file, const Params& params_ = DefaultParams);
-  static ExpectedValues cis_only(std::shared_ptr<const File> file,
-                                 const Params& params_ = DefaultParams);
-  static ExpectedValues trans_only(std::shared_ptr<const File> file,
-                                   const Params& params_ = DefaultParams);
-  static ExpectedValues chromosome_pair(std::shared_ptr<const File> file,
-                                        const hictk::Chromosome& chrom1,
-                                        const hictk::Chromosome& chrom2,
-                                        const Params& params_ = DefaultParams);
+  explicit ExpectedValues(
+      std::shared_ptr<const File> file, const Params& params_ = DefaultParams,
+      const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask = {});
+  static ExpectedValues cis_only(
+      std::shared_ptr<const File> file, const Params& params_ = DefaultParams,
+      const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask = {});
+  static ExpectedValues trans_only(
+      std::shared_ptr<const File> file, const Params& params_ = DefaultParams,
+      const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask = {});
+  static ExpectedValues chromosome_pair(
+      std::shared_ptr<const File> file, const hictk::Chromosome& chrom1,
+      const hictk::Chromosome& chrom2, const Params& params_ = DefaultParams,
+      const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask = {});
 
   static ExpectedValues deserialize(const std::filesystem::path& path);
 
@@ -136,12 +140,18 @@ class ExpectedValues {
   void serialize(const std::filesystem::path& path) const;
 
  private:
-  void compute_expected_values_cis();
-  void compute_expected_values_trans();
+  void compute_expected_values_cis(
+      const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask);
+  void compute_expected_values_trans(
+      const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask);
 
-  void add_bin_mask(const hictk::Chromosome& chrom, std::vector<bool>&& mask);
-  void add_bin_mask(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2,
-                    std::pair<std::vector<bool>, std::vector<bool>>&& masks2);
+  void add_bin_mask(
+      const hictk::Chromosome& chrom, std::vector<bool>&& mask,
+      const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask_seed);
+  void add_bin_mask(
+      const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2,
+      std::pair<std::vector<bool>, std::vector<bool>>&& masks2,
+      const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask_seed);
 
   static void serialize_attributes(HighFive::File& f, const Params& params);
   static void serialize_chromosomes(HighFive::File& f, const hictk::Reference& chroms);
@@ -162,6 +172,8 @@ class ExpectedValues {
   deserialize_cis_profiles(const HighFive::File& f);
   [[nodiscard]] static auto deserialize_trans_profiles(const HighFive::File& f)
       -> phmap::btree_map<ChromPair, double>;
+
+  static void merge_bin_masks(std::vector<bool>& mask1, const std::vector<bool>& mask2);
 };
 }  // namespace nchg
 

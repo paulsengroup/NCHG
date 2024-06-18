@@ -50,8 +50,8 @@ class NCHGConan(ConanFile):
         return 17
 
     def requirements(self):
-        self.requires("arrow/16.0.0#c0b940c80fddf319983165f7588c279d")
-        self.requires("boost/1.85.0#7926babdab0a9779cc164d0af6c28d5e", force=True)
+        self.requires("arrow/16.1.0#f484da4c4c27c1eb3ead5d61b70635cd")
+        self.requires("boost/1.85.0#d9ae7996a5b917e0cfd4b738aa976dee", force=True)
         self.requires("bshoshany-thread-pool/4.1.0#be1802a8768416a6c9b1393cf0ce5e9c")
         self.requires("catch2/3.6.0#819bc5a82c2cb626916fc18ee1dbc45f")
         self.requires("cli11/2.4.2#1b431bda2fb2cd3efed633899abcd8cc")
@@ -60,10 +60,10 @@ class NCHGConan(ConanFile):
         self.requires("hdf5/1.14.3#31ccd8d4de83844f5db48471df1944a1")
         self.requires("hictk/0.0.12#8e413cd45528da38b5a41ccffee41d6d")
         self.requires("highfive/2.9.0#c57477beed8b0110fadeb6da8f48bcc5")
-        self.requires("parallel-hashmap/1.3.11#1e67f4855a3f7cdeb977cc472113baf7")
+        self.requires("parallel-hashmap/1.3.12#dc7755096d8a1fac7792fdd85760b6ca")
         self.requires("readerwriterqueue/1.0.6#aaa5ff6fac60c2aee591e9e51b063b83")
         self.requires("spdlog/1.14.1#972bbf70be1da4bc57ea589af0efde03", force=True)
-        self.requires("thrift/0.18.1#4e5674c24f99dde562c3926f9cb2ff9d", force=True)
+        self.requires("thrift/0.20.0#31cd4d031653f03467ba430c4ecdd6d8", force=True)
         self.requires("zstd/1.5.6#afefe79a309bc2a7b9f56c2093504c8b", force=True)
 
     def validate(self):

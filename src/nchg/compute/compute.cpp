@@ -394,10 +394,12 @@ init_trans_chromosomes(const hictk::Reference &chroms) {
     boost::process::child proc(
         c.exec.string(), args,
         boost::process::std_in<boost::process::null, boost::process::std_out> boost::process::null);
-    SPDLOG_DEBUG(FMT_STRING("spawned worker process {}..."), proc.id());
     if (proc.running()) {
+      SPDLOG_DEBUG(FMT_STRING("spawned worker process {}..."), proc.id());
       return proc;
     }
+    SPDLOG_DEBUG(FMT_STRING("spawning worker process failed (attempt {}/10)..."), proc.id(),
+                 attempt + 1);
     proc.terminate();
   }
 

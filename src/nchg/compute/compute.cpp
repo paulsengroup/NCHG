@@ -390,16 +390,19 @@ init_trans_chromosomes(const hictk::Reference &chroms) {
     args.emplace_back("--force");
   }
 
-  boost::process::child proc(
-      c.exec.string(), args,
-      boost::process::std_in<boost::process::null, boost::process::std_out> boost::process::null);
-  SPDLOG_DEBUG(FMT_STRING("spawned worker process {}..."), proc.id());
-  if (!proc.running()) {
-    throw std::runtime_error(fmt::format(FMT_STRING("failed to spawn worker process: {} {}"),
-                                         c.exec.string(), fmt::join(args, " ")));
+  for (std::size_t attempt = 0; attempt < 10; ++attempt) {
+    boost::process::child proc(
+        c.exec.string(), args,
+        boost::process::std_in<boost::process::null, boost::process::std_out> boost::process::null);
+    SPDLOG_DEBUG(FMT_STRING("spawned worker process {}..."), proc.id());
+    if (proc.running()) {
+      return proc;
+    }
+    proc.terminate();
   }
 
-  return proc;
+  throw std::runtime_error(fmt::format(FMT_STRING("failed to spawn worker process: {} {}"),
+                                       c.exec.string(), fmt::join(args, " ")));
 }
 
 template <typename File>

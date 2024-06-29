@@ -108,6 +108,7 @@ class ExpectedValues {
   template <typename OutFile>
   [[nodiscard]] ExpectedValues<OutFile> cast() const;
 
+  [[nodiscard]] std::uint32_t resolution() const noexcept;
   [[nodiscard]] const std::vector<double>& weights() const noexcept;
   [[nodiscard]] auto params() const noexcept -> Params;
 

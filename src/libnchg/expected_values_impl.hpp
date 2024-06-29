@@ -190,6 +190,11 @@ inline ExpectedValues<OutFile> ExpectedValues<File>::cast() const {
 }
 
 template <typename File>
+inline std::uint32_t ExpectedValues<File>::resolution() const noexcept {
+  return _resolution;
+}
+
+template <typename File>
 inline const std::vector<double> &ExpectedValues<File>::weights() const noexcept {
   return _expected_weights;
 }
@@ -690,8 +695,7 @@ auto ExpectedValues<File>::deserialize_bin_masks(HighFive::File &f)
     }
 
     auto mask1_ptr = std::make_shared<const std::vector<bool>>(std::move(mask1));
-    auto mask2_ptr =
-        mask2.empty() ? mask1_ptr : std::make_shared<const std::vector<bool>>(std::move(mask2));
+    auto mask2_ptr = mask2.empty() ? mask1_ptr : std::make_shared<const std::vector<bool>>(mask2);
     buffer.emplace(std::make_pair(chrom1, chrom2), std::make_pair(mask1_ptr, mask2_ptr));
   }
 

@@ -620,6 +620,13 @@ int run_nchg_compute(const ComputePvalConfig &c) {
     expected_values = ExpectedValues<hictk::File>::deserialize(c.path_to_expected_values);
   }
 
+  if (expected_values.has_value() && expected_values->resolution() != c.resolution) {
+    throw std::runtime_error(
+        fmt::format(FMT_STRING("mismatch in file resolution: expected values have been computed "
+                               "for {}bp resolution but given Hi-C matrix has {}bp resolution"),
+                    expected_values->resolution(), f.resolution()));
+  }
+
   const auto interactions_processed = process_queries(chrom_pairs, expected_values, c);
 
   const auto t1 = std::chrono::system_clock::now();

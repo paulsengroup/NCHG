@@ -220,8 +220,8 @@ inline auto NCHG<File>::iterator::operator*() const -> const_reference {
 
   const auto exp = std::max(_exp->at(i1, i2), cutoff);
 
-  const auto delta = intra_matrix ? p.coords.bin2.start() - p.coords.bin1.start() : _min_delta;
-  if (delta < _min_delta || delta >= _max_delta) {
+  const auto delta = p.coords.bin2.start() - p.coords.bin1.start();
+  if (intra_matrix && (delta < _min_delta || delta >= _max_delta)) {
     _value = {p, exp, 1.0, 0.0, 0.0, 0.0};
     return _value;
   }

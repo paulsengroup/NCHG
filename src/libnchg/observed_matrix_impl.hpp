@@ -35,7 +35,7 @@ inline auto ObservedMatrix<PixelIt>::compute_stats(
     const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
     const std::vector<bool> &bin_mask1, const std::vector<bool> &bin_mask2,
     std::uint64_t min_delta_, std::uint64_t max_delta_) {
-  assert(min_delta_ < max_delta_);
+  assert(min_delta_ <= max_delta_);
   struct Result {
     std::shared_ptr<std::vector<std::uint64_t>> marginals1{
         std::make_shared<std::vector<std::uint64_t>>()};

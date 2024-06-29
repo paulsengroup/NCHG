@@ -49,6 +49,7 @@ inline ExpectedValues<File>::ExpectedValues(
     std::shared_ptr<const File> file, const Params &params_,
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask)
     : _fp(std::move(file)),
+      _resolution(!!_fp ? _fp->resolution() : std::uint32_t{0}),
       _mad_max(params_.mad_max),
       _min_delta(params_.min_delta),
       _max_delta(params_.max_delta),
@@ -80,6 +81,7 @@ inline ExpectedValues<File> ExpectedValues<File>::cis_only(
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask) {
   ExpectedValues ev(nullptr, params_);
   ev._fp = std::move(file);
+  ev._resolution = ev._fp->resolution();
   if (ev._fp) {
     ev.compute_expected_values_cis(bin_mask);
   }
@@ -92,6 +94,7 @@ inline ExpectedValues<File> ExpectedValues<File>::trans_only(
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask) {
   ExpectedValues ev(nullptr, {params_.mad_max, 0, 0, 0, 0, false, 0, 0});
   ev._fp = std::move(file);
+  ev._resolution = ev._fp->resolution();
   if (ev._fp) {
     ev.compute_expected_values_trans(bin_mask);
   }
@@ -107,6 +110,7 @@ inline ExpectedValues<File> ExpectedValues<File>::chromosome_pair(
 
   ExpectedValues ev(nullptr, params);
   ev._fp = std::move(file);
+  ev._resolution = ev._fp->resolution();
   if (chrom1 == chrom2) {
     ev.compute_expected_values_cis(bin_mask);
     return ev;
@@ -117,10 +121,10 @@ inline ExpectedValues<File> ExpectedValues<File>::chromosome_pair(
       sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), ev._fp->bins_ptr());
 
   if (!ev._bin_masks.contains(std::make_pair(chrom1, chrom2))) {
-    ev.add_bin_mask(chrom1, chrom2,
-                    mad_max_filtering(jsel.begin(), jsel.end(), chrom1, chrom2,
-                                      ev._fp->resolution(), ev._mad_max),
-                    bin_mask);
+    ev.add_bin_mask(
+        chrom1, chrom2,
+        mad_max_filtering(jsel.begin(), jsel.end(), chrom1, chrom2, ev._resolution, ev._mad_max),
+        bin_mask);
   }
 
   const ExpectedMatrix em(jsel.begin(), jsel.end(), chrom1, chrom2, ev._fp->bins(),
@@ -137,6 +141,8 @@ template <typename File>
 inline ExpectedValues<File> ExpectedValues<File>::deserialize(const std::filesystem::path &path) {
   ExpectedValues<File> ev{nullptr};
   HighFive::File f(path.string());
+
+  ev._resolution = f.getAttribute("resolution").read<std::uint32_t>();
 
   const auto params = deserialize_attributes(f);
   ev._mad_max = params.mad_max;
@@ -221,7 +227,7 @@ inline std::vector<double> ExpectedValues<File>::expected_values(const hictk::Ch
         FMT_STRING("expected values for \"{}\" are not available: out of range"), chrom.name()));
   }
 
-  const auto num_bins = (chrom.size() + _fp->resolution() - 1) / _fp->resolution();
+  const auto num_bins = (chrom.size() + _resolution - 1) / _resolution;
   assert(num_bins <= _expected_weights.size());
 
   std::vector<double> weights(_expected_weights.begin(),
@@ -335,7 +341,7 @@ inline void ExpectedValues<File>::serialize(const std::filesystem::path &path) c
 
   const auto source_file = std::filesystem::path{_fp->path()}.filename().string();
   f.createAttribute("source-file", source_file);
-  f.createAttribute("resolution", _fp->resolution());
+  f.createAttribute("resolution", _resolution);
   serialize_attributes(f, params());
 
   serialize_chromosomes(f, _fp->chromosomes());
@@ -370,8 +376,7 @@ inline void ExpectedValues<File>::compute_expected_values_cis(
 
     if (!_bin_masks.contains(std::make_pair(chrom, chrom))) {
       const hictk::transformers::JoinGenomicCoords jsel(first, last, _fp->bins_ptr());
-      add_bin_mask(chrom,
-                   mad_max_filtering(jsel.begin(), jsel.end(), chrom, _fp->resolution(), _mad_max),
+      add_bin_mask(chrom, mad_max_filtering(jsel.begin(), jsel.end(), chrom, _resolution, _mad_max),
                    bin_mask_seed);
     }
 
@@ -419,7 +424,7 @@ inline void ExpectedValues<File>::compute_expected_values_cis(
 
   _expected_weights = aggr.weights();
   const auto &chrom = _fp->chromosomes().longest_chromosome();
-  const auto num_bins = (chrom.size() + _fp->resolution() - 1) / _fp->resolution();
+  const auto num_bins = (chrom.size() + _resolution - 1) / _resolution;
   _expected_weights.resize(num_bins, std::numeric_limits<double>::quiet_NaN());
 }
 
@@ -445,10 +450,10 @@ inline void ExpectedValues<File>::compute_expected_values_trans(
           sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), _fp->bins_ptr());
 
       if (!_bin_masks.contains(std::make_pair(chrom1, chrom2))) {
-        add_bin_mask(chrom1, chrom2,
-                     mad_max_filtering(jsel.begin(), jsel.end(), chrom1, chrom2, _fp->resolution(),
-                                       _mad_max),
-                     bin_mask_seed);
+        add_bin_mask(
+            chrom1, chrom2,
+            mad_max_filtering(jsel.begin(), jsel.end(), chrom1, chrom2, _resolution, _mad_max),
+            bin_mask_seed);
       }
 
       const ExpectedMatrix em(jsel.begin(), jsel.end(), chrom1, chrom2, _fp->bins(),

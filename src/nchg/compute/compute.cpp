@@ -616,7 +616,7 @@ int run_nchg_compute(const ComputePvalConfig &c) {
     std::copy(chrom_pairs2.begin(), chrom_pairs2.end(), std::back_inserter(chrom_pairs));
   }
 
-  if (!expected_values.has_value() && !c.path_to_expected_values.empty() && c.threads == 1) {
+  if (!expected_values.has_value() && !c.path_to_expected_values.empty()) {
     expected_values = ExpectedValues<hictk::File>::deserialize(c.path_to_expected_values);
   }
 

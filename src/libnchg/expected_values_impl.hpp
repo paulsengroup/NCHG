@@ -686,7 +686,7 @@ auto ExpectedValues<File>::deserialize_bin_masks(HighFive::File &f)
 
     auto mask1_ptr = std::make_shared<const std::vector<bool>>(std::move(mask1));
     auto mask2_ptr =
-        mask2.empty() ? mask1_ptr : std::make_shared<const std::vector<bool>>(std::move(mask2));
+        mask2.empty() ? mask1_ptr : std::make_shared<const std::vector<bool>>(mask2);
     buffer.emplace(std::make_pair(chrom1, chrom2), std::make_pair(mask1_ptr, mask2_ptr));
   }
 

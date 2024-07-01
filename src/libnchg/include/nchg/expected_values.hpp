@@ -41,6 +41,7 @@ class ExpectedValues {
   using PixelIt =
       decltype(std::declval<hictk::transformers::JoinGenomicCoords<ThinPixelIt>>().begin());
   std::shared_ptr<const File> _fp{};
+  std::uint32_t _resolution{};
 
   using ChromPair = std::pair<hictk::Chromosome, hictk::Chromosome>;
   using BinMask = std::shared_ptr<const std::vector<bool>>;
@@ -107,6 +108,7 @@ class ExpectedValues {
   template <typename OutFile>
   [[nodiscard]] ExpectedValues<OutFile> cast() const;
 
+  [[nodiscard]] std::uint32_t resolution() const noexcept;
   [[nodiscard]] const std::vector<double>& weights() const noexcept;
   [[nodiscard]] auto params() const noexcept -> Params;
 

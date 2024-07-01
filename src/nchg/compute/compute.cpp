@@ -554,6 +554,23 @@ static std::optional<ExpectedValues<hictk::File>> init_cis_expected_values(
 static std::size_t process_queries(
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
     const std::optional<ExpectedValues<hictk::File>> &expected_values, const ComputePvalConfig &c) {
+  if (expected_values.has_value()) {
+    for (const auto &[chrom1, chrom2] : chrom_pairs) {
+      try {
+        if (chrom1 == chrom2) {
+          std::ignore = expected_values->expected_values(chrom1);
+        } else {
+          std::ignore = expected_values->expected_value(chrom1, chrom2);
+        }
+      } catch (const std::out_of_range &) {
+        throw std::runtime_error(
+            fmt::format(FMT_STRING("user-specified expected value file does not contain "
+                                   "information for chromosome pair {}:{}"),
+                        chrom1.name(), chrom2.name()));
+      }
+    }
+  }
+
   const auto output_dir = c.output_prefix.parent_path();
   if (!output_dir.empty() && output_dir != ".") {
     std::filesystem::create_directories(output_dir);
@@ -597,6 +614,17 @@ int run_nchg_compute(const ComputePvalConfig &c) {
     chrom_pairs = init_cis_chromosomes(f.chromosomes());
     const auto chrom_pairs2 = init_trans_chromosomes(f.chromosomes());
     std::copy(chrom_pairs2.begin(), chrom_pairs2.end(), std::back_inserter(chrom_pairs));
+  }
+
+  if (!expected_values.has_value() && !c.path_to_expected_values.empty()) {
+    expected_values = ExpectedValues<hictk::File>::deserialize(c.path_to_expected_values);
+  }
+
+  if (expected_values.has_value() && expected_values->resolution() != f.resolution()) {
+    throw std::runtime_error(
+        fmt::format(FMT_STRING("mismatch in file resolution: expected values have been computed "
+                               "for {}bp resolution but given Hi-C matrix has {}bp resolution"),
+                    expected_values->resolution(), f.resolution()));
   }
 
   const auto interactions_processed = process_queries(chrom_pairs, expected_values, c);

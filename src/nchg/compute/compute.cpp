@@ -604,7 +604,9 @@ int run_nchg_compute(const ComputePvalConfig &c) {
   std::optional<ExpectedValues<hictk::File>> expected_values{};
   if (c.cis_only) {
     chrom_pairs = init_cis_chromosomes(f.chromosomes());
-    expected_values = init_cis_expected_values(c);
+    expected_values = c.path_to_expected_values.empty()
+                          ? init_cis_expected_values(c)
+                          : ExpectedValues<hictk::File>::deserialize(c.path_to_expected_values);
   }
   if (c.trans_only) {
     chrom_pairs = init_trans_chromosomes(f.chromosomes());

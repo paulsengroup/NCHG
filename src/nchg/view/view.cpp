@@ -170,7 +170,7 @@ static void process_record(const NCHGFilterResult& record, bool filter_by_coords
 
   fmt::print(FMT_COMPILE("{:s}\t{:d}\t{:d}\t"
                          "{:s}\t{:d}\t{:d}\t"
-                         "{:g}\t{:g}\t{:d}\t{:g}\t{:g}\t{:g}\n"),
+                         "{:g}\t{:g}\t{:d}\t{:g}\t{:g}\t{:g}\t{:g}\n"),
              record.pixel.coords.bin1.chrom().name(), record.pixel.coords.bin1.start(),
              record.pixel.coords.bin1.end(), record.pixel.coords.bin2.chrom().name(),
              record.pixel.coords.bin2.start(), record.pixel.coords.bin2.end(), record.pval,

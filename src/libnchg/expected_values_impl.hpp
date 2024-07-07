@@ -92,7 +92,8 @@ template <typename File>
 inline ExpectedValues<File> ExpectedValues<File>::trans_only(
     std::shared_ptr<const File> file, const Params &params_,
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask) {
-  ExpectedValues ev(nullptr, {params_.mad_max, 0, 0, 0, 0, false, 0, 0});
+  ExpectedValues ev(
+      nullptr, {params_.mad_max, 0, std::numeric_limits<std::uint64_t>::max(), 0, 0, false, 0, 0});
   ev._fp = std::move(file);
   ev._resolution = ev._fp->resolution();
   if (ev._fp) {

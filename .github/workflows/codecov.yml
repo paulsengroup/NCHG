@@ -133,7 +133,6 @@ jobs:
                 -DNCHG_ENABLE_TESTING=ON                      \
                 -DCMAKE_C_FLAGS="$cov_flags"                  \
                 -DCMAKE_CXX_FLAGS="$cov_flags"                \
-                -DCMAKE_STATIC_LINKER_FLAGS="$cov_flags"      \
                 -S .                                          \
                 -B build
 
@@ -350,8 +349,8 @@ jobs:
 
       - name: Test NCHG compute (mt)
         run: |
-          LLVM_PROFILE_FILE="$PWD/nchg.compute-mt.profraw"
-          
+          LLVM_PROFILE_FILE="$PWD/nchg.compute-mt.%$(nproc)m.profraw"
+
           sudo -u devel                                        \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
           build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --threads "$(nproc)" out

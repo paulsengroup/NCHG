@@ -142,10 +142,6 @@ jobs:
 
             return { include: includes }
 
-  cache-test-dataset:
-    name: Cache test dataset
-    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@main
-
   build-conan-deps:
     name: Build Conan deps
     uses: paulsengroup/nchg/.github/workflows/build-conan-deps.yml@main

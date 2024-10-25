@@ -100,7 +100,10 @@ jobs:
             VERSION="$GIT_TAG"
           fi
 
-          CACHE_REGISTRY='ghcr.io/${{ github.repository }}:buildcache'
+          REPO='${{ github.repository }}'
+          REPO_LOWERCASE="${REPO,,}"
+
+          CACHE_REGISTRY="ghcr.io/${REPO_LOWERCASE}:buildcache"
 
           echo "C_COMPILER=$C_COMPILER" | tee -a "$GITHUB_OUTPUT"
           echo "CXX_COMPILER=$CXX_COMPILER" | tee -a "$GITHUB_OUTPUT"
@@ -114,6 +117,7 @@ jobs:
           echo "CREATION_DATE=$CREATION_DATE" | tee -a "$GITHUB_OUTPUT"
           echo "GIT_TAG=$GIT_TAG" | tee -a "$GITHUB_OUTPUT"
           echo "VERSION=$VERSION" | tee -a "$GITHUB_OUTPUT"
+          echo "REPO_LOWERCASE=$REPO_LOWERCASE" | tee -a "$GITHUB_OUTPUT"
           echo "CACHE_REGISTRY_X86=$CACHE_REGISTRY-x86" | tee -a "$GITHUB_OUTPUT"
           echo "CACHE_REGISTRY_ARM64=$CACHE_REGISTRY-arm64" | tee -a "$GITHUB_OUTPUT"
 
@@ -121,8 +125,8 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          # images: ${{ github.repository }},ghcr.io/${{ github.repository }}
-          images: ghcr.io/${{ github.repository }}
+          # images: ${{ steps.build-args.outputs.REPO_LOWERCASE }},ghcr.io/${{ steps.build-args.outputs.REPO_LOWERCASE }}
+          images: ghcr.io/${{ steps.build-args.outputs.REPO_LOWERCASE }}
           flavor: |
             latest=true
           tags: |

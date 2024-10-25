@@ -409,7 +409,7 @@ jobs:
             ${{ matrix.build_type }}-\
             ${{ matrix.developer_mode }}"
 
-      - name: Extract binaries and test dataset
+      - name: Extract binaries
         run: zstd -dcf unit-tests.tar.zst | tar -xf -
 
       - name: Add test user
@@ -482,15 +482,11 @@ jobs:
             ${{ matrix.build_type }}-\
             ${{ matrix.developer_mode }}"
 
-      - name: Extract binaries and test dataset
+      - name: Extract binaries
         run: tar -xf binaries.tar.zst
 
       - name: Add test user
         run: useradd devel
-
-      - name: Extract binaries and test dataset
-        run: |
-          zstd -dcf binaries.tar.zst | tar -xf -
 
       - name: Test NCHG compute (mt)
         run: |

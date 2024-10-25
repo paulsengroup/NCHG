@@ -20,27 +20,29 @@ name: Run Codecov
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     paths:
-      - ".github/.codecov.yml"
+      - ".github/codecov.yml"
+      - ".github/workflows/build-conan-deps.yml"
       - ".github/workflows/codecov.yml"
       - "cmake/**"
       - "src/**"
       - "test/**"
       - "CMakeLists.txt"
       - "conanfile.py"
-    tags:
-      - 'v*.*.*'
+      - "utils/devel/collect_coverage_data.py"
 
   pull_request:
     paths:
-      - ".github/.codecov.yml"
+      - ".github/codecov.yml"
+      - ".github/workflows/build-conan-deps.yml"
       - ".github/workflows/codecov.yml"
       - "cmake/**"
       - "src/**"
       - "test/**"
       - "CMakeLists.txt"
       - "conanfile.py"
+      - "utils/devel/collect_coverage_data.py"
 
 # https://stackoverflow.com/a/72408109
 concurrency:
@@ -51,20 +53,27 @@ defaults:
   run:
     shell: bash
 
-env:
-  CCACHE_DIR: "/opt/ccache-cache"
-  CCACHE_COMPILERCHECK: "content"
-  CCACHE_COMPRESSLEVEL: "13"
-  CCACHE_MAXSIZE: "200M"
-  CONAN_HOME: "/opt/conan/"
-
 jobs:
-  run-codecov:
-    name: Codecov
+  build-conan-deps:
+    name: Build Conan deps
+    uses: paulsengroup/nchg/.github/workflows/build-conan-deps.yml@main
+    with:
+      os: ubuntu-20.04
+
+  build-project:
+    name: Build project
+    needs: build-conan-deps
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-gcc-14
-      options: '--user=root'
+      image: ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-clang-19
+      options: "--user=root"
+
+    env:
+      CCACHE_DIR: "/opt/ccache-cache"
+      CCACHE_COMPILERCHECK: "content"
+      CCACHE_COMPRESSLEVEL: "1"
+      CCACHE_MAXSIZE: "500M"
+      CONAN_HOME: "/opt/conan/"
 
     steps:
       - uses: actions/checkout@v4
@@ -76,124 +85,358 @@ jobs:
       - name: Generate cache key
         id: cache-key
         run: |
-          hash="${{ hashFiles('conanfile.py', '.github/workflows/codecov.yml') }}"
+          conanfile_hash="${{ hashFiles('conanfile.py') }}"
 
           # This can be used by to always update a cache entry (useful e.g. for ccache)
           current_date="$(date '+%s')"
 
-          ccache_key_prefix="codecov-ccache-$hash"
+          ccache_key_prefix="codecov-ccache-$conanfile_hash"
 
-          echo "conan-key=codecov-$hash" >> $GITHUB_OUTPUT
-          echo "ccache-key=${ccache_key_prefix}-${current_date}" >> $GITHUB_OUTPUT
-          echo "ccache-restore-key=$ccache_key_prefix" >> $GITHUB_OUTPUT
+          echo "ccache-key=${ccache_key_prefix}-$GITHUB_REF-${current_date}" | tee -a "$GITHUB_OUTPUT"
+          echo "ccache-restore-key-1=$ccache_key_prefix-$GITHUB_REF" | tee -a "$GITHUB_OUTPUT"
+          echo "ccache-restore-key-2=$ccache_key_prefix" | tee -a "$GITHUB_OUTPUT"
 
       - name: Restore Conan cache
-        id: cache-conan
         uses: actions/cache/restore@v4
         with:
-          key: conan-${{ steps.cache-key.outputs.conan-key }}
-          path: ${{ env.CONAN_HOME }}
+          key: ${{ needs.build-conan-deps.outputs.conan-key }}
+          path: ${{ env.CONAN_HOME }}/p
+          fail-on-cache-miss: true
 
-      - name: Clean Conan cache (pre-build)
-        if: steps.cache-conan.outputs.cache-hit != 'true'
-        run: |
-          conan cache clean "*" --build
-          conan cache clean "*" --download
-          conan cache clean "*" --source
-          conan remove --confirm "*"
-
-      - name: Install build dependencies
-        run: |
-          conan install .                        \
-             --build=missing                     \
-             -pr:b="$CONAN_DEFAULT_PROFILE_PATH" \
-             -pr:h="$CONAN_DEFAULT_PROFILE_PATH" \
-             -s build_type=Debug                 \
-             -s compiler.libcxx=libstdc++11      \
-             -s compiler.cppstd=17               \
-             --output-folder=build
-
-      - name: Clean Conan cache (post-build)
-        if: steps.cache-conan.outputs.cache-hit != 'true'
-        run: |
-          conan cache clean "*" --build
-          conan cache clean "*" --download
-          conan cache clean "*" --source
-
-      - name: Save Conan cache
-        uses: actions/cache/save@v4
-        if: steps.cache-conan.outputs.cache-hit != 'true'
+      - name: Restore CMake configs
+        uses: actions/cache/restore@v4
         with:
-          key: conan-${{ steps.cache-key.outputs.conan-key }}
-          path: ${{ env.CONAN_HOME }}
+          key: ${{ needs.build-conan-deps.outputs.cmake-prefix-relwithdebinfo-key }}
+          path: /tmp/cmake-prefix-rwdi.tar
+          fail-on-cache-miss: true
+
+      - name: Extract CMake configs
+        run: |
+          mkdir conan-env
+          tar -xf /tmp/cmake-prefix-rwdi.tar -C conan-env/ --strip-components=1
 
       - name: Configure project
         run: |
-          cmake -DCMAKE_BUILD_TYPE=Debug                      \
-                -DCMAKE_PREFIX_PATH="$PWD/build"              \
+          cov_flags='-fprofile-instr-generate -fcoverage-mapping -fcoverage-mcdc'
+
+          cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo             \
+                -DCMAKE_PREFIX_PATH="$PWD/conan-env"          \
                 -DENABLE_DEVELOPER_MODE=ON                    \
-                -DOPT_ENABLE_COVERAGE=ON                      \
+                -DOPT_ENABLE_INTERPROCEDURAL_OPTIMIZATION=OFF \
                 -DOPT_ENABLE_SANITIZER_ADDRESS=OFF            \
+                -DOPT_ENABLE_SANITIZER_LEAK=OFF               \
+                -DOPT_ENABLE_SANITIZER_POINTER_COMPARE=OFF    \
+                -DOPT_ENABLE_SANITIZER_POINTER_SUBTRACT=OFF   \
                 -DOPT_ENABLE_SANITIZER_UNDEFINED_BEHAVIOR=OFF \
+                -DOPT_ENABLE_CPPCHECK=OFF                     \
                 -DOPT_ENABLE_CLANG_TIDY=OFF                   \
                 -DNCHG_ENABLE_TESTING=ON                      \
+                -DCMAKE_C_FLAGS="$cov_flags"                  \
+                -DCMAKE_CXX_FLAGS="$cov_flags"                \
                 -S .                                          \
                 -B build
 
-      - name: Cache Ccache folder
-        uses: actions/cache@v4
+      - name: Restore Ccache folder
+        id: cache-ccache
+        uses: actions/cache/restore@v4
         with:
-          key: ${{ steps.cache-key.outputs.ccache-key }}
-          restore-keys: ${{ steps.cache-key.outputs.ccache-restore-key }}
+          key: ${{ steps.cache-key.outputs.ccache-restore-key-1 }}
+          restore-keys: ${{ steps.cache-key.outputs.ccache-restore-key-2 }}
           path: ${{ env.CCACHE_DIR }}
+
+      - name: Reset Ccache stats
+        run: ccache --zero-stats
 
       - name: Build project
         run: cmake --build build -j $(nproc)
 
-      - name: Print Ccache statistics
-        run: ccache -s
+      - name: Package build folder
+        run: tar --exclude='*.o' -cf - build/ | zstd -T0 -13 -o build.tar.zst
+
+      - name: Upload build folder
+        uses: actions/upload-artifact@v4
+        with:
+          name: "build-codecov"
+          path: build.tar.zst
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Print Ccache statistics (pre-cleanup)
+        run: |
+          ccache --show-stats \
+                 --show-compression \
+                 --verbose
+
+      - name: Cleanup Ccache folder
+        run: |
+          ccache --evict-older-than=14400s # 4h
+          ccache --recompress=19 --recompress-threads="$(nproc)"
+          ccache --cleanup
+
+      - name: Print Ccache statistics (post-cleanup)
+        run: |
+          ccache --show-stats \
+                 --show-compression \
+                 --verbose
+
+      - name: Save Ccache folder
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ steps.cache-key.outputs.ccache-key }}
+          path: ${{ env.CCACHE_DIR }}
+        env:
+          ZSTD_CLEVEL: 1
+
+      - name: Generate list of stale cache entries
+        id: stale-cache
+        if: steps.cache-ccache.outputs.cache-matched-key != ''
+        run: |
+          fname='stale-cache-codecov.txt'
+          echo '${{ steps.cache-ccache.outputs.cache-matched-key }}' > "$fname"
+
+          echo "name=$fname" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Upload stale cache entries
+        if: steps.cache-ccache.outputs.cache-matched-key != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.stale-cache.outputs.name }}
+          path: "${{ steps.stale-cache.outputs.name }}"
+          if-no-files-found: error
+          retention-days: 1
+
+  clean-stale-cache:
+    needs: [build-project]
+    name: Evict stale cache entries
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: stale-cache-*
+          merge-multiple: true
+
+      - name: Evict cache entries
+        continue-on-error: true
+        run: |
+          set -x
+          while read entry; do
+            if ! grep -q '/heads/main' <(echo "$entry"); then
+              gh cache delete --repo '${{ github.repository }}' "$entry"
+            fi
+          done < <(cat stale-cache*.txt | grep -v '^$')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  run-unit-tests:
+    name: Run unit tests
+    needs: [build-project]
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-clang-19
+      options: "--user=root"
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Download unit tests artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: "build-codecov"
+
+      - name: Extract binaries
+        run: tar -xf build.tar.zst
+
+      - name: Add test user
+        run: useradd devel
+
+      - name: Fix permissions
+        run: |
+          chown -R devel:devel build/
+
+      - name: Setup dependencies
+        run: |
+          apt-get update
+          apt-get install -q -y --no-install-recommends \
+            gpg \
+            gpg-agent \
+            sudo \
+            tar
 
       - name: Run unit tests
         run: |
-          ctest --test-dir build/   \
-                --schedule-random   \
-                --output-on-failure \
-                --no-tests=error    \
-                --timeout 90        \
-                -j $(nproc) |&
-          head -n 1000
+          readarray -t -d '' binaries < <(find build/test/units/ -type f -executable | xargs printf '%q\0')
 
-      - name: Run integration tests
+          mkdir profiles
+          chown devel:devel profiles
+
+          for bin in "${binaries[@]}"; do
+            hash="$(sha256sum "$bin" | cut -f1 -d ' ')"
+            LLVM_PROFILE_FILE="$PWD/profiles/$hash.profraw"
+
+            sudo -u devel                                      \
+                 -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE" \
+                 "$bin"
+
+            if [ $? -ne 0 ]; then
+              exit 1
+            fi
+
+          done
+
+      - name: Collect coverage data
         run: |
-          build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --threads "$(nproc)" out
-          rm out*
-          build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads 1 out
-          build/src/nchg/NCHG merge out out.parquet --threads "$(nproc)"
-          build/src/nchg/NCHG filter out.parquet out.filtered.parquet --threads "$(nproc)"
-          build/src/nchg/NCHG view out.parquet > /dev/null
-          build/src/nchg/NCHG view out.filtered.parquet > /dev/null
-          printf 'chr1\t0\t248956422' > mask.bed
-          build/src/nchg/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5 --bin-mask  mask.bed
+          readarray -t -d '' binaries < <(find build/test/units/ -type f -executable | xargs printf '%q\0')
+
+          utils/devel/collect_coverage_data.py   \
+            --output-dir coverage/               \
+            --prefix=profiles/                   \
+            --format lcov                        \
+            --llvm-cov-bin llvm-cov-19           \
+            --llvm-profdata-bin llvm-profdata-19 \
+            "${binaries[@]}"
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
+          flags: "tests | unittests"
           fail_ci_if_error: true
-          gcov: true
-          gcov_executable: gcov-14
+          handle_no_reports_found: true
+          directory: coverage
           os: linux
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
 
+  run-integration-tests:
+    name: Run integration tests
+    needs: [build-project]
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-clang-19
+      options: "--user=root"
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Download binaries artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: "build-codecov"
+
+      - name: Extract binaries
+        run: tar -xf build.tar.zst
+
+      - name: Add test user
+        run: useradd devel
+
+      - name: Fix permissions
+        run: chown -R devel:devel build/
+
+      - name: Setup dependencies
+        run: |
+          apt-get update
+          apt-get install -q -y --no-install-recommends \
+            gpg \
+            gpg-agent \
+            sudo \
+            tar
+
+      - name: Test NCHG compute (mt)
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.compute-mt.%$(nproc)m.profraw"
+
+          sudo -u devel                                        \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --threads "$(nproc)" out
+          rm out*
+
+      - name: Test NCHG compute (st)
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.compute-st.profraw"
+          
+          sudo -u devel                                        \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads 1 out
+
+      - name: Test NCHG merge
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.merge.profraw"
+          
+          sudo -u devel                                        \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG merge out out.parquet --threads "$(nproc)"
+
+      - name: Test NCHG filter
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.filter.profraw"
+          
+          sudo -u devel                                        \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG filter out.parquet out.filtered.parquet --threads "$(nproc)"
+
+      - name: Test NCHG view
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.view-1.profraw"
+          
+          sudo -u devel                                        \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG view out.parquet > /dev/null
+          
+          LLVM_PROFILE_FILE="$PWD/nchg.view-2.profraw"
+
+          sudo -u devel                                        \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG view out.filtered.parquet > /dev/null
+
+      - name: Test NCHG expected
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.expected.profraw"
+          
+          printf 'chr1\t0\t248956422' > mask.bed
+
+          sudo -u devel \
+          build/src/nchg/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5 --bin-mask mask.bed
+
+      - name: Collect coverage data
+        run: |
+          utils/devel/collect_coverage_data.py   \
+            --output-dir coverage/               \
+            --prefix="$PWD/nchg"                 \
+            --format lcov                        \
+            --llvm-cov-bin llvm-cov-19           \
+            --llvm-profdata-bin llvm-profdata-19 \
+            build/src/nchg/NCHG
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          flags: "tests | integration"
+          fail_ci_if_error: true
+          handle_no_reports_found: true
+          directory: coverage
+          os: linux
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
 
   codecov-status-check:
     name: Status Check (Codecov)
     if: ${{ always() }}
     runs-on: ubuntu-latest
     needs:
-      - run-codecov
+      - build-project
+      - run-unit-tests
+      - run-integration-tests
 
     steps:
       - name: Collect job results
-        if: needs.run-codecov.result != 'success'
+        if: |
+          needs.build-project.result != 'success'      ||
+          needs.run-unit-tests.result != 'success'     ||
+          needs.run-integration-tests.result != 'success'
         run: exit 1

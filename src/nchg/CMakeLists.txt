@@ -47,7 +47,7 @@ target_link_libraries(
   PRIVATE nchg_project_options
           nchg_project_warnings
           libnchg
-          arrow::arrow
+          Arrow::arrow_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
           Boost::headers
           Boost::filesystem # Required by boost::process::v2
           bshoshany-thread-pool::bshoshany-thread-pool
@@ -56,6 +56,7 @@ target_link_libraries(
           fmt::fmt-header-only
           hictk::libhictk
           HighFive
+          Parquet::parquet_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
           readerwriterqueue::readerwriterqueue
           spdlog::spdlog_header_only
           std::filesystem

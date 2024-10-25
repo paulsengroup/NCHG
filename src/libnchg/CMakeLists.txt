@@ -16,19 +16,35 @@
 # with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
+include(FetchContent)
+
+set(HICTK_ENABLE_TESTING OFF)
+set(HICTK_BUILD_EXAMPLES OFF)
+set(HICTK_BUILD_BENCHMARKS OFF)
+set(HICTK_WITH_EIGEN OFF)
+set(HICTK_BUILD_TOOLS OFF)
+set(HICTK_INSTALL OFF)
+FetchContent_Declare(
+        hictk
+        GIT_REPOSITORY https://github.com/paulsengroup/hictk.git
+        GIT_TAG        v2.0.1
+        EXCLUDE_FROM_ALL
+        OVERRIDE_FIND_PACKAGE
+        SYSTEM)
+
+FetchContent_Declare(
+        stocc
+        URL "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc-20240322.tar.xz"
+        URL_HASH SHA256=91e414f44445dcdfa569148c2484a50cadd786e30d833836d98f6111f82e9850
+        UPDATE_DISCONNECTED 1
+        EXCLUDE_FROM_ALL
+        SYSTEM)
+
 find_package(FMT REQUIRED)
 find_package(hictk REQUIRED)
 find_package(phmap REQUIRED)
 find_package(spdlog REQUIRED)
 
-include(FetchContent)
-
-FetchContent_Declare(
-  stocc
-  URL "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc-20240322.tar.xz"
-  URL_HASH SHA256=91e414f44445dcdfa569148c2484a50cadd786e30d833836d98f6111f82e9850
-  UPDATE_DISCONNECTED 1
-  SYSTEM)
 
 set(NCHG_BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS}")
 set(BUILD_SHARED_LIBS OFF)

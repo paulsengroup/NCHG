@@ -50,21 +50,25 @@ class NCHGConan(ConanFile):
         return 17
 
     def requirements(self):
-        self.requires("arrow/16.0.0#c0b940c80fddf319983165f7588c279d")
-        self.requires("boost/1.85.0#7926babdab0a9779cc164d0af6c28d5e", force=True)
+        self.requires("arrow/17.0.0#81be2aa6c49800df8cc163adf4b99e9f")
+        self.requires("boost/1.86.0#cd839a2082585255010f9e82eea94c7f", force=True)
         self.requires("bshoshany-thread-pool/4.1.0#be1802a8768416a6c9b1393cf0ce5e9c")
-        self.requires("catch2/3.6.0#819bc5a82c2cb626916fc18ee1dbc45f")
+        self.requires("catch2/3.7.1#431d772165ed0bc5adaabaa44a9f53ca")
         self.requires("cli11/2.4.2#1b431bda2fb2cd3efed633899abcd8cc")
         self.requires("concurrentqueue/1.0.4#1e48e1c712bcfd892087c9c622a51502")
-        self.requires("fmt/10.2.1#9199a7a0611866dea5c8849a77467b25")
-        self.requires("hdf5/1.14.3#31ccd8d4de83844f5db48471df1944a1")
-        self.requires("hictk/0.0.12#8e413cd45528da38b5a41ccffee41d6d")
-        self.requires("highfive/2.9.0#c57477beed8b0110fadeb6da8f48bcc5")
-        self.requires("parallel-hashmap/1.3.11#1e67f4855a3f7cdeb977cc472113baf7")
+        self.requires("fast_float/6.1.5#e067b96a6271d1b4c255858ca9805bdd")  # hictk
+        self.requires("fmt/11.0.2#5c7438ef4d5d69ab106a41e460ce11f3", force=True)
+        self.requires("hdf5/1.14.5#51799cda2ba7acaa74c9651dea284ac4", force=True)
+        # self.requires("hictk/0.0.12#8e413cd45528da38b5a41ccffee41d6d")
+        self.requires("highfive/2.10.0#3d1bd25944a57fa1bc30a0a22923d528")
+        self.requires("libdeflate/1.22#f95aebe763153ccbc4cc76c023e42e5a")  # hictk
+        self.requires("parallel-hashmap/1.37#ad1feb0b318d094645b696b7cbb0657e")
         self.requires("readerwriterqueue/1.0.6#aaa5ff6fac60c2aee591e9e51b063b83")
-        self.requires("spdlog/1.14.1#972bbf70be1da4bc57ea589af0efde03", force=True)
-        self.requires("thrift/0.18.1#4e5674c24f99dde562c3926f9cb2ff9d", force=True)
+        self.requires("span-lite/0.11.0#519fd49fff711674cfed8cd17d4ed422")  # hictk
+        self.requires("spdlog/1.14.1#972bbf70be1da4bc57ea589af0efde03")
+        self.requires("thrift/0.20.0#560fdab2e1636d4d8a0556fcf6470b89", force=True)
         self.requires("zstd/1.5.6#afefe79a309bc2a7b9f56c2093504c8b", force=True)
+
 
     def validate(self):
         if self.settings.get_safe("compiler.cppstd"):
@@ -107,6 +111,7 @@ class NCHGConan(ConanFile):
         self.options["boost"].without_math = True
         self.options["boost"].without_mpi = True
         self.options["boost"].without_nowide = True
+        self.options["boost"].without_process = False
         self.options["boost"].without_program_options = True
         self.options["boost"].without_python = True
         self.options["boost"].without_random = True

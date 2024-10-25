@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+namespace nchg {
 // to avoid useless casts (see
 // https://github.com/nlohmann/json/issues/2893#issuecomment-889152324)
 template <typename T, typename U>
@@ -47,3 +48,4 @@ struct remove_cvref {
 
 template <typename T>
 using remove_cvref_t = typename remove_cvref<T>::type;
+}  // namespace nchg

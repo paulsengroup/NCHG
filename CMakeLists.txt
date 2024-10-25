@@ -44,7 +44,7 @@ endif()
 project(
   NCHG
   LANGUAGES CXX
-  VERSION 0.0.1)
+  VERSION 0.0.2)
 
 include(FetchContent)
 FetchContent_Declare(

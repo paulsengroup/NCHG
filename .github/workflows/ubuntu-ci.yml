@@ -236,7 +236,7 @@ jobs:
              -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
              -s build_type="${{ matrix.build_type }}" \
              -s compiler.libcxx=libstdc++11           \
-             -s compiler.cppstd=17                    \
+             -s compiler.cppstd=23                    \
              --output-folder=build
 
       - name: Clean Conan cache (post-build)

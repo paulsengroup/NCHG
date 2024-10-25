@@ -61,7 +61,7 @@ RUN conan install "$src_dir/conanfile.py"       \
              -pr:h="$CONAN_DEFAULT_PROFILE_PATH" \
              -s build_type=Release               \
              -s compiler.libcxx=libstdc++11      \
-             -s compiler.cppstd=17               \
+             -s compiler.cppstd=23               \
              --output-folder="$build_dir"        \
 && conan cache clean "*" --build                 \
 && conan cache clean "*" --download              \

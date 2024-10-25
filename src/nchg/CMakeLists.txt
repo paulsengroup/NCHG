@@ -23,7 +23,6 @@ find_package(CLI11 REQUIRED)
 find_package(concurrentqueue REQUIRED)
 find_package(FMT REQUIRED)
 find_package(hictk REQUIRED)
-find_package(Filesystem REQUIRED)
 find_package(HighFive REQUIRED)
 find_package(readerwriterqueue REQUIRED)
 find_package(spdlog REQUIRED)
@@ -59,7 +58,6 @@ target_link_libraries(
           Parquet::parquet_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
           readerwriterqueue::readerwriterqueue
           spdlog::spdlog_header_only
-          std::filesystem
           Threads::Threads)
 
 target_compile_definitions(NCHG PRIVATE SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)

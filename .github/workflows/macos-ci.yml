@@ -169,7 +169,7 @@ jobs:
              -s "compiler=${{ matrix.compiler_name }}"            \
              -s "compiler.version=${{ matrix.compiler_version }}" \
              -s compiler.libcxx=libc++                            \
-             -s compiler.cppstd=17                                \
+             -s compiler.cppstd=23                                \
              --output-folder="${{ github.workspace }}/build"
 
       - name: Clean Conan cache (post-build)

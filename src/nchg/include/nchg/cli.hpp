@@ -19,6 +19,10 @@
 #pragma once
 
 #include <fmt/format.h>
+// clang-format off
+// TODO remove after merging https://github.com/paulsengroup/hictk/pull/308
+#include <fmt/std.h>
+// clang-format on
 
 #include <CLI/CLI.hpp>
 #include <cassert>

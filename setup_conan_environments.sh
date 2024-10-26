@@ -50,7 +50,7 @@ for compiler in gcc clang; do
       --build=missing \
       --update \
       -pr "$profile"  \
-      -s compiler.cppstd=17 \
+      -s compiler.cppstd=23 \
       -s build_type="$build_type" \
       --output-folder="$outdir/static" \
       "$conanfile"
@@ -59,7 +59,7 @@ for compiler in gcc clang; do
        --build=missing \
        --update \
        -pr "$profile"  \
-       -s compiler.cppstd=17 \
+       -s compiler.cppstd=23 \
        -s build_type="$build_type" \
        -o '*/*:shared=True' \
        --output-folder="$outdir/shared" \

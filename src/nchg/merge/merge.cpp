@@ -16,30 +16,29 @@
 // with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-#include <arrow/array.h>
-#include <arrow/builder.h>
-#include <arrow/io/concurrency.h>
-#include <arrow/io/file.h>
-#include <arrow/record_batch.h>
-#include <arrow/util/thread_pool.h>
-#include <blockingconcurrentqueue.h>
+// clang-format off
+#include "nchg/suppress_warnings.hpp"
+NCHG_DISABLE_WARNING_PUSH
+NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
+#include <hictk/reference.hpp>
+NCHG_DISABLE_WARNING_POP
+// clang-format on
+
 #include <fmt/format.h>
-#include <fmt/std.h>
-#include <parquet/arrow/writer.h>
-#include <parquet/file_writer.h>
-#include <parquet/stream_reader.h>
+#include <moodycamel/blockingconcurrentqueue.h>
+#include <spdlog/spdlog.h>
 
 #include <BS_thread_pool.hpp>
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <cstddef>
 #include <cstdint>
-#include <cstdio>
-#include <fstream>
-#include <hictk/file.hpp>
-#include <hictk/fmt/pixel.hpp>
-#include <hictk/genomic_interval.hpp>
-#include <hictk/reference.hpp>
-#include <memory>
-#include <variant>
+#include <exception>
+#include <filesystem>
+#include <stdexcept>
+#include <utility>
+#include <vector>
 
 #include "nchg/common.hpp"
 #include "nchg/config.hpp"

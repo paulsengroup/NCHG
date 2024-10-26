@@ -18,6 +18,10 @@
 
 #pragma once
 
+// clang-format off
+#include "nchg/suppress_warnings.hpp"
+NCHG_DISABLE_WARNING_PUSH
+NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include <arrow/array.h>
 #include <arrow/builder.h>
 #include <arrow/io/concurrency.h>
@@ -25,11 +29,15 @@
 #include <arrow/record_batch.h>
 #include <arrow/util/key_value_metadata.h>
 #include <arrow/util/thread_pool.h>
-#include <fmt/format.h>
+#include <hictk/reference.hpp>
 #include <parquet/arrow/reader.h>
 #include <parquet/arrow/writer.h>
 #include <parquet/encoding.h>
 #include <parquet/stream_reader.h>
+NCHG_DISABLE_WARNING_POP
+// clang-format on
+
+#include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
 #include <cstddef>
@@ -37,7 +45,6 @@
 #include <exception>
 #include <filesystem>
 #include <fstream>
-#include <hictk/reference.hpp>
 #include <memory>
 #include <stdexcept>
 #include <string>

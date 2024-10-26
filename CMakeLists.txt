@@ -17,18 +17,14 @@
 # <https://www.gnu.org/licenses/>.
 
 cmake_minimum_required(VERSION 3.25)
-cmake_policy(VERSION 3.25...3.28)
+cmake_policy(VERSION 3.25...3.30)
 set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/")
 
-# Not ideal to use this global variable, but necessary to make sure that tooling and projects use the same version
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_C_STANDARD 11)
-
-# strongly encouraged to enable this globally to avoid conflicts between -Wpedantic being enabled and -std=c++20 and
-# -std=gnu++20 for example when compiling with PCH enabled
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(ENABLE_DEVELOPER_MODE
@@ -44,7 +40,7 @@ endif()
 project(
   NCHG
   LANGUAGES CXX
-  VERSION 0.0.1)
+  VERSION 0.0.2)
 
 include(FetchContent)
 FetchContent_Declare(

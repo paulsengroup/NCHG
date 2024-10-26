@@ -24,6 +24,8 @@ set(HICTK_BUILD_BENCHMARKS OFF)
 set(HICTK_WITH_EIGEN OFF)
 set(HICTK_BUILD_TOOLS OFF)
 set(HICTK_INSTALL OFF)
+set(HICTK_ENABLE_GIT_VERSION_TRACKING OFF)
+
 FetchContent_Declare(
         hictk
         GIT_REPOSITORY https://github.com/paulsengroup/hictk.git

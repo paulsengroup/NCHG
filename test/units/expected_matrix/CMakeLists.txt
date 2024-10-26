@@ -16,7 +16,6 @@
 # License along with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
-
 find_package(Catch2 REQUIRED)
 include(CTest)
 include(Catch)
@@ -27,8 +26,12 @@ target_sources(nchg_expected_matrix_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ex
 
 target_link_libraries(
   nchg_expected_matrix_tests
-  PRIVATE nchg_project_warnings nchg_project_options
-  PUBLIC nchg::libnchg)
+  PRIVATE
+    nchg_project_warnings
+    nchg_project_options
+  PUBLIC
+    nchg::libnchg
+)
 
 target_link_system_libraries(
   nchg_expected_matrix_tests
@@ -52,7 +55,8 @@ catch_discover_tests(
   "${CMAKE_CURRENT_BINARY_DIR}/Testing/"
   EXTRA_ARGS
   --success
-  --skip-benchmarks)
+  --skip-benchmarks
+)
 
 catch_discover_tests(
   nchg_expected_matrix_tests
@@ -64,7 +68,8 @@ catch_discover_tests(
   "${PROJECT_SOURCE_DIR}"
   EXTRA_ARGS
   --success
-  --skip-benchmarks)
+  --skip-benchmarks
+)
 
 catch_discover_tests(
   nchg_expected_matrix_tests
@@ -76,4 +81,5 @@ catch_discover_tests(
   "${PROJECT_SOURCE_DIR}"
   EXTRA_ARGS
   --success
-  --skip-benchmarks)
+  --skip-benchmarks
+)

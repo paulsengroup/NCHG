@@ -85,6 +85,8 @@ RUN if [ -z "$GIT_HASH" ]; then echo "Missing GIT_HASH --build-arg" && exit 1; f
 &&  if [ -z "$GIT_IS_DIRTY" ]; then echo "Missing GIT_IS_DIRTY --build-arg" && exit 1; fi \
 &&  if [ -z "$GIT_TAG" ]; then echo "Missing GIT_TAG --build-arg" && exit 1; fi
 
+ARG CCACHE_DISABLE=1
+
 # Configure project
 RUN cmake -DCMAKE_BUILD_TYPE=Release            \
           -DCMAKE_PREFIX_PATH="$build_dir"      \
@@ -141,7 +143,7 @@ LABEL org.opencontainers.image.authors='Roberto Rossini <roberros@uio.no>'
 LABEL org.opencontainers.image.url='https://github.com/paulsengroup/NCHG'
 LABEL org.opencontainers.image.documentation='https://github.com/paulsengroup/NCHG'
 LABEL org.opencontainers.image.source='https://github.com/paulsengroup/NCHG'
-LABEL org.opencontainers.image.licenses='MIT'
+LABEL org.opencontainers.image.licenses='GPL-3.0'
 LABEL org.opencontainers.image.title='nchg'
 LABEL org.opencontainers.image.description='TODO'
 LABEL org.opencontainers.image.base.digest="$FINAL_BASE_IMAGE_DIGEST"

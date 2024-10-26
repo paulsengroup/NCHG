@@ -17,7 +17,7 @@
 # <https://www.gnu.org/licenses/>.
 
 cmake_minimum_required(VERSION 3.25)
-cmake_policy(VERSION 3.25...3.28)
+cmake_policy(VERSION 3.25...3.30)
 set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
@@ -40,7 +40,7 @@ endif()
 project(
   NCHG
   LANGUAGES CXX
-  VERSION 0.0.1)
+  VERSION 0.0.2)
 
 include(FetchContent)
 FetchContent_Declare(

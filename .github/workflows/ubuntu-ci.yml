@@ -121,6 +121,7 @@ jobs:
     uses: paulsengroup/nchg/.github/workflows/build-conan-deps.yml@main
     with:
       os: ubuntu-20.04
+      cppstd: 23  # TODO remove me
 
   build-project:
     name: Build project

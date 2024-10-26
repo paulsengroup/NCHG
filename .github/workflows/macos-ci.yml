@@ -88,12 +88,14 @@ jobs:
     uses: paulsengroup/nchg/.github/workflows/build-conan-deps.yml@main
     with:
       os: macos-13
+      cppstd: 23  # TODO remove me
 
   build-conan-deps-arm64:
     name: Build Conan deps
     uses: paulsengroup/nchg/.github/workflows/build-conan-deps.yml@main
     with:
       os: macos-14
+      cppstd: 23  # TODO remove me
 
   build-project:
     name: Build project

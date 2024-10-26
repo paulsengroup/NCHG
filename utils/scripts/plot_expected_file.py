@@ -28,9 +28,7 @@ import numpy as np
 
 
 def make_cli():
-    cli = argparse.ArgumentParser(
-        "Plot the expected value profiles computed by NCHG expected."
-    )
+    cli = argparse.ArgumentParser("Plot the expected value profiles computed by NCHG expected.")
 
     cli.add_argument(
         "path",
@@ -38,9 +36,7 @@ def make_cli():
         help="Path to a .h5 file with the expected value profiles computed by NCHG expected.",
     )
 
-    cli.add_argument(
-        "output-path", type=pathlib.Path, help="Path where to store the output plot."
-    )
+    cli.add_argument("output-path", type=pathlib.Path, help="Path where to store the output plot.")
 
     grp = cli.add_mutually_exclusive_group()
     grp.add_argument(

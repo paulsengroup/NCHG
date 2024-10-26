@@ -359,7 +359,7 @@ jobs:
       - name: Test NCHG compute (st)
         run: |
           LLVM_PROFILE_FILE="$PWD/nchg.compute-st.profraw"
-          
+
           sudo -u devel                                        \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
           build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads 1 out
@@ -367,7 +367,7 @@ jobs:
       - name: Test NCHG merge
         run: |
           LLVM_PROFILE_FILE="$PWD/nchg.merge.profraw"
-          
+
           sudo -u devel                                        \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
           build/src/nchg/NCHG merge out out.parquet --threads "$(nproc)"
@@ -375,7 +375,7 @@ jobs:
       - name: Test NCHG filter
         run: |
           LLVM_PROFILE_FILE="$PWD/nchg.filter.profraw"
-          
+
           sudo -u devel                                        \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
           build/src/nchg/NCHG filter out.parquet out.filtered.parquet --threads "$(nproc)"
@@ -383,11 +383,11 @@ jobs:
       - name: Test NCHG view
         run: |
           LLVM_PROFILE_FILE="$PWD/nchg.view-1.profraw"
-          
+
           sudo -u devel                                        \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
           build/src/nchg/NCHG view out.parquet > /dev/null
-          
+
           LLVM_PROFILE_FILE="$PWD/nchg.view-2.profraw"
 
           sudo -u devel                                        \
@@ -397,7 +397,7 @@ jobs:
       - name: Test NCHG expected
         run: |
           LLVM_PROFILE_FILE="$PWD/nchg.expected.profraw"
-          
+
           printf 'chr1\t0\t248956422' > mask.bed
 
           sudo -u devel \

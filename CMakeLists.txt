@@ -27,9 +27,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(ENABLE_DEVELOPER_MODE
-    OFF
-    CACHE BOOL "Enable 'developer mode'")
+set(ENABLE_DEVELOPER_MODE OFF CACHE BOOL "Enable 'developer mode'")
 
 if(NOT CMAKE_FIND_PACKAGE_PREFER_CONFIG)
   set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
@@ -37,17 +35,16 @@ endif()
 
 # include(cmake/Versioning.cmake)
 
-project(
-  NCHG
-  LANGUAGES CXX
-  VERSION 0.0.2)
+project(NCHG LANGUAGES CXX VERSION 0.0.2)
 
 include(FetchContent)
 FetchContent_Declare(
   _nchg_project_options
-  URL "${CMAKE_CURRENT_SOURCE_DIR}/external/project_options-v0.36.6.tar.xz"
+  URL
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/project_options-v0.36.6.tar.xz"
   URL_HASH SHA256=b4df2a4107847248d4711ee48477cdf93c1a1c7d51a931937759eb9ffba67af8
-  SYSTEM)
+  SYSTEM
+)
 FetchContent_MakeAvailable(_nchg_project_options)
 
 get_property(BUILDING_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
@@ -56,14 +53,18 @@ if(BUILDING_MULTI_CONFIG)
     # Make sure that all supported configuration types have their associated conan packages available. You can reduce
     # this list to only the configuration types you use, but only if one is not forced-set on the command line for VS
     message(TRACE "Setting up multi-config build types")
-    set(CMAKE_CONFIGURATION_TYPES
-        Debug Release RelWithDebInfo
-        CACHE STRING "Enabled build types" FORCE)
+    set(
+      CMAKE_CONFIGURATION_TYPES
+      Debug
+      Release
+      RelWithDebInfo
+      CACHE STRING
+      "Enabled build types"
+      FORCE
+    )
   else()
     message(TRACE "User chose a specific build type, so we are using that")
-    set(CMAKE_CONFIGURATION_TYPES
-        ${CMAKE_BUILD_TYPE}
-        CACHE STRING "Enabled build types" FORCE)
+    set(CMAKE_CONFIGURATION_TYPES ${CMAKE_BUILD_TYPE} CACHE STRING "Enabled build types" FORCE)
   endif()
 endif()
 
@@ -122,17 +123,28 @@ dynamic_project_options(
   GCC_WARNINGS
   "${GCC_WARNINGS}"
   CUDA_WARNINGS
-  "${CUDA_WARNINGS}")
+  "${CUDA_WARNINGS}"
+)
 
 target_compile_features(nchg_project_options INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
 
 # Tweak fmt
-target_compile_definitions(nchg_project_options INTERFACE FMT_HEADER_ONLY FMT_ENFORCE_COMPILE_STRING)
+target_compile_definitions(
+  nchg_project_options
+  INTERFACE
+    FMT_HEADER_ONLY
+    FMT_ENFORCE_COMPILE_STRING
+)
 # Tweak spdlog
 target_compile_definitions(nchg_project_options INTERFACE SPDLOG_FMT_EXTERNAL)
 
 if(WIN32)
-  target_compile_definitions(nchg_project_options INTERFACE NOMINMAX _CRT_SECURE_NO_WARNINGS)
+  target_compile_definitions(
+    nchg_project_options
+    INTERFACE
+      NOMINMAX
+      _CRT_SECURE_NO_WARNINGS
+  )
 endif()
 
 if(MSVC)

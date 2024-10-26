@@ -32,47 +32,56 @@ add_executable(NCHG)
 
 target_sources(
   NCHG
-  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/compute/compute.cpp"
-          "${CMAKE_CURRENT_SOURCE_DIR}/expected/expected.cpp"
-          "${CMAKE_CURRENT_SOURCE_DIR}/filter/filter.cpp"
-          "${CMAKE_CURRENT_SOURCE_DIR}/merge/merge.cpp"
-          "${CMAKE_CURRENT_SOURCE_DIR}/view/view.cpp"
-          "${CMAKE_CURRENT_SOURCE_DIR}/cli.cpp"
-          "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
+  PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/compute/compute.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/expected/expected.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/filter/filter.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/merge/merge.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/view/view.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cli.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
+)
 
 target_include_directories(NCHG PRIVATE include/)
 target_link_libraries(
   NCHG
-  PRIVATE nchg_project_options
-          nchg_project_warnings
-          libnchg
-          Arrow::arrow_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
-          Boost::headers
-          Boost::filesystem # Required by boost::process::v2
-          bshoshany-thread-pool::bshoshany-thread-pool
-          CLI11::CLI11
-          concurrentqueue::concurrentqueue
-          fmt::fmt-header-only
-          hictk::libhictk
-          HighFive
-          Parquet::parquet_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
-          readerwriterqueue::readerwriterqueue
-          spdlog::spdlog_header_only
-          Threads::Threads)
+  PRIVATE
+    nchg_project_options
+    nchg_project_warnings
+    libnchg
+    Arrow::arrow_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
+    Boost::headers
+    Boost::filesystem # Required by boost::process::v2
+    bshoshany-thread-pool::bshoshany-thread-pool
+    CLI11::CLI11
+    concurrentqueue::concurrentqueue
+    fmt::fmt-header-only
+    hictk::libhictk
+    HighFive
+    Parquet::parquet_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
+    readerwriterqueue::readerwriterqueue
+    spdlog::spdlog_header_only
+    Threads::Threads
+)
 
 target_compile_definitions(NCHG PRIVATE SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
 
 include(GNUInstallDirs)
 install(
-  TARGETS NCHG
-  COMPONENT Runtime
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-  PUBLIC_HEADER DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/scratch/
-  PRIVATE_HEADER DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/scratch/)
+  TARGETS
+    NCHG
+    COMPONENT
+    Runtime
+  LIBRARY
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
+  PUBLIC_HEADER
+    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/scratch/
+  PRIVATE_HEADER
+    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/scratch/
+)
 
-install(
-  FILES "${PROJECT_SOURCE_DIR}/LICENSE"
-  DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/nchg/"
-  COMPONENT Runtime)
+install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/nchg/" COMPONENT Runtime)

@@ -19,7 +19,6 @@
 from conan import ConanFile
 from conan.tools.build import check_min_cppstd
 
-
 required_conan_version = ">=1.53.0"
 
 
@@ -68,7 +67,6 @@ class NCHGConan(ConanFile):
         self.requires("spdlog/1.14.1#972bbf70be1da4bc57ea589af0efde03")
         self.requires("thrift/0.20.0#560fdab2e1636d4d8a0556fcf6470b89", force=True)
         self.requires("zstd/1.5.6#afefe79a309bc2a7b9f56c2093504c8b", force=True)
-
 
     def validate(self):
         if self.settings.get_safe("compiler.cppstd"):

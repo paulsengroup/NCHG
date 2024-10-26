@@ -27,26 +27,28 @@ set(HICTK_INSTALL OFF)
 set(HICTK_ENABLE_GIT_VERSION_TRACKING OFF)
 
 FetchContent_Declare(
-        hictk
-        GIT_REPOSITORY https://github.com/paulsengroup/hictk.git
-        GIT_TAG        v2.0.1
-        EXCLUDE_FROM_ALL
-        OVERRIDE_FIND_PACKAGE
-        SYSTEM)
+  hictk
+  GIT_REPOSITORY https://github.com/paulsengroup/hictk.git
+  GIT_TAG v2.0.1
+  EXCLUDE_FROM_ALL
+  OVERRIDE_FIND_PACKAGE
+  SYSTEM
+)
 
 FetchContent_Declare(
-        stocc
-        URL "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc-20240322.tar.xz"
-        URL_HASH SHA256=91e414f44445dcdfa569148c2484a50cadd786e30d833836d98f6111f82e9850
-        UPDATE_DISCONNECTED 1
-        EXCLUDE_FROM_ALL
-        SYSTEM)
+  stocc
+  URL
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc-20240322.tar.xz"
+  URL_HASH SHA256=91e414f44445dcdfa569148c2484a50cadd786e30d833836d98f6111f82e9850
+  UPDATE_DISCONNECTED 1
+  EXCLUDE_FROM_ALL
+  SYSTEM
+)
 
 find_package(FMT REQUIRED)
 find_package(hictk REQUIRED)
 find_package(phmap REQUIRED)
 find_package(spdlog REQUIRED)
-
 
 set(NCHG_BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS}")
 set(BUILD_SHARED_LIBS OFF)
@@ -59,20 +61,31 @@ add_library(nchg::libnchg ALIAS libnchg)
 
 target_sources(
   libnchg
-  INTERFACE FILE_SET
-            HEADERS
-            BASE_DIRS
-            "${CMAKE_CURRENT_SOURCE_DIR}/include")
+  INTERFACE
+    FILE_SET HEADERS
+    BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
 
-target_include_directories(libnchg INTERFACE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-                                             "$<INSTALL_INTERFACE:include>")
+target_include_directories(
+  libnchg
+  INTERFACE
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    "$<INSTALL_INTERFACE:include>"
+)
 
 target_link_libraries(
   libnchg
-  INTERFACE fmt::fmt-header-only
-            hictk::libhictk
-            phmap
-            spdlog::spdlog_header_only
-            stocc)
+  INTERFACE
+    fmt::fmt-header-only
+    hictk::libhictk
+    phmap
+    spdlog::spdlog_header_only
+    stocc
+)
 
-set_target_properties(libnchg PROPERTIES OUTPUT_NAME libnchg)
+set_target_properties(
+  libnchg
+  PROPERTIES
+    OUTPUT_NAME
+      libnchg
+)

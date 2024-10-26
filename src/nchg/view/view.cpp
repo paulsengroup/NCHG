@@ -20,6 +20,7 @@
 #include <fmt/format.h>
 
 #include <hictk/numeric_utils.hpp>
+#include <type_traits>
 
 #include "nchg/config.hpp"
 #include "nchg/io.hpp"
@@ -199,7 +200,7 @@ int run_nchg_view(const ViewConfig& c) {
         const auto filter_by_coords2 = chrom2 != "all";
 
         if (c.with_header) {
-          using T = remove_cvref_t<decltype(*ff.begin())>;
+          using T = std::remove_cvref_t<decltype(*ff.begin())>;
           print_header<T>();
         }
 

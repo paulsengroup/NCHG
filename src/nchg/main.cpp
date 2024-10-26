@@ -61,7 +61,7 @@ static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &
     const auto ec = cli.exit();
     std::visit(
         [&](const auto &config_) {
-          using T = hictk::remove_cvref_t<decltype(config_)>;
+          using T = std::remove_cvref_t<decltype(config_)>;
           constexpr auto is_monostate = std::is_same_v<T, std::monostate>;
           if constexpr (!is_monostate) {
             setup_logger_console(config_.verbosity, subcmd != Cli::subcommand::help);

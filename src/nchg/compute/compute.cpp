@@ -39,6 +39,7 @@ NCHG_DISABLE_WARNING_POP
 #include <hictk/genomic_interval.hpp>
 #include <hictk/reference.hpp>
 #include <memory>
+#include <type_traits>
 #include <variant>
 
 // clang-format off
@@ -284,7 +285,7 @@ template <typename File = hictk::cooler::File>
 
   return std::visit(
       [&](const auto &f_) -> std::size_t {
-        using UnderlyingFile = remove_cvref_t<decltype(*f_)>;
+        using UnderlyingFile = std::remove_cvref_t<decltype(*f_)>;
         if constexpr (!std::is_same_v<File, UnderlyingFile>) {
           std::optional<ExpectedValues<UnderlyingFile>> expected_values_{};
           if (expected_values) {

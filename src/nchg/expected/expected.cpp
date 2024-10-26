@@ -58,7 +58,7 @@ template <typename FilePtr>
 static void process_cis_chromosomes(FilePtr f, const ExpectedConfig &c) {
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
-  using File = remove_cvref_t<decltype(*f)>;
+  using File = std::remove_cvref_t<decltype(*f)>;
   const auto evs = ExpectedValues<File>::cis_only(
       f,
       {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
@@ -75,7 +75,7 @@ template <typename FilePtr>
 static void process_trans_chromosomes(FilePtr f, const ExpectedConfig &c) {
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
-  using File = remove_cvref_t<decltype(*f)>;
+  using File = std::remove_cvref_t<decltype(*f)>;
   const auto evs = ExpectedValues<File>::trans_only(
       f,
       {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
@@ -96,7 +96,7 @@ static void process_one_chromosome_pair(FilePtr f, const ExpectedConfig &c) {
   const auto &chrom1 = f->chromosomes().at(c.chrom1);
   const auto &chrom2 = f->chromosomes().at(c.chrom2);
 
-  using File = remove_cvref_t<decltype(*std::declval<FilePtr>())>;
+  using File = std::remove_cvref_t<decltype(*std::declval<FilePtr>())>;
   const auto evs = ExpectedValues<File>::chromosome_pair(
       f, chrom1, chrom2,
       {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,

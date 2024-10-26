@@ -28,8 +28,6 @@
 #include <vector>
 
 #include "hictk/pixel.hpp"
-#include "hictk/type_traits.hpp"
-#include "nchg/common.hpp"
 
 namespace nchg {
 
@@ -43,8 +41,8 @@ namespace nchg {
 /// iterator from which the top pixel originated)
 template <typename It>
 class KMerger {
-  using ItInternal = remove_cvref_t<It>;
-  using T = remove_cvref_t<decltype(*std::declval<It>())>;
+  using ItInternal = std::remove_cvref_t<It>;
+  using T = std::remove_cvref_t<decltype(*std::declval<It>())>;
   struct Node {
     T value{};        // NOLINT
     std::size_t i{};  // NOLINT

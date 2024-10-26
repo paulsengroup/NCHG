@@ -131,7 +131,7 @@ jobs:
           conan_profile="$(conan profile path default)"
 
           sed -i 's/build_type=Release/build_type=${{ matrix.build_type }}/' "$conan_profile"
-          sed -i 's/compiler\.cppstd=.*/compiler.cppstd=17/' "$conan_profile"
+          sed -i 's/compiler\.cppstd=.*/compiler.cppstd=23/' "$conan_profile"
 
       - name: Clean Conan cache (pre-build)
         if: steps.cache-conan.outputs.cache-hit != 'true'
@@ -151,11 +151,11 @@ jobs:
              -s:h "compiler=${{ matrix.compiler-name }}"            \
              -s:h "build_type=${{ matrix.build_type }}"             \
              -s:h "compiler.runtime_type=${{ matrix.build_type }}"  \
-             -s:h compiler.cppstd=17                                \
+             -s:h compiler.cppstd=23                                \
              -s:b "compiler=${{ matrix.compiler-name }}"            \
              -s:b "build_type=${{ matrix.build_type }}"             \
              -s:b "compiler.runtime_type=${{ matrix.build_type }}"  \
-             -s:b compiler.cppstd=17                                \
+             -s:b compiler.cppstd=23                                \
              --output-folder=build
 
       - name: Clean Conan cache (post-build)

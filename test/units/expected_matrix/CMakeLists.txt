@@ -16,7 +16,6 @@
 # License along with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
-find_package(Filesystem REQUIRED)
 
 find_package(Catch2 REQUIRED)
 include(CTest)
@@ -35,7 +34,7 @@ target_link_system_libraries(
   nchg_expected_matrix_tests
   PUBLIC
   Catch2::Catch2WithMain
-  std::filesystem)
+)
 
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/Testing/")
 

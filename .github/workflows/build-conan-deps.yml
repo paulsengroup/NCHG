@@ -41,7 +41,7 @@ on:
         required: false
         description: "Conan version to be installed with pip."
       cppstd:
-        default: "17"
+        default: "23"
         type: string
         required: false
         description: "Value to pass to compiler.cppstd."

@@ -16,10 +16,17 @@
 // with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
+// clang-format off
+#include "nchg/suppress_warnings.hpp"
+NCHG_DISABLE_WARNING_PUSH
+NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
+#include <hictk/file.hpp>
+NCHG_DISABLE_WARNING_POP
+// clang-format on
+
 #include <cassert>
 #include <filesystem>
 #include <hictk/chromosome.hpp>
-#include <hictk/file.hpp>
 #include <memory>
 #include <type_traits>
 #include <variant>

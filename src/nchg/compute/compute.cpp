@@ -16,7 +16,15 @@
 // with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
+// clang-format off
+#include "nchg/suppress_warnings.hpp"
+NCHG_DISABLE_WARNING_PUSH
+NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include <arrow/io/file.h>
+#include <hictk/file.hpp>
+NCHG_DISABLE_WARNING_POP
+// clang-format on
+
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 #include <fmt/std.h>
@@ -27,7 +35,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <fstream>
-#include <hictk/file.hpp>
 #include <hictk/fmt/pixel.hpp>
 #include <hictk/genomic_interval.hpp>
 #include <hictk/reference.hpp>

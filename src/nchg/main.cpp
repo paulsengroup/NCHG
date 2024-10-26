@@ -17,6 +17,7 @@
 // <https://www.gnu.org/licenses/>.
 
 #include <fmt/format.h>
+#include <fmt/std.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 

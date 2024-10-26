@@ -47,7 +47,7 @@ class NCHGConan(ConanFile):
 
     @property
     def _min_cppstd(self):
-        return 17
+        return 23
 
     def requirements(self):
         self.requires("arrow/17.0.0#81be2aa6c49800df8cc163adf4b99e9f")
@@ -94,6 +94,7 @@ class NCHGConan(ConanFile):
         self.options["boost"].without_atomic = False
         self.options["boost"].without_charconv = True
         self.options["boost"].without_chrono = True
+        self.options["boost"].without_cobalt = True
         self.options["boost"].without_container = True
         self.options["boost"].without_context = True
         self.options["boost"].without_contract = True

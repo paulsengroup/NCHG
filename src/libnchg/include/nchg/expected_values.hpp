@@ -30,11 +30,13 @@
 #include <utility>
 #include <vector>
 
+#include "nchg/concepts.hpp"
 #include "nchg/expected_matrix.hpp"
 
 namespace nchg {
 
 template <typename File>
+  requires HictkSingleResFile<File>
 class ExpectedValues {
   using N = std::uint32_t;
   using ThinPixelIt = decltype(std::declval<File>().fetch("chr1").template begin<N>());
@@ -87,6 +89,7 @@ class ExpectedValues {
   // clang-format on
 
   template <typename OtherFile>
+    requires HictkSingleResFile<File>
   friend class ExpectedValues;
 
   explicit ExpectedValues(
@@ -106,6 +109,7 @@ class ExpectedValues {
   static ExpectedValues deserialize(const std::filesystem::path& path);
 
   template <typename OutFile>
+    requires HictkSingleResFile<OutFile>
   [[nodiscard]] ExpectedValues<OutFile> cast() const;
 
   [[nodiscard]] std::uint32_t resolution() const noexcept;

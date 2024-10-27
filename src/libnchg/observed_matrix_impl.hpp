@@ -27,9 +27,12 @@
 #include <variant>
 #include <vector>
 
+#include "nchg/concepts.hpp"
+
 namespace nchg {
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline auto ObservedMatrix<PixelIt>::compute_stats(
     PixelIt first_pixel, PixelIt last_pixel, const hictk::Chromosome &chrom1,
     const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
@@ -107,6 +110,7 @@ inline auto ObservedMatrix<PixelIt>::compute_stats(
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline ObservedMatrix<PixelIt>::ObservedMatrix(PixelIt first_pixel, PixelIt last_pixel,
                                                hictk::Chromosome chrom1, hictk::Chromosome chrom2,
                                                hictk::BinTable bins, double mad_max_,
@@ -128,64 +132,77 @@ inline ObservedMatrix<PixelIt>::ObservedMatrix(PixelIt first_pixel, PixelIt last
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline std::uint32_t ObservedMatrix<PixelIt>::resolution() const noexcept {
   return _bins.resolution();
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline std::size_t ObservedMatrix<PixelIt>::num_rows() const noexcept {
   return _bins.subset(chrom1()).size();
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline std::size_t ObservedMatrix<PixelIt>::num_cols() const noexcept {
   return _bins.subset(chrom2()).size();
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline const hictk::Chromosome &ObservedMatrix<PixelIt>::chrom1() const noexcept {
   return _chrom1;
 }
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline const hictk::Chromosome &ObservedMatrix<PixelIt>::chrom2() const noexcept {
   return _chrom2;
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline std::uint64_t ObservedMatrix<PixelIt>::nnz() const noexcept {
   return _nnz;
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline std::uint64_t ObservedMatrix<PixelIt>::sum() const noexcept {
   return _sum;
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline double ObservedMatrix<PixelIt>::nnz_avg() const noexcept {
   return static_cast<double>(sum()) / static_cast<double>(nnz());
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline double ObservedMatrix<PixelIt>::mad_max() const noexcept {
   return _mad_max;
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline std::uint64_t ObservedMatrix<PixelIt>::min_delta() const noexcept {
   return _min_delta;
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline std::uint64_t ObservedMatrix<PixelIt>::max_delta() const noexcept {
   return _max_delta;
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline const std::vector<std::uint64_t> &ObservedMatrix<PixelIt>::marginals1() const noexcept {
   return *_marginals1;
 }
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline const std::vector<std::uint64_t> &ObservedMatrix<PixelIt>::marginals2() const noexcept {
   return *_marginals2;
 }

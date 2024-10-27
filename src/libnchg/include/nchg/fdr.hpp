@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -39,11 +40,13 @@ class BH_FDR {
 
   void add_record(Stats&& s);
   template <typename StatsIt>
+    requires std::input_iterator<StatsIt>
   void add_records(StatsIt first, StatsIt last);
 
   void clear() noexcept;
 
   template <typename UnaryOperation = identity>
+    requires std::invocable<UnaryOperation, Stats&>
   [[nodiscard]] auto correct(UnaryOperation op = identity()) -> std::vector<Stats>;
 };
 

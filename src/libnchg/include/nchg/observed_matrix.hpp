@@ -26,13 +26,15 @@
 #include <type_traits>
 #include <vector>
 
+#include "nchg/concepts.hpp"
+
 namespace nchg {
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 class ObservedMatrix {
   using PixelT = std::remove_const_t<std::remove_reference_t<decltype(*std::declval<PixelIt>())>>;
   using N = decltype(std::declval<PixelT>().count);
-  static_assert(std::is_same_v<PixelT, hictk::Pixel<N>>);
 
   hictk::Chromosome _chrom1{};
   hictk::Chromosome _chrom2{};

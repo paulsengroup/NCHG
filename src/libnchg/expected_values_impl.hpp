@@ -38,6 +38,7 @@
 #include <utility>
 #include <vector>
 
+#include "nchg/concepts.hpp"
 #include "nchg/expected_matrix.hpp"
 #include "nchg/expected_values_aggregator.hpp"
 #include "nchg/mad_max_filter.hpp"
@@ -45,6 +46,7 @@
 namespace nchg {
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline ExpectedValues<File>::ExpectedValues(
     std::shared_ptr<const File> file, const Params &params_,
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask)
@@ -76,6 +78,7 @@ inline ExpectedValues<File>::ExpectedValues(
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline ExpectedValues<File> ExpectedValues<File>::cis_only(
     std::shared_ptr<const File> file, const Params &params_,
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask) {
@@ -89,6 +92,7 @@ inline ExpectedValues<File> ExpectedValues<File>::cis_only(
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline ExpectedValues<File> ExpectedValues<File>::trans_only(
     std::shared_ptr<const File> file, const Params &params_,
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask) {
@@ -103,6 +107,7 @@ inline ExpectedValues<File> ExpectedValues<File>::trans_only(
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline ExpectedValues<File> ExpectedValues<File>::chromosome_pair(
     std::shared_ptr<const File> file, const hictk::Chromosome &chrom1,
     const hictk::Chromosome &chrom2, const Params &params,
@@ -139,6 +144,7 @@ inline ExpectedValues<File> ExpectedValues<File>::chromosome_pair(
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline ExpectedValues<File> ExpectedValues<File>::deserialize(const std::filesystem::path &path) {
   ExpectedValues<File> ev{nullptr};
   HighFive::File f(path.string());
@@ -165,7 +171,9 @@ inline ExpectedValues<File> ExpectedValues<File>::deserialize(const std::filesys
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 template <typename OutFile>
+  requires HictkSingleResFile<OutFile>
 inline ExpectedValues<OutFile> ExpectedValues<File>::cast() const {
   if constexpr (std::is_same_v<File, OutFile>) {
     return *this;
@@ -191,16 +199,19 @@ inline ExpectedValues<OutFile> ExpectedValues<File>::cast() const {
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline std::uint32_t ExpectedValues<File>::resolution() const noexcept {
   return _resolution;
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline const std::vector<double> &ExpectedValues<File>::weights() const noexcept {
   return _expected_weights;
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto ExpectedValues<File>::params() const noexcept -> Params {
   return {_mad_max,
           _min_delta,
@@ -213,12 +224,14 @@ inline auto ExpectedValues<File>::params() const noexcept -> Params {
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline std::shared_ptr<const std::vector<bool>> ExpectedValues<File>::bin_mask(
     const hictk::Chromosome &chrom) const {
   return _bin_masks.at(std::make_pair(chrom, chrom)).first;
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline std::pair<std::shared_ptr<const std::vector<bool>>, std::shared_ptr<const std::vector<bool>>>
 ExpectedValues<File>::bin_mask(const hictk::Chromosome &chrom1,
                                const hictk::Chromosome &chrom2) const {
@@ -226,6 +239,7 @@ ExpectedValues<File>::bin_mask(const hictk::Chromosome &chrom1,
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline std::vector<double> ExpectedValues<File>::expected_values(const hictk::Chromosome &chrom,
                                                                  bool rescale) const {
   if (_expected_weights.empty()) {
@@ -251,23 +265,27 @@ inline std::vector<double> ExpectedValues<File>::expected_values(const hictk::Ch
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline double ExpectedValues<File>::expected_value(const hictk::Chromosome &chrom1,
                                                    const hictk::Chromosome &chrom2) const {
   return _expected_values_trans.at(ChromPair{chrom1, chrom2});
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline const phmap::btree_map<hictk::Chromosome, double> &ExpectedValues<File>::scaling_factors()
     const noexcept {
   return _expected_scaling_factors;
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline double ExpectedValues<File>::scaling_factor(const hictk::Chromosome &chrom) const {
   return scaling_factors().at(chrom);
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom,
                                                   const hictk::BinTable &bins, PixelIt first_pixel,
                                                   PixelIt last_pixel) const
@@ -286,6 +304,7 @@ inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom) const
     -> ExpectedMatrix<PixelIt> {
   if (!_fp) {
@@ -298,6 +317,7 @@ inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom1,
                                                   const hictk::Chromosome &chrom2,
                                                   const hictk::BinTable &bins, PixelIt first_pixel,
@@ -320,6 +340,7 @@ inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom1,
                                                   const hictk::Chromosome &chrom2) const
     -> ExpectedMatrix<PixelIt> {
@@ -337,6 +358,7 @@ inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline void ExpectedValues<File>::serialize(const std::filesystem::path &path) const {
   SPDLOG_INFO(FMT_STRING("writing expected value profiles to {}..."), path);
   if (!_fp) {
@@ -357,6 +379,7 @@ inline void ExpectedValues<File>::serialize(const std::filesystem::path &path) c
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline void ExpectedValues<File>::compute_expected_values_cis(
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask_seed) {
   SPDLOG_INFO(FMT_STRING("initializing expected matrix weights from cis interactions..."));
@@ -435,6 +458,7 @@ inline void ExpectedValues<File>::compute_expected_values_cis(
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline void ExpectedValues<File>::compute_expected_values_trans(
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask_seed) {
   if (!_fp) {
@@ -472,6 +496,7 @@ inline void ExpectedValues<File>::compute_expected_values_trans(
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline void ExpectedValues<File>::add_bin_mask(
     const hictk::Chromosome &chrom, std::vector<bool> &&mask,
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask_seed) {
@@ -489,6 +514,7 @@ inline void ExpectedValues<File>::add_bin_mask(
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 void ExpectedValues<File>::add_bin_mask(
     const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
     std::pair<std::vector<bool>, std::vector<bool>> &&masks,
@@ -515,6 +541,7 @@ void ExpectedValues<File>::add_bin_mask(
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 void ExpectedValues<File>::serialize_attributes(HighFive::File &f, const Params &params) {
   assert(params.min_delta <= params.max_delta);
   f.createAttribute("mad_max", params.mad_max);
@@ -530,6 +557,7 @@ void ExpectedValues<File>::serialize_attributes(HighFive::File &f, const Params 
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline void ExpectedValues<File>::serialize_chromosomes(HighFive::File &f,
                                                         const hictk::Reference &chroms) {
   auto grp = f.createGroup("chroms");
@@ -546,6 +574,7 @@ inline void ExpectedValues<File>::serialize_chromosomes(HighFive::File &f,
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 void ExpectedValues<File>::serialize_bin_masks(
     HighFive::File &f, const phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>> &bin_masks) {
   auto grp = f.createGroup("bin-masks");
@@ -592,6 +621,7 @@ void ExpectedValues<File>::serialize_bin_masks(
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline void ExpectedValues<File>::serialize_cis_profiles(
     HighFive::File &f, const std::vector<double> &profile,
     const phmap::btree_map<hictk::Chromosome, double> &scaling_factors) {
@@ -610,6 +640,7 @@ inline void ExpectedValues<File>::serialize_cis_profiles(
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline void ExpectedValues<File>::serialize_trans_profiles(
     HighFive::File &f, const phmap::btree_map<ChromPair, double> &nnz_avg_values) {
   auto grp = f.createGroup("avg-values");
@@ -633,6 +664,7 @@ inline void ExpectedValues<File>::serialize_trans_profiles(
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto ExpectedValues<File>::deserialize_attributes(const HighFive::File &f) -> Params {
   return {f.getAttribute("mad_max").read<double>(),
           f.getAttribute("min_delta").read<std::uint64_t>(),
@@ -645,6 +677,7 @@ inline auto ExpectedValues<File>::deserialize_attributes(const HighFive::File &f
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline hictk::Reference ExpectedValues<File>::deserialize_chromosomes(const HighFive::File &f) {
   std::vector<std::string> chrom_names{};
   std::vector<std::uint32_t> chrom_sizes{};
@@ -657,6 +690,7 @@ inline hictk::Reference ExpectedValues<File>::deserialize_chromosomes(const High
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 auto ExpectedValues<File>::deserialize_bin_masks(HighFive::File &f)
     -> const phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>> {
   const auto grp = f.getGroup("bin-masks");
@@ -704,6 +738,7 @@ auto ExpectedValues<File>::deserialize_bin_masks(HighFive::File &f)
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline std::pair<const std::vector<double>, const phmap::btree_map<hictk::Chromosome, double>>
 ExpectedValues<File>::deserialize_cis_profiles(const HighFive::File &f) {
   std::vector<double> weights{};
@@ -727,6 +762,7 @@ ExpectedValues<File>::deserialize_cis_profiles(const HighFive::File &f) {
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto ExpectedValues<File>::deserialize_trans_profiles(const HighFive::File &f)
     -> phmap::btree_map<ChromPair, double> {
   if (!f.exist("avg-values/value")) {
@@ -753,6 +789,7 @@ inline auto ExpectedValues<File>::deserialize_trans_profiles(const HighFive::Fil
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline void ExpectedValues<File>::merge_bin_masks(std::vector<bool> &mask1,
                                                   const std::vector<bool> &mask2) {
   if (mask1.size() != mask2.size()) {

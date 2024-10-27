@@ -28,6 +28,7 @@
 #include <hictk/transformers/join_genomic_coords.hpp>
 #include <hictk/transformers/pixel_merger.hpp>
 
+#include "nchg/concepts.hpp"
 #include "nchg/expected_matrix.hpp"
 #include "nchg/mad_max_filter.hpp"
 #include "nchg/observed_matrix.hpp"
@@ -51,11 +52,13 @@ inline bool NCHGResult::operator!=(const NCHGResult &other) const noexcept {
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline NCHG<File>::NCHG(std::shared_ptr<const File> f, const hictk::Chromosome &chrom1,
                         const hictk::Chromosome &chrom2, const Params &params)
     : NCHG(f, chrom1, chrom2, ExpectedValues<File>::chromosome_pair(f, chrom1, chrom2, params)) {}
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline NCHG<File>::NCHG(std::shared_ptr<const File> f, const hictk::Chromosome &chrom1,
                         const hictk::Chromosome &chrom2,
                         ExpectedValues<File> expected_values) noexcept
@@ -70,16 +73,19 @@ inline NCHG<File>::NCHG(std::shared_ptr<const File> f, const hictk::Chromosome &
       _expected_values(std::move(expected_values)) {}
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::params() const noexcept -> Params {
   return _expected_values.params();
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::observed_matrix() const noexcept -> const ObservedMatrix<PixelIt> & {
   return *_obs_matrix;
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::expected_matrix() const noexcept -> const ExpectedMatrix<PixelIt> & {
   return *_exp_matrix;
 }
@@ -103,6 +109,7 @@ inline auto NCHG<File>::expected_matrix() const noexcept -> const ExpectedMatrix
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline NCHG<File>::iterator::iterator(PixelIt pixel_it, PixelIt sentinel_it,
                                       std::shared_ptr<const ObservedMatrix<PixelIt>> obs,
                                       std::shared_ptr<const ExpectedMatrix<PixelIt>> exp,
@@ -121,6 +128,7 @@ inline NCHG<File>::iterator::iterator(PixelIt pixel_it, PixelIt sentinel_it,
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline NCHG<File>::iterator::iterator(const iterator &other)
     : _pixel_it(other._pixel_it),
       _sentinel_it(other._sentinel_it),
@@ -133,6 +141,7 @@ inline NCHG<File>::iterator::iterator(const iterator &other)
       _value((other._value)) {}
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::iterator::operator=(const iterator &other) -> iterator & {
   if (this == &other) {
     return *this;
@@ -152,16 +161,19 @@ inline auto NCHG<File>::iterator::operator=(const iterator &other) -> iterator &
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline bool NCHG<File>::iterator::operator==(const iterator &other) const noexcept {
   return _pixel_it == other._pixel_it && _obs == other._obs && _exp == other._exp;
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline bool NCHG<File>::iterator::operator!=(const iterator &other) const noexcept {
   return !(*this == other);
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline bool NCHG<File>::iterator::operator<(const iterator &other) const noexcept {
   assert(_obs == other._obs);
   assert(_exp == other._exp);
@@ -170,6 +182,7 @@ inline bool NCHG<File>::iterator::operator<(const iterator &other) const noexcep
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline bool NCHG<File>::iterator::operator<=(const iterator &other) const noexcept {
   assert(_obs == other._obs);
   assert(_exp == other._exp);
@@ -178,6 +191,7 @@ inline bool NCHG<File>::iterator::operator<=(const iterator &other) const noexce
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline bool NCHG<File>::iterator::operator>(const iterator &other) const noexcept {
   assert(_obs == other._obs);
   assert(_exp == other._exp);
@@ -186,6 +200,7 @@ inline bool NCHG<File>::iterator::operator>(const iterator &other) const noexcep
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline bool NCHG<File>::iterator::operator>=(const iterator &other) const noexcept {
   assert(_obs == other._obs);
   assert(_exp == other._exp);
@@ -194,6 +209,7 @@ inline bool NCHG<File>::iterator::operator>=(const iterator &other) const noexce
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::iterator::operator*() const -> const_reference {
   const auto &obs_marginals1 = _obs->marginals1();
   const auto &obs_marginals2 = _obs->marginals2();
@@ -250,12 +266,14 @@ inline auto NCHG<File>::iterator::operator*() const -> const_reference {
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::iterator::operator->() const -> const_pointer {
   _value = **this;
   return &_value;
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::iterator::operator++() -> iterator & {
   std::ignore = ++_pixel_it;
   jump_to_next_valid_pixel();
@@ -263,6 +281,7 @@ inline auto NCHG<File>::iterator::operator++() -> iterator & {
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::iterator::operator++(int) -> iterator {
   auto it = *this;
   it._str_buffer = std::make_shared<std::vector<double>>();
@@ -271,6 +290,7 @@ inline auto NCHG<File>::iterator::operator++(int) -> iterator {
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline void NCHG<File>::iterator::jump_to_next_valid_pixel() {
   while (_pixel_it != _sentinel_it) {
     const auto bin1_id = _pixel_it->coords.bin1.rel_id();
@@ -287,12 +307,14 @@ inline void NCHG<File>::iterator::jump_to_next_valid_pixel() {
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::compute(const hictk::GenomicInterval &range, double bad_bin_fraction) const
     -> Stats {
   return compute(range, range, bad_bin_fraction);
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::compute(const hictk::GenomicInterval &range1,
                                 const hictk::GenomicInterval &range2, double bad_bin_fraction) const
     -> Stats {
@@ -404,6 +426,7 @@ inline auto NCHG<File>::compute(const hictk::GenomicInterval &range1,
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::cbegin(const hictk::Chromosome &chrom1,
                                const hictk::Chromosome &chrom2) const -> iterator {
   const auto sel = _fp->fetch(chrom1.name(), chrom2.name());
@@ -421,6 +444,7 @@ inline auto NCHG<File>::cbegin(const hictk::Chromosome &chrom1,
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::cend(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2) const
     -> iterator {
   const auto sel = _fp->fetch(chrom1.name(), chrom2.name());
@@ -432,18 +456,21 @@ inline auto NCHG<File>::cend(const hictk::Chromosome &chrom1, const hictk::Chrom
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::begin(const hictk::Chromosome &chrom1,
                               const hictk::Chromosome &chrom2) const -> iterator {
   return cbegin(chrom1, chrom2);
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::end(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2) const
     -> iterator {
   return cend(chrom1, chrom2);
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::init_exp_matrix(const hictk::Chromosome &chrom1,
                                         const hictk::Chromosome &chrom2, const File &fp,
                                         const ExpectedValues<File> &expected_values)
@@ -461,6 +488,7 @@ inline auto NCHG<File>::init_exp_matrix(const hictk::Chromosome &chrom1,
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::init_obs_matrix(const hictk::Chromosome &chrom1,
                                         const hictk::Chromosome &chrom2, const File &fp,
                                         const std::vector<bool> &bin1_mask,
@@ -481,6 +509,7 @@ inline auto NCHG<File>::init_obs_matrix(const hictk::Chromosome &chrom1,
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline double NCHG<File>::compute_cumulative_nchg(std::vector<double> &buffer, std::uint64_t obs,
                                                   std::uint64_t N1, std::uint64_t N2,
                                                   std::uint64_t N, double odds, double precision,
@@ -546,6 +575,7 @@ inline double NCHG<File>::compute_cumulative_nchg(std::vector<double> &buffer, s
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline double NCHG<File>::compute_pvalue_nchg(std::uint64_t obs, std::uint64_t N1, std::uint64_t N2,
                                               std::uint64_t N, double odds, double precision,
                                               double min_omega) {
@@ -554,6 +584,7 @@ inline double NCHG<File>::compute_pvalue_nchg(std::uint64_t obs, std::uint64_t N
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline double NCHG<File>::compute_pvalue_nchg(std::vector<double> &buffer, std::uint64_t obs,
                                               std::uint64_t N1, std::uint64_t N2, std::uint64_t N,
                                               double odds, double precision, double min_omega) {
@@ -566,6 +597,7 @@ inline double NCHG<File>::compute_pvalue_nchg(std::vector<double> &buffer, std::
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 inline auto NCHG<File>::compute_expected_profile() const
     -> std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>> {
   SPDLOG_INFO(FMT_STRING("initializing expected matrix weights from genome-wide interactions..."));

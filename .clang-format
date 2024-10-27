@@ -60,6 +60,7 @@ BraceWrapping:
   SplitEmptyNamespace: true
 BreakBeforeBinaryOperators: None
 BreakBeforeBraces: Attach
+BreakBeforeConceptDeclarations: "Always"
 BreakBeforeInheritanceComma: false
 BreakInheritanceList: BeforeColon
 BreakBeforeTernaryOperators: true
@@ -145,6 +146,7 @@ RawStringFormats:
       - ParseTextProtoOrDie
     CanonicalDelimiter: ""
     BasedOnStyle: google
+RequiresExpressionIndentation: "OuterScope"
 ReflowComments: true
 SortIncludes: true
 SortUsingDeclarations: true

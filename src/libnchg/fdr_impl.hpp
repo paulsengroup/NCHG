@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <concepts>
 #include <cstddef>
 #include <memory>
 #include <numeric>
@@ -41,6 +42,7 @@ inline void BH_FDR<Stats>::add_record(Stats&& s) {
 
 template <typename Stats>
 template <typename StatsIt>
+  requires std::input_iterator<StatsIt>
 inline void BH_FDR<Stats>::add_records(StatsIt first, StatsIt last) {
   _pvalues.insert(_pvalues.end(), first, last);
 }
@@ -54,6 +56,7 @@ inline void BH_FDR<Stats>::clear() noexcept {
 
 template <typename Stats>
 template <typename UnaryOperation>
+  requires std::invocable<UnaryOperation, Stats&>
 inline auto BH_FDR<Stats>::correct(UnaryOperation op) -> std::vector<Stats> {
   if (_pvalues.size() < 2) {
     return _pvalues;

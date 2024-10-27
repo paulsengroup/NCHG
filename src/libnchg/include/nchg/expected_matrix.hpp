@@ -29,13 +29,15 @@
 #include <type_traits>
 #include <vector>
 
+#include "nchg/concepts.hpp"
+
 namespace nchg {
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 class ExpectedMatrix {
   using PixelT = std::remove_const_t<std::remove_reference_t<decltype(*std::declval<PixelIt>())>>;
   using N = decltype(std::declval<PixelT>().count);
-  static_assert(std::is_same_v<PixelT, hictk::Pixel<N>>);
 
   hictk::Chromosome _chrom1{};
   hictk::Chromosome _chrom2{};
@@ -55,6 +57,7 @@ class ExpectedMatrix {
 
  public:
   template <typename PixelItGw>
+    requires PixelStream<PixelItGw>
   ExpectedMatrix(PixelIt first_pixel, PixelIt last_pixel, PixelItGw first_pixel_gw,
                  PixelItGw last_pixel_gw, const hictk::Chromosome &chrom1,
                  const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
@@ -91,6 +94,7 @@ class ExpectedMatrix {
   [[nodiscard]] const std::vector<double> &marginals2() const noexcept;
 
   template <typename PixelItGw>
+    requires PixelStream<PixelItGw>
   [[nodiscard]] static std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>
   build_expected_vector(PixelItGw first_pixel, PixelItGw last_pixel, const hictk::BinTable &bins,
                         std::uint64_t min_delta_, std::uint64_t max_delta_);
@@ -103,6 +107,7 @@ class ExpectedMatrix {
                             std::uint64_t min_delta_, std::uint64_t max_delta_);
 
   template <typename PixelItGw>
+    requires PixelStream<PixelItGw>
   static std::vector<double> compute_weights(PixelItGw first_pixel, PixelItGw last_pixel,
                                              const hictk::Chromosome &chrom1,
                                              const hictk::Chromosome &chrom2,

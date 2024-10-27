@@ -34,6 +34,7 @@ NCHG_DISABLE_WARNING_POP
 #include <hictk/transformers/join_genomic_coords.hpp>
 #include <memory>
 
+#include "nchg/concepts.hpp"
 #include "nchg/expected_matrix.hpp"
 #include "nchg/expected_values.hpp"
 #include "nchg/observed_matrix.hpp"
@@ -55,6 +56,7 @@ struct NCHGResult {
 };
 
 template <typename File>
+  requires HictkSingleResFile<File>
 class NCHG {
  public:
   class iterator;

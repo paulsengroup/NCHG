@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "nchg/common.hpp"
+#include "nchg/concepts.hpp"
 
 namespace nchg {
 namespace internal {
@@ -131,6 +132,7 @@ inline std::vector<bool> mad_max_filtering(std::vector<double>& margs, double ma
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline std::pair<std::vector<bool>, std::vector<bool>> mad_max_filtering(
     PixelIt first_pixel, PixelIt last_pixel, const hictk::Chromosome& chrom1,
     const hictk::Chromosome& chrom2, std::uint32_t resolution, double mad_max) {
@@ -154,6 +156,7 @@ inline std::pair<std::vector<bool>, std::vector<bool>> mad_max_filtering(
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline std::vector<bool> mad_max_filtering(PixelIt first_pixel, PixelIt last_pixel,
                                            const hictk::Chromosome& chrom, std::uint32_t resolution,
                                            double mad_max) {

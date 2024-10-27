@@ -28,9 +28,12 @@
 #include <variant>
 #include <vector>
 
+#include "nchg/concepts.hpp"
+
 namespace nchg {
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline auto ExpectedMatrix<PixelIt>::compute_stats(
     PixelIt first_pixel, PixelIt last_pixel, const hictk::Chromosome &chrom1,
     const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
@@ -108,7 +111,9 @@ inline auto ExpectedMatrix<PixelIt>::compute_stats(
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 template <typename PixelItGw>
+  requires PixelStream<PixelItGw>
 inline ExpectedMatrix<PixelIt>::ExpectedMatrix(
     PixelIt first_pixel, PixelIt last_pixel, PixelItGw first_pixel_gw, PixelItGw last_pixel_gw,
     const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
@@ -120,6 +125,7 @@ inline ExpectedMatrix<PixelIt>::ExpectedMatrix(
                      1.0, bin_mask1, bin_mask2, min_delta_, max_delta_) {}
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline ExpectedMatrix<PixelIt>::ExpectedMatrix(PixelIt first_pixel, PixelIt last_pixel,
                                                hictk::Chromosome chrom1, hictk::Chromosome chrom2,
                                                hictk::BinTable bins, std::vector<double> weights,
@@ -147,66 +153,79 @@ inline ExpectedMatrix<PixelIt>::ExpectedMatrix(PixelIt first_pixel, PixelIt last
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline std::uint32_t ExpectedMatrix<PixelIt>::resolution() const noexcept {
   return _bins.resolution();
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline std::size_t ExpectedMatrix<PixelIt>::num_rows() const noexcept {
   return _bins.subset(chrom1()).size();
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline std::size_t ExpectedMatrix<PixelIt>::num_cols() const noexcept {
   return _bins.subset(chrom2()).size();
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline const hictk::Chromosome &ExpectedMatrix<PixelIt>::chrom1() const noexcept {
   return _chrom1;
 }
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline const hictk::Chromosome &ExpectedMatrix<PixelIt>::chrom2() const noexcept {
   return _chrom2;
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline std::uint64_t ExpectedMatrix<PixelIt>::nnz() const noexcept {
   return _nnz;
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline double ExpectedMatrix<PixelIt>::sum() const noexcept {
   return _sum;
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline double ExpectedMatrix<PixelIt>::nnz_avg() const noexcept {
   return sum() / static_cast<double>(nnz());
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline const std::vector<double> &ExpectedMatrix<PixelIt>::weights() const noexcept {
   return _weights;
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline const phmap::btree_map<hictk::Chromosome, double> &ExpectedMatrix<PixelIt>::scaling_factors()
     const noexcept {
   return _scaling_factors;
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline std::uint64_t ExpectedMatrix<PixelIt>::min_delta() const noexcept {
   return _min_delta;
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline std::uint64_t ExpectedMatrix<PixelIt>::max_delta() const noexcept {
   return _max_delta;
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline double ExpectedMatrix<PixelIt>::at(std::uint64_t i, std::uint64_t j) const {
   if (chrom1() == chrom2()) {
     return _weights.at(j - i);
@@ -215,16 +234,20 @@ inline double ExpectedMatrix<PixelIt>::at(std::uint64_t i, std::uint64_t j) cons
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline const std::vector<double> &ExpectedMatrix<PixelIt>::marginals1() const noexcept {
   return *_marginals1;
 }
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 inline const std::vector<double> &ExpectedMatrix<PixelIt>::marginals2() const noexcept {
   return *_marginals2;
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 template <typename PixelItGw>
+  requires PixelStream<PixelItGw>
 inline std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>
 ExpectedMatrix<PixelIt>::build_expected_vector(PixelItGw first_pixel, PixelItGw last_pixel,
                                                const hictk::BinTable &bins,
@@ -258,7 +281,9 @@ ExpectedMatrix<PixelIt>::build_expected_vector(PixelItGw first_pixel, PixelItGw 
 }
 
 template <typename PixelIt>
+  requires PixelStream<PixelIt>
 template <typename PixelItGw>
+  requires PixelStream<PixelItGw>
 inline std::vector<double> ExpectedMatrix<PixelIt>::compute_weights(
     PixelItGw first_pixel, PixelItGw last_pixel, const hictk::Chromosome &chrom1,
     const hictk::Chromosome &chrom2, const hictk::BinTable &bins, std::uint64_t min_delta_,

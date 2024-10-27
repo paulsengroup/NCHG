@@ -25,6 +25,7 @@ NCHG_DISABLE_WARNING_POP
 // clang-format on
 
 #include <cassert>
+#include <concepts>
 #include <filesystem>
 #include <hictk/chromosome.hpp>
 #include <memory>
@@ -32,6 +33,7 @@ NCHG_DISABLE_WARNING_POP
 #include <variant>
 
 #include "nchg/common.hpp"
+#include "nchg/concepts.hpp"
 #include "nchg/config.hpp"
 #include "nchg/expected_values.hpp"
 #include "nchg/io.hpp"
@@ -39,7 +41,14 @@ NCHG_DISABLE_WARNING_POP
 
 namespace nchg {
 
+template <typename FPtr>
+concept HictkSingleResFilePtr = requires(FPtr fp) {
+  SmartPtr<FPtr>;
+  HictkSingleResFile<std::remove_cvref_t<decltype(*fp)>>;
+};
+
 template <typename FilePtr>
+  requires HictkSingleResFilePtr<FilePtr>
 static void process_all_chromosomes(FilePtr f, const ExpectedConfig &c) {
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
   const ExpectedValues evs(
@@ -55,6 +64,7 @@ static void process_all_chromosomes(FilePtr f, const ExpectedConfig &c) {
 }
 
 template <typename FilePtr>
+  requires HictkSingleResFilePtr<FilePtr>
 static void process_cis_chromosomes(FilePtr f, const ExpectedConfig &c) {
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
@@ -72,6 +82,7 @@ static void process_cis_chromosomes(FilePtr f, const ExpectedConfig &c) {
 }
 
 template <typename FilePtr>
+  requires HictkSingleResFilePtr<FilePtr>
 static void process_trans_chromosomes(FilePtr f, const ExpectedConfig &c) {
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
@@ -89,6 +100,7 @@ static void process_trans_chromosomes(FilePtr f, const ExpectedConfig &c) {
 }
 
 template <typename FilePtr>
+  requires HictkSingleResFilePtr<FilePtr>
 static void process_one_chromosome_pair(FilePtr f, const ExpectedConfig &c) {
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 

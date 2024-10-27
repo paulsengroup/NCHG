@@ -24,6 +24,8 @@
 #include <iterator>
 #include <type_traits>
 
+#include "nchg/type_traits.hpp"
+
 namespace nchg {
 
 template <typename T>
@@ -52,5 +54,12 @@ concept HictkSingleResFile =
     std::is_same_v<hictk::cooler::File, File>
     // clang-format on
     ;
+
+template <typename T>
+concept UniquePtr = is_unique_ptr_v<T>;
+template <typename T>
+concept SharedPtr = is_shared_ptr_v<T>;
+template <typename T>
+concept SmartPtr = UniquePtr<T> || SharedPtr<T>;
 
 }  // namespace nchg

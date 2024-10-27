@@ -19,6 +19,7 @@
 #include <fmt/compile.h>
 #include <fmt/format.h>
 
+#include <concepts>
 #include <hictk/numeric_utils.hpp>
 #include <type_traits>
 
@@ -83,7 +84,8 @@ static std::tuple<std::string, std::uint32_t, std::uint32_t> parse_ucsc(std::str
   }
 }
 
-template <typename T, typename std::enable_if_t<std::is_same_v<T, NCHGComputeResult>>* = nullptr>
+template <typename T>
+  requires std::same_as<T, NCHGComputeResult>
 static void print_header() {
   fmt::print(
       FMT_STRING("chrom1\tstart1\tend1\t"
@@ -96,7 +98,8 @@ static void print_header() {
                  "omega\n"));
 }
 
-template <typename T, typename std::enable_if_t<std::is_same_v<T, NCHGFilterResult>>* = nullptr>
+template <typename T>
+  requires std::same_as<T, NCHGFilterResult>
 static void print_header() {
   fmt::print(
       FMT_STRING("chrom1\tstart1\tend1\t"

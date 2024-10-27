@@ -51,6 +51,7 @@ NCHG_DISABLE_WARNING_POP
 // clang-format on
 
 #include "nchg/common.hpp"
+#include "nchg/concepts.hpp"
 #include "nchg/config.hpp"
 #include "nchg/io.hpp"
 #include "nchg/nchg.hpp"
@@ -111,6 +112,7 @@ namespace nchg {
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 [[nodiscard]] static NCHG<File> init_nchg(
     const std::shared_ptr<const File> &f,
     const std::optional<ExpectedValues<File>> &expected_values, const ComputePvalConfig &c) {
@@ -169,6 +171,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 [[nodiscard]] static std::size_t process_domains(
     const std::shared_ptr<const File> &f,
     const std::optional<ExpectedValues<File>> &expected_values, const ComputePvalConfig &c) {
@@ -223,6 +226,7 @@ template <typename File>
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 [[nodiscard]] static std::size_t process_one_chromosome_pair(
     const std::shared_ptr<const File> &f,
     const std::optional<ExpectedValues<File>> &expected_values, const ComputePvalConfig &c) {
@@ -277,6 +281,7 @@ using HiCFilePtr =
 }
 
 template <typename File = hictk::cooler::File>
+  requires HictkSingleResFile<File>
 [[nodiscard]] static std::size_t run_nchg_compute_worker(
     const ComputePvalConfig &c, const std::optional<ExpectedValues<File>> &expected_values = {}) {
   assert(c.chrom1 != "all");
@@ -416,6 +421,7 @@ init_trans_chromosomes(const hictk::Reference &chroms) {
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 static std::size_t process_queries_mt(
     BS::thread_pool &tpool,
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
@@ -500,6 +506,7 @@ static std::size_t process_queries_mt(
 }
 
 template <typename File>
+  requires HictkSingleResFile<File>
 static std::size_t process_queries_st(
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
     const std::optional<ExpectedValues<File>> &expected_values, const ComputePvalConfig &c) {

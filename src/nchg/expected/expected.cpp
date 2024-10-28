@@ -43,8 +43,8 @@ namespace nchg {
 
 template <typename FPtr>
 concept HictkSingleResFilePtr = requires(FPtr fp) {
-  SmartPtr<FPtr>;
-  HictkSingleResFile<std::remove_cvref_t<decltype(*fp)>>;
+  requires SmartPtr<FPtr>;
+  requires HictkSingleResFile<std::remove_cvref_t<decltype(*fp)>>;
 };
 
 template <typename FilePtr>
@@ -68,7 +68,6 @@ template <typename FilePtr>
 static void process_cis_chromosomes(FilePtr f, const ExpectedConfig &c) {
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
-  using File = std::remove_cvref_t<decltype(*f)>;
   const auto evs = ExpectedValues::cis_only(
       f,
       {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
@@ -86,7 +85,6 @@ template <typename FilePtr>
 static void process_trans_chromosomes(FilePtr f, const ExpectedConfig &c) {
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
-  using File = std::remove_cvref_t<decltype(*f)>;
   const auto evs = ExpectedValues::trans_only(
       f,
       {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
@@ -108,7 +106,6 @@ static void process_one_chromosome_pair(FilePtr f, const ExpectedConfig &c) {
   const auto &chrom1 = f->chromosomes().at(c.chrom1);
   const auto &chrom2 = f->chromosomes().at(c.chrom2);
 
-  using File = std::remove_cvref_t<decltype(*std::declval<FilePtr>())>;
   const auto evs = ExpectedValues::chromosome_pair(
       f, chrom1, chrom2,
       {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,

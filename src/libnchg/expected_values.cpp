@@ -287,7 +287,6 @@ template <typename File>
 void ExpectedValues::init_bin_masks(
     const File &f,
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask_seed) {
-  using N = std::uint32_t;
   for (const auto &chrom : f.chromosomes()) {
     if (chrom.is_all()) {
       continue;

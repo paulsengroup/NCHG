@@ -91,10 +91,10 @@ target_link_libraries(
     nchg_project_options
     nchg_project_warnings
     fmt::fmt-header-only
-    hictk::libhictk
-    phmap
     spdlog::spdlog_header_only
   PUBLIC
+    hictk::libhictk
+    phmap
     stocc
 )
 

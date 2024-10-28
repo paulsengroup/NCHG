@@ -144,6 +144,18 @@ inline ExpectedMatrix::ExpectedMatrix(const Pixels &pixels, hictk::Chromosome ch
   _sum = stats.sum;
 }
 
+template <typename Pixels, typename PixelsGW>
+  requires PixelRange<Pixels> && PixelRange<PixelsGW>
+inline ExpectedMatrix::ExpectedMatrix(const Pixels &pixels, const PixelsGW &pixels_gw,
+                                      const hictk::Chromosome &chrom1,
+                                      const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
+                                      const std::vector<bool> &bin_mask1,
+                                      const std::vector<bool> &bin_mask2, std::uint64_t min_delta_,
+                                      std::uint64_t max_delta_)
+    : ExpectedMatrix(pixels, chrom1, chrom2, bins,
+                     compute_weights(pixels_gw, chrom1, chrom2, bins, min_delta_, max_delta_), 1.0,
+                     bin_mask1, bin_mask2, min_delta_, max_delta_) {}
+
 template <typename Pixels>
   requires PixelRange<Pixels>
 inline std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>
@@ -176,6 +188,27 @@ ExpectedMatrix::build_expected_vector(const Pixels &pixels, const hictk::BinTabl
                  std::numeric_limits<double>::quiet_NaN());
 
   return std::make_pair(std::move(weights), aggr.scaling_factors());
+}
+
+template <typename Pixels>
+  requires PixelRange<Pixels>
+inline std::vector<double> ExpectedMatrix::compute_weights(
+    const Pixels &pixels, const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
+    const hictk::BinTable &bins, std::uint64_t min_delta_, std::uint64_t max_delta_) {
+  if (chrom1 != chrom2) {
+    return {};
+  }
+
+  auto [weights, scaling_factors] = build_expected_vector(pixels, bins, min_delta_, max_delta_);
+
+  weights.resize((chrom1.size() + bins.resolution() - 1) / bins.resolution(),
+                 std::numeric_limits<double>::quiet_NaN());
+
+  const auto sf = scaling_factors.at(chrom1);
+  std::transform(weights.begin(), weights.end(), weights.begin(),
+                 [&](const auto n) { return n / sf; });
+
+  return weights;
 }
 
 }  // namespace nchg

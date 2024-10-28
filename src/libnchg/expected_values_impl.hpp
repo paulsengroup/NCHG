@@ -73,7 +73,6 @@ inline ExpectedMatrix ExpectedValues::expected_matrix(const hictk::Chromosome &c
 template <typename File>
   requires HictkSingleResFile<File>
 inline auto ExpectedValues::init_pixel_merger_cis(const File &f) {
-  using N = std::uint32_t;
   using PixelSelector = decltype(std::declval<File>().fetch("chr1"));
   using ThinPixelIt = decltype(std::declval<PixelSelector>().template begin<N>());
 

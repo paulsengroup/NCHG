@@ -70,8 +70,7 @@ TEST_CASE("ExpectedMatrix (cis)", "[short][expected_matrix]") {
   // clang-format on
 
   SECTION("full matrix") {
-    const ExpectedMatrix m{pixels.begin(), pixels.end(), pixels.begin(), pixels.end(), chrom1,
-                           chrom1,         bins};
+    const ExpectedMatrix m{pixels, pixels, chrom1, chrom1, bins};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);
@@ -88,17 +87,7 @@ TEST_CASE("ExpectedMatrix (cis)", "[short][expected_matrix]") {
   }
 
   SECTION("masked matrix") {
-    const ExpectedMatrix m{pixels.begin(),
-                           pixels.end(),
-                           pixels.begin(),
-                           pixels.end(),
-                           chrom1,
-                           chrom1,
-                           bins,
-                           {},
-                           {},
-                           1,
-                           100};
+    const ExpectedMatrix m{pixels, pixels, chrom1, chrom1, bins, {}, {}, 1, 100};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);
@@ -124,16 +113,14 @@ TEST_CASE("ExpectedMatrix (cis)", "[short][expected_matrix]") {
   SECTION("empty matrix") {
     const std::vector<Pixel> buff{};
 
-    const ExpectedMatrix m1{buff.begin(), buff.end(), buff.begin(), buff.end(),
-                            chrom1,       chrom1,     bins};
+    const ExpectedMatrix m1{buff, buff, chrom1, chrom1, bins};
     CHECK(std::all_of(m1.marginals1().begin(), m1.marginals1().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(std::all_of(m1.marginals2().begin(), m1.marginals2().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(m1.nnz() == 0);
 
-    const ExpectedMatrix m2{buff.begin(), buff.end(), buff.begin(), buff.end(),
-                            chrom1,       chrom1,     bins};
+    const ExpectedMatrix m2{buff, buff, chrom1, chrom1, bins};
     CHECK(std::all_of(m2.marginals1().begin(), m2.marginals1().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(std::all_of(m2.marginals2().begin(), m2.marginals2().end(),
@@ -169,8 +156,7 @@ TEST_CASE("ExpectedMatrix (trans)", "[short][expected_matrix]") {
   // clang-format on
 
   SECTION("full matrix") {
-    const ExpectedMatrix m{pixels.begin(), pixels.end(), pixels.begin(), pixels.end(), chrom1,
-                           chrom2,         bins};
+    const ExpectedMatrix m{pixels, pixels, chrom1, chrom2, bins};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);
@@ -196,17 +182,7 @@ TEST_CASE("ExpectedMatrix (trans)", "[short][expected_matrix]") {
   }
 
   SECTION("masked matrix") {
-    const ExpectedMatrix m{pixels.begin(),
-                           pixels.end(),
-                           pixels.begin(),
-                           pixels.end(),
-                           chrom1,
-                           chrom2,
-                           bins,
-                           {},
-                           {},
-                           1,
-                           100};
+    const ExpectedMatrix m{pixels, pixels, chrom1, chrom2, bins, {}, {}, 1, 100};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);
@@ -233,16 +209,14 @@ TEST_CASE("ExpectedMatrix (trans)", "[short][expected_matrix]") {
 
   SECTION("empty matrix") {
     const std::vector<Pixel> buff{};
-    const ExpectedMatrix m1{buff.begin(), buff.end(), buff.begin(), buff.end(),
-                            chrom1,       chrom1,     bins};
+    const ExpectedMatrix m1{buff, buff, chrom1, chrom1, bins};
     CHECK(std::all_of(m1.marginals1().begin(), m1.marginals1().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(std::all_of(m1.marginals2().begin(), m1.marginals2().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(m1.nnz() == 0);
 
-    const ExpectedMatrix m2{buff.begin(), buff.end(), buff.begin(), buff.end(),
-                            chrom1,       chrom1,     bins};
+    const ExpectedMatrix m2{buff, buff, chrom1, chrom1, bins};
     CHECK(std::all_of(m2.marginals1().begin(), m2.marginals1().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(std::all_of(m2.marginals2().begin(), m2.marginals2().end(),

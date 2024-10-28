@@ -22,7 +22,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include <hictk/cooler/cooler.hpp>
+#include <hictk/file.hpp>
 #include <memory>
 
 #include "tmpdir.hpp"
@@ -54,14 +54,14 @@ TEST_CASE("ExpectedValues: genome-wide", "[long][expected_values]") {
   spdlog::default_logger()->set_level(spdlog::level::warn);
   const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
 
-  const auto clr = std::make_shared<const hictk::cooler::File>(test_file.string());
+  const auto clr = std::make_shared<const hictk::File>(test_file.string());
 
   const ExpectedValues evs(clr);
 
   SECTION("serde") {
     const auto path = testdir() / "expected_values_gw.bin";
     evs.serialize(path);
-    const auto evs_gw_serde = ExpectedValues<hictk::cooler::File>::deserialize(path);
+    const auto evs_gw_serde = ExpectedValues::deserialize(path);
 
     CHECK(evs.params().mad_max == evs_gw_serde.params().mad_max);
     CHECK(evs.params().min_delta == evs_gw_serde.params().min_delta);
@@ -100,9 +100,9 @@ TEST_CASE("ExpectedValues: cis-only", "[medium][expected_values]") {
   spdlog::default_logger()->set_level(spdlog::level::warn);
   const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
 
-  const auto clr = std::make_shared<const hictk::cooler::File>(test_file.string());
+  const auto clr = std::make_shared<const hictk::File>(test_file.string());
 
-  const auto evs = ExpectedValues<hictk::cooler::File>::cis_only(clr);
+  const auto evs = ExpectedValues::cis_only(clr);
 
   SECTION("accessors") {
     const auto num_bins =
@@ -134,12 +134,12 @@ TEST_CASE("ExpectedValues: trans-only", "[long][expected_values]") {
   spdlog::default_logger()->set_level(spdlog::level::warn);
   const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
 
-  const auto clr = std::make_shared<const hictk::cooler::File>(test_file.string());
+  const auto clr = std::make_shared<const hictk::File>(test_file.string());
 
-  auto params = ExpectedValues<hictk::cooler::File>::DefaultParams;
+  auto params = ExpectedValues::DefaultParams;
   params.mad_max = 0.0;
 
-  const auto evs = ExpectedValues<hictk::cooler::File>::trans_only(clr, params);
+  const auto evs = ExpectedValues::trans_only(clr, params);
   const auto chrom1 = clr->chromosomes().at("chr21");
   const auto chrom2 = clr->chromosomes().at("chr22");
 
@@ -151,13 +151,13 @@ TEST_CASE("ExpectedValues: chromosome pair", "[medium][expected_values]") {
   spdlog::default_logger()->set_level(spdlog::level::warn);
   const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
 
-  const auto clr = std::make_shared<const hictk::cooler::File>(test_file.string());
+  const auto clr = std::make_shared<const hictk::File>(test_file.string());
   const auto chrom1 = clr->chromosomes().at("chr21");
   const auto chrom2 = clr->chromosomes().at("chr22");
   const auto chrom3 = clr->chromosomes().at("chrX");
 
-  const auto evs1 = ExpectedValues<hictk::cooler::File>::chromosome_pair(clr, chrom1, chrom1);
-  const auto evs2 = ExpectedValues<hictk::cooler::File>::chromosome_pair(clr, chrom1, chrom2);
+  const auto evs1 = ExpectedValues::chromosome_pair(clr, chrom1, chrom1);
+  const auto evs2 = ExpectedValues::chromosome_pair(clr, chrom1, chrom2);
 
   SECTION("expected values") {
     CHECK_NOTHROW(evs1.expected_values(chrom1));

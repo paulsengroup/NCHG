@@ -111,11 +111,9 @@ namespace nchg {
   return domains;
 }
 
-template <typename File>
-  requires HictkSingleResFile<File>
-[[nodiscard]] static NCHG<File> init_nchg(
-    const std::shared_ptr<const File> &f,
-    const std::optional<ExpectedValues<File>> &expected_values, const ComputePvalConfig &c) {
+[[nodiscard]] static NCHG init_nchg(const std::shared_ptr<const hictk::File> &f,
+                                    const std::optional<ExpectedValues> &expected_values,
+                                    const ComputePvalConfig &c) {
   assert(c.chrom1 != "all");
   assert(c.chrom2 != "all");
   assert(!c.cis_only);
@@ -130,12 +128,12 @@ template <typename File>
 
   if (!c.path_to_expected_values.empty()) {
     SPDLOG_INFO(FMT_STRING("reading expected values from {}..."), c.path_to_expected_values);
-    return NCHG(f, chrom1, chrom2, ExpectedValues<File>::deserialize(c.path_to_expected_values));
+    return NCHG(f, chrom1, chrom2, ExpectedValues::deserialize(c.path_to_expected_values));
   }
 
   const auto bin_mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
-  const auto evs = ExpectedValues<File>::chromosome_pair(
+  const auto evs = ExpectedValues::chromosome_pair(
       f, chrom1, chrom2,
       {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
        c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
@@ -170,11 +168,9 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   }
 }
 
-template <typename File>
-  requires HictkSingleResFile<File>
 [[nodiscard]] static std::size_t process_domains(
-    const std::shared_ptr<const File> &f,
-    const std::optional<ExpectedValues<File>> &expected_values, const ComputePvalConfig &c) {
+    const std::shared_ptr<const hictk::File> &f,
+    const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
   assert(std::filesystem::exists(c.path_to_domains));
 
   SPDLOG_INFO(FMT_STRING("[{}:{}] begin processing domains from {}..."), c.chrom1, c.chrom2,
@@ -225,11 +221,9 @@ template <typename File>
   return num_records;
 }
 
-template <typename File>
-  requires HictkSingleResFile<File>
 [[nodiscard]] static std::size_t process_one_chromosome_pair(
-    const std::shared_ptr<const File> &f,
-    const std::optional<ExpectedValues<File>> &expected_values, const ComputePvalConfig &c) {
+    const std::shared_ptr<const hictk::File> &f,
+    const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
   SPDLOG_INFO(FMT_STRING("[{}:{}] begin processing interactions..."), c.chrom1, c.chrom2);
 
   const auto &chrom1 = f->chromosomes().at(c.chrom1);
@@ -244,17 +238,25 @@ template <typename File>
   RecordBatchBuilder builder{f->chromosomes()};
 
   std::size_t num_records = 0;
-  std::for_each(nchg.begin(chrom1, chrom2), nchg.end(chrom1, chrom2), [&](const auto &s) {
-    ++num_records;
+  auto first = nchg.begin(chrom1, chrom2);
+  auto last = nchg.end(chrom1, chrom2);
 
-    if (builder.size() == batch_size) {
-      builder.write(*writer);
-    }
+  std::visit(
+      [&]<typename It>(It &it1) {
+        auto &it2 = std::get<It>(last);
+        std::for_each(it1, it2, [&](const auto &s) {
+          ++num_records;
 
-    if (std::isfinite(s.odds_ratio) && s.omega != 0) {
-      builder.append(s);
-    }
-  });
+          if (builder.size() == batch_size) {
+            builder.write(*writer);
+          }
+
+          if (std::isfinite(s.odds_ratio) && s.omega != 0) {
+            builder.append(s);
+          }
+        });
+      },
+      first);
 
   if (builder.size() != 0) {
     builder.write(*writer);
@@ -262,51 +264,17 @@ template <typename File>
   return num_records;
 }
 
-// clang-format off
-using HiCFilePtr =
-    std::variant<
-        std::shared_ptr<const hictk::cooler::File>,
-        std::shared_ptr<const hictk::hic::File>>;
-// clang-format on
-
-[[nodiscard]] static HiCFilePtr open_file_ptr(const std::filesystem::path &path,
-                                              std::uint32_t resolution) {
-  hictk::File f_(path.string(), resolution);
-  return {std::visit(
-      [&](auto &&ff) {
-        using FileT = std::remove_reference_t<decltype(ff)>;
-        return HiCFilePtr{std::make_shared<const FileT>(std::forward<FileT>(ff))};
-      },
-      f_.get())};
-}
-
-template <typename File = hictk::cooler::File>
-  requires HictkSingleResFile<File>
 [[nodiscard]] static std::size_t run_nchg_compute_worker(
-    const ComputePvalConfig &c, const std::optional<ExpectedValues<File>> &expected_values = {}) {
+    const ComputePvalConfig &c, const std::optional<ExpectedValues> &expected_values = {}) {
   assert(c.chrom1 != "all");
 
-  const auto f = open_file_ptr(c.path_to_hic, c.resolution);
+  const auto f = std::make_shared<const hictk::File>(c.path_to_hic.string(), c.resolution);
 
-  return std::visit(
-      [&]<typename FilePtr>(const FilePtr &f_) -> std::size_t {
-        using UnderlyingFile = std::remove_cvref_t<typename FilePtr::element_type>;
-        if constexpr (!std::is_same_v<File, UnderlyingFile>) {
-          std::optional<ExpectedValues<UnderlyingFile>> expected_values_{};
-          if (expected_values) {
-            expected_values_ = expected_values->template cast<UnderlyingFile>();
-          }
+  if (!c.path_to_domains.empty()) {
+    return process_domains(f, expected_values, c);
+  }
 
-          return run_nchg_compute_worker(c, expected_values_);
-        } else {
-          if (!c.path_to_domains.empty()) {
-            return process_domains(f_, expected_values, c);
-          }
-
-          return process_one_chromosome_pair(f_, expected_values, c);
-        }
-      },
-      f);
+  return process_one_chromosome_pair(f, expected_values, c);
 }
 
 [[nodiscard]] static std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>>
@@ -420,12 +388,10 @@ init_trans_chromosomes(const hictk::Reference &chroms) {
                                        c.exec.string(), fmt::join(args, " ")));
 }
 
-template <typename File>
-  requires HictkSingleResFile<File>
 static std::size_t process_queries_mt(
     BS::thread_pool &tpool,
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
-    const std::optional<ExpectedValues<File>> &expected_values, const ComputePvalConfig &c) {
+    const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
   std::atomic<bool> early_return{false};
 
   auto config = c;
@@ -505,11 +471,9 @@ static std::size_t process_queries_mt(
   return num_records;
 }
 
-template <typename File>
-  requires HictkSingleResFile<File>
 static std::size_t process_queries_st(
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
-    const std::optional<ExpectedValues<File>> &expected_values, const ComputePvalConfig &c) {
+    const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
   std::size_t tot_num_records = 0;
   for (const auto &pair : chrom_pairs) {
     const auto &chrom1 = pair.first;
@@ -552,15 +516,14 @@ static std::size_t process_queries_st(
   return tot_num_records;
 }
 
-static std::optional<ExpectedValues<hictk::File>> init_cis_expected_values(
-    const ComputePvalConfig &c) {
+static std::optional<ExpectedValues> init_cis_expected_values(const ComputePvalConfig &c) {
   if (c.cis_only || (c.chrom1 == c.chrom2)) {
     SPDLOG_INFO(FMT_STRING("initializing expected values for cis matrices..."));
     const auto f = std::make_shared<hictk::File>(c.path_to_hic.string(), c.resolution);
 
     const auto bin_mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
-    return {ExpectedValues<hictk::File>::cis_only(
+    return {ExpectedValues::cis_only(
         f,
         {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
          c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
@@ -573,7 +536,7 @@ static std::optional<ExpectedValues<hictk::File>> init_cis_expected_values(
 
 static std::size_t process_queries(
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
-    const std::optional<ExpectedValues<hictk::File>> &expected_values, const ComputePvalConfig &c) {
+    const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
   if (expected_values.has_value()) {
     for (const auto &[chrom1, chrom2] : chrom_pairs) {
       try {
@@ -621,12 +584,12 @@ int run_nchg_compute(const ComputePvalConfig &c) {
 
   const hictk::File f(c.path_to_hic.string(), c.resolution);
   std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> chrom_pairs{};
-  std::optional<ExpectedValues<hictk::File>> expected_values{};
+  std::optional<ExpectedValues> expected_values{};
   if (c.cis_only) {
     chrom_pairs = init_cis_chromosomes(f.chromosomes());
     expected_values = c.path_to_expected_values.empty()
                           ? init_cis_expected_values(c)
-                          : ExpectedValues<hictk::File>::deserialize(c.path_to_expected_values);
+                          : ExpectedValues::deserialize(c.path_to_expected_values);
   }
   if (c.trans_only) {
     chrom_pairs = init_trans_chromosomes(f.chromosomes());
@@ -639,7 +602,7 @@ int run_nchg_compute(const ComputePvalConfig &c) {
   }
 
   if (!expected_values.has_value() && !c.path_to_expected_values.empty()) {
-    expected_values = ExpectedValues<hictk::File>::deserialize(c.path_to_expected_values);
+    expected_values = ExpectedValues::deserialize(c.path_to_expected_values);
   }
 
   if (expected_values.has_value() && expected_values->resolution() != f.resolution()) {

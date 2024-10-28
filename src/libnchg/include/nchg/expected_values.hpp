@@ -19,14 +19,15 @@
 #pragma once
 
 #include <parallel_hashmap/btree.h>
+#include <parallel_hashmap/phmap.h>
 
 #include <cstdint>
-#include <filesystem>
+#include <hictk/bin_table.hpp>
 #include <hictk/chromosome.hpp>
-#include <hictk/transformers/join_genomic_coords.hpp>
+#include <hictk/file.hpp>
 #include <highfive/H5File.hpp>
+#include <limits>
 #include <memory>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -35,12 +36,10 @@
 
 namespace nchg {
 
-template <typename File>
-  requires HictkSingleResFile<File>
 class ExpectedValues {
   using N = std::uint32_t;
 
-  std::shared_ptr<const File> _fp{};
+  std::shared_ptr<const hictk::File> _fp{};
   std::uint32_t _resolution{};
 
   using ChromPair = std::pair<hictk::Chromosome, hictk::Chromosome>;
@@ -86,29 +85,22 @@ class ExpectedValues {
   };
   // clang-format on
 
-  template <typename OtherFile>
-    requires HictkSingleResFile<OtherFile>
-  friend class ExpectedValues;
-
+  ExpectedValues() = default;
   explicit ExpectedValues(
-      std::shared_ptr<const File> file, const Params& params_ = DefaultParams,
+      std::shared_ptr<const hictk::File> file, const Params& params_ = DefaultParams,
       const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask = {});
   static ExpectedValues cis_only(
-      std::shared_ptr<const File> file, const Params& params_ = DefaultParams,
+      std::shared_ptr<const hictk::File> file, const Params& params_ = DefaultParams,
       const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask = {});
   static ExpectedValues trans_only(
-      std::shared_ptr<const File> file, const Params& params_ = DefaultParams,
+      std::shared_ptr<const hictk::File> file, const Params& params_ = DefaultParams,
       const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask = {});
   static ExpectedValues chromosome_pair(
-      std::shared_ptr<const File> file, const hictk::Chromosome& chrom1,
+      std::shared_ptr<const hictk::File> file, const hictk::Chromosome& chrom1,
       const hictk::Chromosome& chrom2, const Params& params_ = DefaultParams,
       const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask = {});
 
   static ExpectedValues deserialize(const std::filesystem::path& path);
-
-  template <typename OutFile>
-    requires HictkSingleResFile<OutFile>
-  [[nodiscard]] ExpectedValues<OutFile> cast() const;
 
   [[nodiscard]] std::uint32_t resolution() const noexcept;
   [[nodiscard]] const std::vector<double>& weights() const noexcept;
@@ -128,20 +120,26 @@ class ExpectedValues {
   [[nodiscard]] const phmap::btree_map<hictk::Chromosome, double>& scaling_factors() const noexcept;
   [[nodiscard]] double scaling_factor(const hictk::Chromosome& chrom) const;
 
-  [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom) const;
+  [[nodiscard]] ExpectedMatrix expected_matrix(const hictk::Chromosome& chrom) const;
   template <typename Pixels>
     requires PixelRange<Pixels>
-  [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom, const hictk::BinTable& bins,
-                                     const Pixels& pixels) const;
-  [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom1,
-                                     const hictk::Chromosome& chrom2) const;
+  [[nodiscard]] ExpectedMatrix expected_matrix(const hictk::Chromosome& chrom,
+                                               const hictk::BinTable& bins,
+                                               const Pixels& pixels) const;
+  [[nodiscard]] ExpectedMatrix expected_matrix(const hictk::Chromosome& chrom1,
+                                               const hictk::Chromosome& chrom2) const;
   template <typename Pixels>
     requires PixelRange<Pixels>
-  [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom1,
-                                     const hictk::Chromosome& chrom2, const hictk::BinTable& bins,
-                                     const Pixels& pixels) const;
+  [[nodiscard]] ExpectedMatrix expected_matrix(const hictk::Chromosome& chrom1,
+                                               const hictk::Chromosome& chrom2,
+                                               const hictk::BinTable& bins,
+                                               const Pixels& pixels) const;
 
   void serialize(const std::filesystem::path& path) const;
+
+  template <typename File>
+    requires HictkSingleResFile<File>
+  [[nodiscard]] static auto init_pixel_merger_cis(const File& f);
 
  private:
   void compute_expected_values_cis(
@@ -178,6 +176,12 @@ class ExpectedValues {
       -> phmap::btree_map<ChromPair, double>;
 
   static void merge_bin_masks(std::vector<bool>& mask1, const std::vector<bool>& mask2);
+
+  template <typename File>
+    requires HictkSingleResFile<File>
+  void init_bin_masks(
+      const File& f,
+      const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask_seed);
 };
 }  // namespace nchg
 

@@ -31,6 +31,7 @@
 #include <utility>
 #include <vector>
 
+#include "nchg/common.hpp"
 #include "nchg/concepts.hpp"
 
 namespace nchg {

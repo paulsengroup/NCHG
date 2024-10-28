@@ -18,13 +18,12 @@
 
 #pragma once
 
-#include <algorithm>
+#include <cassert>
 #include <cstdint>
+#include <hictk/bin_table.hpp>
 #include <hictk/chromosome.hpp>
-#include <hictk/file.hpp>
-#include <hictk/pixel.hpp>
+#include <memory>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "nchg/concepts.hpp"
@@ -129,42 +128,6 @@ inline ObservedMatrix::ObservedMatrix(const Pixels &pixels, hictk::Chromosome ch
   _marginals2 = std::move(stats.marginals2);
   _nnz = stats.nnz;
   _sum = stats.sum;
-}
-
-inline std::uint32_t ObservedMatrix::resolution() const noexcept { return _bins.resolution(); }
-
-inline std::size_t ObservedMatrix::num_rows() const noexcept {
-  return _bins.subset(chrom1()).size();
-}
-
-inline std::size_t ObservedMatrix::num_cols() const noexcept {
-  return _bins.subset(chrom2()).size();
-}
-
-inline const hictk::Chromosome &ObservedMatrix::chrom1() const noexcept { return _chrom1; }
-
-inline const hictk::Chromosome &ObservedMatrix::chrom2() const noexcept { return _chrom2; }
-
-inline std::uint64_t ObservedMatrix::nnz() const noexcept { return _nnz; }
-
-inline std::uint64_t ObservedMatrix::sum() const noexcept { return _sum; }
-
-inline double ObservedMatrix::nnz_avg() const noexcept {
-  return static_cast<double>(sum()) / static_cast<double>(nnz());
-}
-
-inline double ObservedMatrix::mad_max() const noexcept { return _mad_max; }
-
-inline std::uint64_t ObservedMatrix::min_delta() const noexcept { return _min_delta; }
-
-inline std::uint64_t ObservedMatrix::max_delta() const noexcept { return _max_delta; }
-
-inline const std::vector<std::uint64_t> &ObservedMatrix::marginals1() const noexcept {
-  return *_marginals1;
-}
-
-inline const std::vector<std::uint64_t> &ObservedMatrix::marginals2() const noexcept {
-  return *_marginals2;
 }
 
 }  // namespace nchg

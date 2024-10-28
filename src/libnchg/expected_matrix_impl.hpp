@@ -18,14 +18,17 @@
 
 #pragma once
 
+#include <parallel_hashmap/btree.h>
+
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <hictk/bin_table.hpp>
 #include <hictk/chromosome.hpp>
 #include <hictk/expected_values_aggregator.hpp>
-#include <hictk/file.hpp>
-#include <hictk/pixel.hpp>
+#include <limits>
+#include <memory>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "nchg/concepts.hpp"
@@ -128,8 +131,8 @@ inline ExpectedMatrix::ExpectedMatrix(const Pixels &pixels, hictk::Chromosome ch
       _min_delta(min_delta_),
       _max_delta(max_delta_) {
   if (scaling_factor != 1) {
-    std::transform(_weights.begin(), _weights.end(), _weights.begin(),
-                   [&](const auto n) { return n / scaling_factor; });
+    std::ranges::transform(_weights, _weights.begin(),
+                           [&](const auto n) { return n / scaling_factor; });
   }
 
   auto stats = compute_stats(pixels, _chrom1, _chrom2, _bins, _weights, bin_mask1, bin_mask2,
@@ -140,53 +143,6 @@ inline ExpectedMatrix::ExpectedMatrix(const Pixels &pixels, hictk::Chromosome ch
   _sum = stats.sum;
 }
 
-inline std::uint32_t ExpectedMatrix::resolution() const noexcept { return _bins.resolution(); }
-
-inline std::size_t ExpectedMatrix::num_rows() const noexcept {
-  return _bins.subset(chrom1()).size();
-}
-
-inline std::size_t ExpectedMatrix::num_cols() const noexcept {
-  return _bins.subset(chrom2()).size();
-}
-
-inline const hictk::Chromosome &ExpectedMatrix::chrom1() const noexcept { return _chrom1; }
-
-inline const hictk::Chromosome &ExpectedMatrix::chrom2() const noexcept { return _chrom2; }
-
-inline std::uint64_t ExpectedMatrix::nnz() const noexcept { return _nnz; }
-
-inline double ExpectedMatrix::sum() const noexcept { return _sum; }
-
-inline double ExpectedMatrix::nnz_avg() const noexcept {
-  return sum() / static_cast<double>(nnz());
-}
-
-inline const std::vector<double> &ExpectedMatrix::weights() const noexcept { return _weights; }
-
-inline const phmap::btree_map<hictk::Chromosome, double> &ExpectedMatrix::scaling_factors()
-    const noexcept {
-  return _scaling_factors;
-}
-
-inline std::uint64_t ExpectedMatrix::min_delta() const noexcept { return _min_delta; }
-
-inline std::uint64_t ExpectedMatrix::max_delta() const noexcept { return _max_delta; }
-
-inline double ExpectedMatrix::at(std::uint64_t i, std::uint64_t j) const {
-  if (chrom1() == chrom2()) {
-    return _weights.at(j - i);
-  }
-  return nnz_avg();
-}
-
-inline const std::vector<double> &ExpectedMatrix::marginals1() const noexcept {
-  return *_marginals1;
-}
-inline const std::vector<double> &ExpectedMatrix::marginals2() const noexcept {
-  return *_marginals2;
-}
-
 template <typename Pixels>
   requires PixelRange<Pixels>
 inline std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>
@@ -194,9 +150,9 @@ ExpectedMatrix::build_expected_vector(const Pixels &pixels, const hictk::BinTabl
                                       std::uint64_t min_delta_, std::uint64_t max_delta_) {
   if (std::ranges::empty(pixels)) {
     phmap::btree_map<hictk::Chromosome, double> scaling_factors{};
-    std::transform(bins.chromosomes().begin(), bins.chromosomes().end(),
-                   std::inserter(scaling_factors, scaling_factors.begin()),
-                   [](const hictk::Chromosome &chrom) { return std::make_pair(chrom, 0.0); });
+    std::ranges::transform(
+        bins.chromosomes(), std::inserter(scaling_factors, scaling_factors.begin()),
+        [](const hictk::Chromosome &chrom) { return std::make_pair(chrom, 0.0); });
     return std::make_pair(std::vector<double>(bins.size(), 0), scaling_factors);
   }
 
@@ -219,26 +175,6 @@ ExpectedMatrix::build_expected_vector(const Pixels &pixels, const hictk::BinTabl
                  std::numeric_limits<double>::quiet_NaN());
 
   return std::make_pair(std::move(weights), aggr.scaling_factors());
-}
-
-template <typename Pixels>
-  requires PixelRange<Pixels>
-inline std::vector<double> ExpectedMatrix::compute_weights(
-    const Pixels &pixels, const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
-    const hictk::BinTable &bins, std::uint64_t min_delta_, std::uint64_t max_delta_) {
-  if (chrom1 != chrom2) {
-    return {};
-  }
-
-  auto [weights, scaling_factors] = build_expected_vector(pixels, bins, min_delta_, max_delta_);
-
-  weights.resize((chrom1.size() + bins.resolution() - 1) / bins.resolution(),
-                 std::numeric_limits<double>::quiet_NaN());
-
-  const auto sf = scaling_factors.at(chrom1);
-  std::ranges::transform(weights, weights, [&](const auto n) { return n / sf; });
-
-  return weights;
 }
 
 }  // namespace nchg

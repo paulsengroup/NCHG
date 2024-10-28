@@ -20,50 +20,23 @@
 
 #include <spdlog/spdlog.h>
 
-#include <algorithm>
-#include <cassert>
-#include <cmath>
 #include <cstdint>
+#include <functional>
 #include <hictk/chromosome.hpp>
-#include <hictk/pixel.hpp>
-#include <stdexcept>
+#include <numeric>
+#include <utility>
 #include <vector>
 
-#include "nchg/common.hpp"
-#include "nchg/concepts.hpp"
+#include "nchg/median.hpp"
 
 namespace nchg {
 namespace internal {
-template <typename T>
-[[nodiscard]] inline T median(std::vector<T> v) {
-  if (v.empty()) {
-    throw std::runtime_error("median was called on an empty vector");
-  }
-
-  const auto size = static_cast<std::ptrdiff_t>(v.size());
-  auto first = v.begin();
-  auto mid = first + (size / 2);
-  auto last = v.end();
-
-  std::nth_element(first, mid, last);
-
-  if (size % 2 != 0) {
-    return *mid;
-  }
-
-  const auto n1 = *mid;
-  std::nth_element(first, --mid, last);
-  const auto n2 = *mid;
-
-  return (n1 + n2) / 2;
-}
 
 template <typename Pixels>
   requires PixelRange<Pixels>
 [[nodiscard]] inline std::pair<std::vector<double>, std::vector<double>> compute_marginals(
     const Pixels& pixels, const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2,
     std::uint32_t resolution) {
-
   const auto num_bins1 = (chrom1.size() + resolution - 1) / resolution;
   const auto num_bins2 = (chrom2.size() + resolution - 1) / resolution;
 
@@ -84,53 +57,6 @@ template <typename Pixels>
 }
 }  // namespace internal
 
-inline std::vector<bool> mad_max_filtering(std::vector<double>& margs, double mad_max) {
-  auto mad = [&](const auto vin) {
-    const auto median_ = internal::median(vin);
-    auto vout = vin;
-
-    std::transform(vout.begin(), vout.end(), vout.begin(),
-                   [&](const auto n) { return std::abs(n - median_); });
-
-    return internal::median(vout);
-  };
-
-  std::vector<double> cmargs{};
-  std::copy_if(margs.begin(), margs.end(), std::back_inserter(cmargs),
-               [](const auto n) { return n > 0; });
-
-  if (!cmargs.empty()) {
-    const auto median_ = internal::median(cmargs);
-    std::transform(margs.begin(), margs.end(), margs.begin(),
-                   [&](const auto n) { return n / median_; });
-  }
-
-  std::vector<double> log_nz_marg{};
-  for (const auto n : margs) {
-    if (n > 0) {
-      log_nz_marg.push_back(std::log(n));
-    }
-  }
-
-  std::vector<bool> mask(margs.size(), false);
-  if (log_nz_marg.empty()) {
-    return mask;
-  }
-
-  const auto median_log_nz_marg = internal::median(log_nz_marg);
-  const auto dev_log_nz_marg = mad(log_nz_marg);
-
-  const auto cutoff = std::exp(median_log_nz_marg - mad_max * dev_log_nz_marg);
-
-  for (std::size_t i = 0; i < margs.size(); ++i) {
-    if (margs[i] < cutoff) {
-      mask[i] = true;
-    }
-  }
-
-  return mask;
-}
-
 template <typename Pixels>
   requires PixelRange<Pixels>
 inline std::pair<std::vector<bool>, std::vector<bool>> mad_max_filtering(
@@ -148,7 +74,7 @@ inline std::pair<std::vector<bool>, std::vector<bool>> mad_max_filtering(
 
   SPDLOG_INFO(
       FMT_STRING("[{}:{}]: MAD-max masking procedure flagged {}/{} bins for {} and {}/{} for {}"),
-      chrom1.name(), chrom2.name(), std::accumulate(mask1.begin(), mask1.end(), 0), mask1.size(),
+      chrom1.name(), chrom2.name(), std::ranges::fold_left(mask1, 0, std::plus{}), mask1.size(),
       chrom1.name(), std::accumulate(mask2.begin(), mask2.end(), 0), mask2.size(), chrom2.name());
 
   return std::make_pair(mask1, mask2);

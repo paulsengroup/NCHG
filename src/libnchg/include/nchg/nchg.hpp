@@ -67,8 +67,6 @@ class NCHG {
   using ThinPixelIt = decltype(std::declval<File>().fetch("chr1", "chr2").template begin<N>());
   using PixelIt =
       decltype(std::declval<hictk::transformers::JoinGenomicCoords<ThinPixelIt>>().begin());
-  // using Pixels = decltype(std::ranges::subrange(std::declval<PixelIt>(),
-  // std::declval<PixelIt>()));
 
   std::shared_ptr<const File> _fp;
 

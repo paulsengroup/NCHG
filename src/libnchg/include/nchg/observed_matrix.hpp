@@ -22,8 +22,8 @@
 #include <hictk/bin_table.hpp>
 #include <hictk/chromosome.hpp>
 #include <hictk/pixel.hpp>
+#include <limits>
 #include <memory>
-#include <type_traits>
 #include <vector>
 
 #include "nchg/concepts.hpp"

@@ -20,19 +20,18 @@
 
 #include <parallel_hashmap/btree.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <hictk/bin_table.hpp>
 #include <hictk/chromosome.hpp>
 #include <hictk/pixel.hpp>
 #include <limits>
 #include <memory>
-#include <type_traits>
 #include <vector>
 
 #include "nchg/concepts.hpp"
 
 namespace nchg {
-
 
 class ExpectedMatrix {
   hictk::Chromosome _chrom1{};
@@ -52,9 +51,8 @@ class ExpectedMatrix {
   std::uint64_t _nnz{};
 
  public:
-
   template <typename Pixels>
-  requires PixelRange<Pixels>
+    requires PixelRange<Pixels>
   ExpectedMatrix(const Pixels &pixels, hictk::Chromosome chrom1, hictk::Chromosome chrom2,
                  hictk::BinTable bins, std::vector<double> weights, double scaling_factor,
                  const std::vector<bool> &bin_mask1 = {}, const std::vector<bool> &bin_mask2 = {},
@@ -86,10 +84,9 @@ class ExpectedMatrix {
   template <typename Pixels>
     requires PixelRange<Pixels>
   [[nodiscard]] static std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>
-  build_expected_vector(const Pixels &pixels, const hictk::BinTable &bins,
-                        std::uint64_t min_delta_, std::uint64_t max_delta_);
+  build_expected_vector(const Pixels &pixels, const hictk::BinTable &bins, std::uint64_t min_delta_,
+                        std::uint64_t max_delta_);
 
- private:
   template <typename Pixels>
     requires PixelRange<Pixels>
   static auto compute_stats(const Pixels &pixels, const hictk::Chromosome &chrom1,
@@ -97,13 +94,6 @@ class ExpectedMatrix {
                             const std::vector<double> &weights, const std::vector<bool> &bin_mask1,
                             const std::vector<bool> &bin_mask2, std::uint64_t min_delta_,
                             std::uint64_t max_delta_);
-
-  template <typename Pixels>
-    requires PixelRange<Pixels>
-  static std::vector<double> compute_weights(const Pixels &pixels, const hictk::Chromosome &chrom1,
-                                             const hictk::Chromosome &chrom2,
-                                             const hictk::BinTable &bins, std::uint64_t min_delta_,
-                                             std::uint64_t max_delta_);
 };
 
 }  // namespace nchg

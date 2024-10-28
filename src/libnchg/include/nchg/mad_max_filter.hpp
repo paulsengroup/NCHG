@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <hictk/chromosome.hpp>
+#include <utility>
 #include <vector>
 
 #include "nchg/concepts.hpp"

@@ -127,15 +127,15 @@ inline ExpectedValues<File> ExpectedValues<File>::chromosome_pair(
       sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), ev._fp->bins_ptr());
 
   if (!ev._bin_masks.contains(std::make_pair(chrom1, chrom2))) {
-    ev.add_bin_mask(
-        chrom1, chrom2,
-        mad_max_filtering(jsel.begin(), jsel.end(), chrom1, chrom2, ev._resolution, ev._mad_max),
-        bin_mask);
+    ev.add_bin_mask(chrom1, chrom2,
+                    mad_max_filtering(std::ranges::subrange(jsel.begin(), jsel.end()), chrom1,
+                                      chrom2, ev._resolution, ev._mad_max),
+                    bin_mask);
   }
 
-  const ExpectedMatrix em(jsel.begin(), jsel.end(), chrom1, chrom2, ev._fp->bins(),
-                          std::vector<double>{}, 0, *ev.bin_mask(chrom1, chrom2).first,
-                          *ev.bin_mask(chrom1, chrom2).second,
+  const ExpectedMatrix em(std::ranges::subrange(jsel.begin(), jsel.end()), chrom1, chrom2,
+                          ev._fp->bins(), std::vector<double>{}, 0,
+                          *ev.bin_mask(chrom1, chrom2).first, *ev.bin_mask(chrom1, chrom2).second,
                           std::numeric_limits<std::uint64_t>::max());
 
   ev._expected_values_trans.emplace(std::make_pair(chrom1, chrom2), em.nnz_avg());
@@ -286,64 +286,62 @@ inline double ExpectedValues<File>::scaling_factor(const hictk::Chromosome &chro
 
 template <typename File>
   requires HictkSingleResFile<File>
+template <typename Pixels>
+  requires PixelRange<Pixels>
 inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom,
-                                                  const hictk::BinTable &bins, PixelIt first_pixel,
-                                                  PixelIt last_pixel) const
-    -> ExpectedMatrix<PixelIt> {
-  return {std::move(first_pixel),
-          std::move(last_pixel),
-          chrom,
-          chrom,
-          bins,
-          _expected_weights,
-          _expected_scaling_factors.at(chrom),
-          *bin_mask(chrom),
-          *bin_mask(chrom),
-          _min_delta,
-          _max_delta};
+                                                  const hictk::BinTable &bins,
+                                                  const Pixels &pixels) const {
+  return ExpectedMatrix{pixels,
+                        chrom,
+                        chrom,
+                        bins,
+                        _expected_weights,
+                        _expected_scaling_factors.at(chrom),
+                        *bin_mask(chrom),
+                        *bin_mask(chrom),
+                        _min_delta,
+                        _max_delta};
 }
 
 template <typename File>
   requires HictkSingleResFile<File>
-inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom) const
-    -> ExpectedMatrix<PixelIt> {
+inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom) const {
   if (!_fp) {
     throw std::logic_error("ExpectedValues::expected_matrix() was called on a null file");
   }
   const auto sel = _fp->fetch(chrom.name());
   const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<N>(), sel.template end<N>(),
                                                     _fp->bins_ptr());
-  return expected_matrix(chrom, _fp->bins(), jsel.begin(), jsel.end());
+  return expected_matrix(chrom, _fp->bins(), std::ranges::subrange(jsel.begin(), jsel.end()));
 }
 
 template <typename File>
   requires HictkSingleResFile<File>
+template <typename Pixels>
+  requires PixelRange<Pixels>
 inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom1,
                                                   const hictk::Chromosome &chrom2,
-                                                  const hictk::BinTable &bins, PixelIt first_pixel,
-                                                  PixelIt last_pixel) const
-    -> ExpectedMatrix<PixelIt> {
+                                                  const hictk::BinTable &bins,
+                                                  const Pixels &pixels) const {
   if (chrom1 == chrom2) {
-    return expected_matrix(chrom1, bins, std::move(first_pixel), std::move(last_pixel));
+    return expected_matrix(chrom1, bins, pixels);
   }
-  return {std::move(first_pixel),
-          std::move(last_pixel),
-          chrom1,
-          chrom2,
-          bins,
-          std::vector<double>{},
-          1.0,
-          *bin_mask(chrom1, chrom2).first,
-          *bin_mask(chrom1, chrom2).second,
-          _min_delta,
-          _max_delta};
+  return ExpectedMatrix{pixels,
+                        chrom1,
+                        chrom2,
+                        bins,
+                        std::vector<double>{},
+                        1.0,
+                        *bin_mask(chrom1, chrom2).first,
+                        *bin_mask(chrom1, chrom2).second,
+                        _min_delta,
+                        _max_delta};
 }
 
 template <typename File>
   requires HictkSingleResFile<File>
 inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom1,
-                                                  const hictk::Chromosome &chrom2) const
-    -> ExpectedMatrix<PixelIt> {
+                                                  const hictk::Chromosome &chrom2) const {
   if (chrom1 == chrom2) {
     return expected_matrix(chrom1);
   }
@@ -354,7 +352,8 @@ inline auto ExpectedValues<File>::expected_matrix(const hictk::Chromosome &chrom
   const auto sel = _fp->fetch(chrom1.name(), chrom2.name());
   const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<N>(), sel.template end<N>(),
                                                     _fp->bins_ptr());
-  return expected_matrix(chrom1, chrom2, _fp->bins(), jsel.begin(), jsel.end());
+  return expected_matrix(chrom1, chrom2, _fp->bins(),
+                         std::ranges::subrange(jsel.begin(), jsel.end()));
 }
 
 template <typename File>
@@ -388,6 +387,7 @@ inline void ExpectedValues<File>::compute_expected_values_cis(
   }
 
   using PixelSel = decltype(std::declval<File>().fetch("chr1"));
+  using ThinPixelIt = decltype(std::declval<PixelSel>().template begin<N>());
 
   std::vector<ThinPixelIt> heads{};
   std::vector<ThinPixelIt> tails{};
@@ -405,7 +405,9 @@ inline void ExpectedValues<File>::compute_expected_values_cis(
 
     if (!_bin_masks.contains(std::make_pair(chrom, chrom))) {
       const hictk::transformers::JoinGenomicCoords jsel(first, last, _fp->bins_ptr());
-      add_bin_mask(chrom, mad_max_filtering(jsel.begin(), jsel.end(), chrom, _resolution, _mad_max),
+      add_bin_mask(chrom,
+                   mad_max_filtering(std::ranges::subrange(jsel.begin(), jsel.end()), chrom,
+                                     _resolution, _mad_max),
                    bin_mask_seed);
     }
 
@@ -476,19 +478,19 @@ inline void ExpectedValues<File>::compute_expected_values_trans(
       SPDLOG_INFO(FMT_STRING("processing {}:{}..."), chrom1.name(), chrom2.name());
 
       const auto sel = _fp->fetch(chrom1.name(), chrom2.name());
-      const hictk::transformers::JoinGenomicCoords jsel(
-          sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), _fp->bins_ptr());
+      const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<N>(),
+                                                        sel.template end<N>(), _fp->bins_ptr());
 
       if (!_bin_masks.contains(std::make_pair(chrom1, chrom2))) {
-        add_bin_mask(
-            chrom1, chrom2,
-            mad_max_filtering(jsel.begin(), jsel.end(), chrom1, chrom2, _resolution, _mad_max),
-            bin_mask_seed);
+        add_bin_mask(chrom1, chrom2,
+                     mad_max_filtering(std::ranges::subrange(jsel.begin(), jsel.end()), chrom1,
+                                       chrom2, _resolution, _mad_max),
+                     bin_mask_seed);
       }
 
-      const ExpectedMatrix em(jsel.begin(), jsel.end(), chrom1, chrom2, _fp->bins(),
-                              std::vector<double>{}, 0, *bin_mask(chrom1, chrom2).first,
-                              *bin_mask(chrom1, chrom2).second,
+      const ExpectedMatrix em(std::ranges::subrange(jsel.begin(), jsel.end()), chrom1, chrom2,
+                              _fp->bins(), std::vector<double>{}, 0,
+                              *bin_mask(chrom1, chrom2).first, *bin_mask(chrom1, chrom2).second,
                               std::numeric_limits<std::uint64_t>::max());
       _expected_values_trans.emplace(std::make_pair(chrom1, chrom2), em.nnz_avg());
     }

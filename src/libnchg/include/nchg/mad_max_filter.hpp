@@ -28,17 +28,17 @@ namespace nchg {
 
 [[nodiscard]] std::vector<bool> mad_max_filtering(std::vector<double>& margs, double mad_max);
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-[[nodiscard]] std::vector<bool> mad_max_filtering(PixelIt first_pixel, PixelIt last_pixel,
+template <typename Pixels>
+  requires PixelRange<Pixels>
+[[nodiscard]] std::vector<bool> mad_max_filtering(const Pixels& pixels,
                                                   const hictk::Chromosome& chrom,
                                                   std::uint32_t resolution, double mad_max);
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
+template <typename Pixels>
+  requires PixelRange<Pixels>
 [[nodiscard]] std::pair<std::vector<bool>, std::vector<bool>> mad_max_filtering(
-    PixelIt first_pixel, PixelIt last_pixel, const hictk::Chromosome& chrom1,
-    const hictk::Chromosome& chrom2, std::uint32_t resolution, double mad_max);
+    const Pixels& pixels, const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2,
+    std::uint32_t resolution, double mad_max);
 
 }  // namespace nchg
 

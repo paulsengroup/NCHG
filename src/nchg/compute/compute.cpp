@@ -142,7 +142,7 @@ template <typename File>
        c.interpolation_qtile, c.interpolation_window_size},
       bin_mask);
 
-  return NCHG<File>(f, chrom1, chrom2, evs);
+  return NCHG(f, chrom1, chrom2, evs);
 }
 
 static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
@@ -289,8 +289,8 @@ template <typename File = hictk::cooler::File>
   const auto f = open_file_ptr(c.path_to_hic, c.resolution);
 
   return std::visit(
-      [&](const auto &f_) -> std::size_t {
-        using UnderlyingFile = std::remove_cvref_t<decltype(*f_)>;
+      [&]<typename FilePtr>(const FilePtr &f_) -> std::size_t {
+        using UnderlyingFile = std::remove_cvref_t<typename FilePtr::element_type>;
         if constexpr (!std::is_same_v<File, UnderlyingFile>) {
           std::optional<ExpectedValues<UnderlyingFile>> expected_values_{};
           if (expected_values) {

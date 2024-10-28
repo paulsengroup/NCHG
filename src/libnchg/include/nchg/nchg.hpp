@@ -67,14 +67,16 @@ class NCHG {
   using ThinPixelIt = decltype(std::declval<File>().fetch("chr1", "chr2").template begin<N>());
   using PixelIt =
       decltype(std::declval<hictk::transformers::JoinGenomicCoords<ThinPixelIt>>().begin());
+  // using Pixels = decltype(std::ranges::subrange(std::declval<PixelIt>(),
+  // std::declval<PixelIt>()));
 
   std::shared_ptr<const File> _fp;
 
   hictk::Chromosome _chrom1{};
   hictk::Chromosome _chrom2{};
 
-  std::shared_ptr<const ExpectedMatrix<PixelIt>> _exp_matrix{};
-  std::shared_ptr<const ObservedMatrix<PixelIt>> _obs_matrix{};
+  std::shared_ptr<const ExpectedMatrix> _exp_matrix{};
+  std::shared_ptr<const ObservedMatrix> _obs_matrix{};
   ExpectedValues<File> _expected_values{};
 
   mutable std::vector<double> _nchg_pval_buffer{};
@@ -89,8 +91,8 @@ class NCHG {
 
   [[nodiscard]] auto params() const noexcept -> Params;
 
-  [[nodiscard]] auto observed_matrix() const noexcept -> const ObservedMatrix<PixelIt>&;
-  [[nodiscard]] auto expected_matrix() const noexcept -> const ExpectedMatrix<PixelIt>&;
+  [[nodiscard]] auto observed_matrix() const noexcept -> const ObservedMatrix&;
+  [[nodiscard]] auto expected_matrix() const noexcept -> const ExpectedMatrix&;
 
   [[nodiscard]] auto compute(const hictk::GenomicInterval& range, double bad_bin_fraction) const
       -> Stats;
@@ -115,13 +117,13 @@ class NCHG {
   [[nodiscard]] static auto init_exp_matrix(const hictk::Chromosome& chrom1,
                                             const hictk::Chromosome& chrom2, const File& fp,
                                             const ExpectedValues<File>& expected_values)
-      -> std::shared_ptr<const ExpectedMatrix<PixelIt>>;
+      -> std::shared_ptr<const ExpectedMatrix>;
   [[nodiscard]] static auto init_obs_matrix(const hictk::Chromosome& chrom1,
                                             const hictk::Chromosome& chrom2, const File& fp,
                                             const std::vector<bool>& bin1_mask,
                                             const std::vector<bool>& bin2_mask, double mad_max_,
                                             std::uint64_t min_delta_, std::uint64_t max_delta_)
-      -> std::shared_ptr<const ObservedMatrix<PixelIt>>;
+      -> std::shared_ptr<const ObservedMatrix>;
 
   [[nodiscard]] static double compute_cumulative_nchg(std::vector<double>& buffer,
                                                       std::uint64_t obs, std::uint64_t N1,
@@ -145,8 +147,8 @@ class NCHG {
     PixelIt _pixel_it{};
     PixelIt _sentinel_it{};
 
-    std::shared_ptr<const ObservedMatrix<PixelIt>> _obs{};
-    std::shared_ptr<const ExpectedMatrix<PixelIt>> _exp{};
+    std::shared_ptr<const ObservedMatrix> _obs{};
+    std::shared_ptr<const ExpectedMatrix> _exp{};
 
     std::shared_ptr<const std::vector<bool>> _bin_mask1{};
     std::shared_ptr<const std::vector<bool>> _bin_mask2{};
@@ -168,9 +170,8 @@ class NCHG {
     using iterator_category = std::forward_iterator_tag;
 
     iterator() = default;
-    iterator(PixelIt pixel_it, PixelIt sentinel_it,
-             std::shared_ptr<const ObservedMatrix<PixelIt>> obs,
-             std::shared_ptr<const ExpectedMatrix<PixelIt>> exp,
+    iterator(PixelIt pixel_it, PixelIt sentinel_it, std::shared_ptr<const ObservedMatrix> obs,
+             std::shared_ptr<const ExpectedMatrix> exp,
              std::shared_ptr<const std::vector<bool>> bin_mask1,
              std::shared_ptr<const std::vector<bool>> bin_mask2, std::uint64_t min_delta,
              std::uint64_t max_delta) noexcept;

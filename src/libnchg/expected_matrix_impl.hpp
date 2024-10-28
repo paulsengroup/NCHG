@@ -32,13 +32,15 @@
 
 namespace nchg {
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline auto ExpectedMatrix<PixelIt>::compute_stats(
-    PixelIt first_pixel, PixelIt last_pixel, const hictk::Chromosome &chrom1,
-    const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
-    const std::vector<double> &weights, const std::vector<bool> &bin_mask1,
-    const std::vector<bool> &bin_mask2, std::uint64_t min_delta_, std::uint64_t max_delta_) {
+template <typename Pixels>
+  requires PixelRange<Pixels>
+inline auto ExpectedMatrix::compute_stats(const Pixels &pixels, const hictk::Chromosome &chrom1,
+                                          const hictk::Chromosome &chrom2,
+                                          const hictk::BinTable &bins,
+                                          const std::vector<double> &weights,
+                                          const std::vector<bool> &bin_mask1,
+                                          const std::vector<bool> &bin_mask2,
+                                          std::uint64_t min_delta_, std::uint64_t max_delta_) {
   struct Result {
     std::shared_ptr<std::vector<double>> marginals1{std::make_shared<std::vector<double>>()};
     std::shared_ptr<std::vector<double>> marginals2{std::make_shared<std::vector<double>>()};
@@ -67,12 +69,12 @@ inline auto ExpectedMatrix<PixelIt>::compute_stats(
   marginals1_.resize(num_bins1, 0);
   marginals2_.resize(num_bins2, 0);
 
-  std::for_each(first_pixel, last_pixel, [&](const hictk::Pixel<N> &p) {
+  for (const auto &p : pixels) {
     const auto &bin1 = p.coords.bin1;
     const auto &bin2 = p.coords.bin2;
     const auto delta = bin2.start() - bin1.start();
     if (intra_matrix && (delta < min_delta_ || delta >= max_delta_)) {
-      return;
+      continue;
     }
 
     const auto bin1_id = p.coords.bin1.rel_id();
@@ -82,10 +84,11 @@ inline auto ExpectedMatrix<PixelIt>::compute_stats(
     const auto bin2_masked = !bin_mask2.empty() && bin_mask2[bin2_id];
 
     if (bin1_masked || bin2_masked) {
-      return;
+      continue;
     }
 
-    auto count = intra_matrix ? weights.at(bin2.id() - bin1.id()) : static_cast<double>(p.count);
+    auto count =
+        intra_matrix ? weights.at(bin2.id() - bin1.id()) : conditional_static_cast<double>(p.count);
     if (std::isnan(count)) {
       count = 0.0;
     }
@@ -105,34 +108,19 @@ inline auto ExpectedMatrix<PixelIt>::compute_stats(
       const auto i2 = bin2.rel_id();
       marginals2_[i2] += count;
     }
-  });
+  }
 
   return res;
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-template <typename PixelItGw>
-  requires PixelStream<PixelItGw>
-inline ExpectedMatrix<PixelIt>::ExpectedMatrix(
-    PixelIt first_pixel, PixelIt last_pixel, PixelItGw first_pixel_gw, PixelItGw last_pixel_gw,
-    const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
-    const std::vector<bool> &bin_mask1, const std::vector<bool> &bin_mask2,
-    std::uint64_t min_delta_, std::uint64_t max_delta_)
-    : ExpectedMatrix(std::move(first_pixel), std::move(last_pixel), chrom1, chrom2, bins,
-                     compute_weights(std::move(first_pixel_gw), std::move(last_pixel_gw), chrom1,
-                                     chrom2, bins, min_delta_, max_delta_),
-                     1.0, bin_mask1, bin_mask2, min_delta_, max_delta_) {}
-
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline ExpectedMatrix<PixelIt>::ExpectedMatrix(PixelIt first_pixel, PixelIt last_pixel,
-                                               hictk::Chromosome chrom1, hictk::Chromosome chrom2,
-                                               hictk::BinTable bins, std::vector<double> weights,
-                                               double scaling_factor,
-                                               const std::vector<bool> &bin_mask1,
-                                               const std::vector<bool> &bin_mask2,
-                                               std::uint64_t min_delta_, std::uint64_t max_delta_)
+template <typename Pixels>
+  requires PixelRange<Pixels>
+inline ExpectedMatrix::ExpectedMatrix(const Pixels &pixels, hictk::Chromosome chrom1,
+                                      hictk::Chromosome chrom2, hictk::BinTable bins,
+                                      std::vector<double> weights, double scaling_factor,
+                                      const std::vector<bool> &bin_mask1,
+                                      const std::vector<bool> &bin_mask2, std::uint64_t min_delta_,
+                                      std::uint64_t max_delta_)
     : _chrom1(std::move(chrom1)),
       _chrom2(std::move(chrom2)),
       _bins(std::move(bins)),
@@ -144,115 +132,67 @@ inline ExpectedMatrix<PixelIt>::ExpectedMatrix(PixelIt first_pixel, PixelIt last
                    [&](const auto n) { return n / scaling_factor; });
   }
 
-  auto stats = compute_stats(first_pixel, last_pixel, _chrom1, _chrom2, _bins, _weights, bin_mask1,
-                             bin_mask2, min_delta_, max_delta_);
+  auto stats = compute_stats(pixels, _chrom1, _chrom2, _bins, _weights, bin_mask1, bin_mask2,
+                             min_delta_, max_delta_);
   _marginals1 = std::move(stats.marginals1);
   _marginals2 = std::move(stats.marginals2);
   _nnz = stats.nnz;
   _sum = stats.sum;
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline std::uint32_t ExpectedMatrix<PixelIt>::resolution() const noexcept {
-  return _bins.resolution();
-}
+inline std::uint32_t ExpectedMatrix::resolution() const noexcept { return _bins.resolution(); }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline std::size_t ExpectedMatrix<PixelIt>::num_rows() const noexcept {
+inline std::size_t ExpectedMatrix::num_rows() const noexcept {
   return _bins.subset(chrom1()).size();
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline std::size_t ExpectedMatrix<PixelIt>::num_cols() const noexcept {
+inline std::size_t ExpectedMatrix::num_cols() const noexcept {
   return _bins.subset(chrom2()).size();
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline const hictk::Chromosome &ExpectedMatrix<PixelIt>::chrom1() const noexcept {
-  return _chrom1;
-}
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline const hictk::Chromosome &ExpectedMatrix<PixelIt>::chrom2() const noexcept {
-  return _chrom2;
-}
+inline const hictk::Chromosome &ExpectedMatrix::chrom1() const noexcept { return _chrom1; }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline std::uint64_t ExpectedMatrix<PixelIt>::nnz() const noexcept {
-  return _nnz;
-}
+inline const hictk::Chromosome &ExpectedMatrix::chrom2() const noexcept { return _chrom2; }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline double ExpectedMatrix<PixelIt>::sum() const noexcept {
-  return _sum;
-}
+inline std::uint64_t ExpectedMatrix::nnz() const noexcept { return _nnz; }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline double ExpectedMatrix<PixelIt>::nnz_avg() const noexcept {
+inline double ExpectedMatrix::sum() const noexcept { return _sum; }
+
+inline double ExpectedMatrix::nnz_avg() const noexcept {
   return sum() / static_cast<double>(nnz());
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline const std::vector<double> &ExpectedMatrix<PixelIt>::weights() const noexcept {
-  return _weights;
-}
+inline const std::vector<double> &ExpectedMatrix::weights() const noexcept { return _weights; }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline const phmap::btree_map<hictk::Chromosome, double> &ExpectedMatrix<PixelIt>::scaling_factors()
+inline const phmap::btree_map<hictk::Chromosome, double> &ExpectedMatrix::scaling_factors()
     const noexcept {
   return _scaling_factors;
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline std::uint64_t ExpectedMatrix<PixelIt>::min_delta() const noexcept {
-  return _min_delta;
-}
+inline std::uint64_t ExpectedMatrix::min_delta() const noexcept { return _min_delta; }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline std::uint64_t ExpectedMatrix<PixelIt>::max_delta() const noexcept {
-  return _max_delta;
-}
+inline std::uint64_t ExpectedMatrix::max_delta() const noexcept { return _max_delta; }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline double ExpectedMatrix<PixelIt>::at(std::uint64_t i, std::uint64_t j) const {
+inline double ExpectedMatrix::at(std::uint64_t i, std::uint64_t j) const {
   if (chrom1() == chrom2()) {
     return _weights.at(j - i);
   }
   return nnz_avg();
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline const std::vector<double> &ExpectedMatrix<PixelIt>::marginals1() const noexcept {
+inline const std::vector<double> &ExpectedMatrix::marginals1() const noexcept {
   return *_marginals1;
 }
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline const std::vector<double> &ExpectedMatrix<PixelIt>::marginals2() const noexcept {
+inline const std::vector<double> &ExpectedMatrix::marginals2() const noexcept {
   return *_marginals2;
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-template <typename PixelItGw>
-  requires PixelStream<PixelItGw>
+template <typename Pixels>
+  requires PixelRange<Pixels>
 inline std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>
-ExpectedMatrix<PixelIt>::build_expected_vector(PixelItGw first_pixel, PixelItGw last_pixel,
-                                               const hictk::BinTable &bins,
-                                               std::uint64_t min_delta_, std::uint64_t max_delta_) {
-  if (first_pixel == last_pixel) {
+ExpectedMatrix::build_expected_vector(const Pixels &pixels, const hictk::BinTable &bins,
+                                      std::uint64_t min_delta_, std::uint64_t max_delta_) {
+  if (std::ranges::empty(pixels)) {
     phmap::btree_map<hictk::Chromosome, double> scaling_factors{};
     std::transform(bins.chromosomes().begin(), bins.chromosomes().end(),
                    std::inserter(scaling_factors, scaling_factors.begin()),
@@ -264,12 +204,13 @@ ExpectedMatrix<PixelIt>::build_expected_vector(PixelItGw first_pixel, PixelItGw 
 
   hictk::ExpectedValuesAggregator aggr(bins_);
 
-  std::for_each(first_pixel, last_pixel, [&](const hictk::Pixel<N> &p) {
+  for (const auto &p : pixels) {
     const auto delta = p.coords.bin2.start() - p.coords.bin1.start();
     if (delta >= min_delta_ && delta < max_delta_) {
       aggr.add(p);
     }
-  });
+  }
+
   aggr.compute_density();
 
   auto weights = aggr.weights();
@@ -280,27 +221,22 @@ ExpectedMatrix<PixelIt>::build_expected_vector(PixelItGw first_pixel, PixelItGw 
   return std::make_pair(std::move(weights), aggr.scaling_factors());
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-template <typename PixelItGw>
-  requires PixelStream<PixelItGw>
-inline std::vector<double> ExpectedMatrix<PixelIt>::compute_weights(
-    PixelItGw first_pixel, PixelItGw last_pixel, const hictk::Chromosome &chrom1,
-    const hictk::Chromosome &chrom2, const hictk::BinTable &bins, std::uint64_t min_delta_,
-    std::uint64_t max_delta_) {
+template <typename Pixels>
+  requires PixelRange<Pixels>
+inline std::vector<double> ExpectedMatrix::compute_weights(
+    const Pixels &pixels, const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
+    const hictk::BinTable &bins, std::uint64_t min_delta_, std::uint64_t max_delta_) {
   if (chrom1 != chrom2) {
     return {};
   }
 
-  auto [weights, scaling_factors] = build_expected_vector(
-      std::move(first_pixel), std::move(last_pixel), bins, min_delta_, max_delta_);
+  auto [weights, scaling_factors] = build_expected_vector(pixels, bins, min_delta_, max_delta_);
 
   weights.resize((chrom1.size() + bins.resolution() - 1) / bins.resolution(),
                  std::numeric_limits<double>::quiet_NaN());
 
   const auto sf = scaling_factors.at(chrom1);
-  std::transform(weights.begin(), weights.end(), weights.begin(),
-                 [&](const auto n) { return n / sf; });
+  std::ranges::transform(weights, weights, [&](const auto n) { return n / sf; });
 
   return weights;
 }

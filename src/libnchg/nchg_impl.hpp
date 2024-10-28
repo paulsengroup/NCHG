@@ -80,13 +80,13 @@ inline auto NCHG<File>::params() const noexcept -> Params {
 
 template <typename File>
   requires HictkSingleResFile<File>
-inline auto NCHG<File>::observed_matrix() const noexcept -> const ObservedMatrix<PixelIt> & {
+inline auto NCHG<File>::observed_matrix() const noexcept -> const ObservedMatrix & {
   return *_obs_matrix;
 }
 
 template <typename File>
   requires HictkSingleResFile<File>
-inline auto NCHG<File>::expected_matrix() const noexcept -> const ExpectedMatrix<PixelIt> & {
+inline auto NCHG<File>::expected_matrix() const noexcept -> const ExpectedMatrix & {
   return *_exp_matrix;
 }
 
@@ -111,8 +111,8 @@ inline auto NCHG<File>::expected_matrix() const noexcept -> const ExpectedMatrix
 template <typename File>
   requires HictkSingleResFile<File>
 inline NCHG<File>::iterator::iterator(PixelIt pixel_it, PixelIt sentinel_it,
-                                      std::shared_ptr<const ObservedMatrix<PixelIt>> obs,
-                                      std::shared_ptr<const ExpectedMatrix<PixelIt>> exp,
+                                      std::shared_ptr<const ObservedMatrix> obs,
+                                      std::shared_ptr<const ExpectedMatrix> exp,
                                       std::shared_ptr<const std::vector<bool>> bin_mask1,
                                       std::shared_ptr<const std::vector<bool>> bin_mask2,
                                       std::uint64_t min_delta, std::uint64_t max_delta) noexcept
@@ -474,17 +474,14 @@ template <typename File>
 inline auto NCHG<File>::init_exp_matrix(const hictk::Chromosome &chrom1,
                                         const hictk::Chromosome &chrom2, const File &fp,
                                         const ExpectedValues<File> &expected_values)
-    -> std::shared_ptr<const ExpectedMatrix<PixelIt>> {
+    -> std::shared_ptr<const ExpectedMatrix> {
   SPDLOG_INFO(FMT_STRING("[{}:{}] initializing expected matrix..."), chrom1.name(), chrom2.name());
 
   const auto sel = fp.fetch(chrom1.name(), chrom2.name());
   const auto jsel = hictk::transformers::JoinGenomicCoords(sel.template begin<N>(),
                                                            sel.template end<N>(), fp.bins_ptr());
-  const auto first_pixel = jsel.begin();
-  const auto last_pixel = jsel.end();
-
-  return std::make_shared<const ExpectedMatrix<PixelIt>>(
-      expected_values.expected_matrix(chrom1, chrom2, fp.bins(), first_pixel, last_pixel));
+  return std::make_shared<const ExpectedMatrix>(expected_values.expected_matrix(
+      chrom1, chrom2, fp.bins(), std::ranges::subrange(jsel.begin(), jsel.end())));
 }
 
 template <typename File>
@@ -494,18 +491,15 @@ inline auto NCHG<File>::init_obs_matrix(const hictk::Chromosome &chrom1,
                                         const std::vector<bool> &bin1_mask,
                                         const std::vector<bool> &bin2_mask, double mad_max_,
                                         std::uint64_t min_delta_, std::uint64_t max_delta_)
-    -> std::shared_ptr<const ObservedMatrix<PixelIt>> {
+    -> std::shared_ptr<const ObservedMatrix> {
   SPDLOG_INFO(FMT_STRING("[{}:{}] initializing observed matrix..."), chrom1.name(), chrom2.name());
 
   const auto sel = fp.fetch(chrom1.name(), chrom2.name());
   const auto jsel = hictk::transformers::JoinGenomicCoords(sel.template begin<N>(),
                                                            sel.template end<N>(), fp.bins_ptr());
-  const auto first_pixel = jsel.begin();
-  const auto last_pixel = jsel.end();
-
-  return std::make_shared<const ObservedMatrix<PixelIt>>(first_pixel, last_pixel, chrom1, chrom2,
-                                                         fp.bins(), mad_max_, bin1_mask, bin2_mask,
-                                                         min_delta_, max_delta_);
+  return std::make_shared<const ObservedMatrix>(std::ranges::subrange(jsel.begin(), jsel.end()),
+                                                chrom1, chrom2, fp.bins(), mad_max_, bin1_mask,
+                                                bin2_mask, min_delta_, max_delta_);
 }
 
 template <typename File>
@@ -635,9 +629,8 @@ inline auto NCHG<File>::compute_expected_profile() const
   hictk::transformers::PixelMerger merger(std::move(heads), std::move(tails));
   const hictk::transformers::JoinGenomicCoords mjsel(merger.begin(), merger.end(), _fp->bins_ptr());
 
-  using PixelItMerged = decltype(mjsel.begin());
-  return ExpectedMatrix<PixelItMerged>::build_expected_vector(
-      mjsel.begin(), mjsel.end(), _fp->bins(), params().min_delta, params().max_delta);
+  return ExpectedMatrix::build_expected_vector(std::ranges::subrange(mjsel.begin(), mjsel.end()),
+                                               _fp->bins(), params().min_delta, params().max_delta);
 }
 
 }  // namespace nchg

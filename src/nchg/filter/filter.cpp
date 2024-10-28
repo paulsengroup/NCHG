@@ -33,6 +33,7 @@
 #include <iostream>
 #include <memory>
 #include <nchg/nchg.hpp>
+#include <ranges>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -75,8 +76,6 @@ struct SharedPtrStringCmp {
   }
 };
 
-using ChromosomeSet = phmap::btree_set<std::shared_ptr<std::string>, SharedPtrStringCmp>;
-
 template <typename N>
 [[nodiscard]] static N parse_numeric(std::string_view tok) {
   return hictk::internal::parse_numeric_or_throw<N>(tok);
@@ -112,10 +111,9 @@ struct PValue {
 }
 
 static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<PValue>>& records) {
-  std::size_t num_records = 0;
-  for (const auto& [_, v] : records) {
-    num_records += v.size();
-  }
+  auto sizes =
+      records | std::views::values | std::views::transform([](const auto& v) { return v.size(); });
+  const auto num_records = std::ranges::fold_left(sizes, 0uz, std::plus{});
 
   return phmap::flat_hash_map<std::size_t, double>(num_records);
 }
@@ -131,10 +129,10 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
   for (const auto& [cp, values] : records) {
     SPDLOG_INFO(FMT_STRING("processing {}:{} values..."), cp.first, cp.second);
     bh.clear();
-    bh.add_records(values.begin(), values.end());
+    bh.add_records(values);
 
-    for (auto&& record : bh.correct([](auto& record) -> double& { return record.pvalue; })) {
-      corrected_records.emplace(std::make_pair(record.i, record.pvalue));
+    for (const auto& record : bh.correct([](auto& record) -> double& { return record.pvalue; })) {
+      corrected_records.emplace(record.i, record.pvalue);
     }
   }
   return corrected_records;
@@ -150,18 +148,19 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
   BH_FDR<PValue> bh_trans{};
   for (const auto& [chroms, values] : records) {
     if (chroms.first == chroms.second) {
-      bh_cis.add_records(values.begin(), values.end());
+      bh_cis.add_records(values);
     } else {
-      bh_trans.add_records(values.begin(), values.end());
+      bh_trans.add_records(values);
     }
   }
 
-  for (auto&& record : bh_cis.correct([](auto& record) -> double& { return record.pvalue; })) {
-    corrected_records.emplace(std::make_pair(record.i, record.pvalue));
+  for (const auto& record : bh_cis.correct([](auto& record) -> double& { return record.pvalue; })) {
+    corrected_records.emplace(record.i, record.pvalue);
   }
 
-  for (auto&& record : bh_trans.correct([](auto& record) -> double& { return record.pvalue; })) {
-    corrected_records.emplace(std::make_pair(record.i, record.pvalue));
+  for (const auto& record :
+       bh_trans.correct([](auto& record) -> double& { return record.pvalue; })) {
+    corrected_records.emplace(record.i, record.pvalue);
   }
 
   return corrected_records;
@@ -179,13 +178,13 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
 
   SPDLOG_INFO(FMT_STRING("proceeding to correct all pvalues in one go"));
   BH_FDR<PValue> bh{};
-  for (const auto& [_, values] : records) {
-    bh.add_records(values.begin(), values.end());
+  for (const auto& values : records | std::views::values) {
+    bh.add_records(values);
   }
 
   auto corrected_records = alloc_pvalue_hashmap(records);
 
-  for (auto&& record : bh.correct([](auto& record) -> double& { return record.pvalue; })) {
+  for (const auto& record : bh.correct([](auto& record) -> double& { return record.pvalue; })) {
     corrected_records.emplace(std::make_pair(record.i, record.pvalue));
   }
   return corrected_records;

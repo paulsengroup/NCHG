@@ -58,11 +58,11 @@ template <typename T>
   return (n1 + n2) / 2;
 }
 
-template <typename PixelIt>
+template <typename Pixels>
+  requires PixelRange<Pixels>
 [[nodiscard]] inline std::pair<std::vector<double>, std::vector<double>> compute_marginals(
-    PixelIt first_pixel, PixelIt last_pixel, const hictk::Chromosome& chrom1,
-    const hictk::Chromosome& chrom2, std::uint32_t resolution) {
-  using N = decltype(first_pixel->count);
+    const Pixels& pixels, const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2,
+    std::uint32_t resolution) {
 
   const auto num_bins1 = (chrom1.size() + resolution - 1) / resolution;
   const auto num_bins2 = (chrom2.size() + resolution - 1) / resolution;
@@ -70,15 +70,15 @@ template <typename PixelIt>
   std::vector<double> margs1(num_bins1, 0);
   std::vector<double> margs2(num_bins2, 0);
 
-  std::for_each(first_pixel, last_pixel, [&](const hictk::Pixel<N>& p) {
-    margs1[p.coords.bin1.rel_id()] += conditional_static_cast<N>(p.count);
-    margs2[p.coords.bin2.rel_id()] += conditional_static_cast<N>(p.count);
+  for (const auto& p : pixels) {
+    margs1[p.coords.bin1.rel_id()] += conditional_static_cast<double>(p.count);
+    margs2[p.coords.bin2.rel_id()] += conditional_static_cast<double>(p.count);
 
     if (chrom1 == chrom2 && p.coords.bin1.id() != p.coords.bin2.id()) {
-      margs1[p.coords.bin2.rel_id()] += conditional_static_cast<N>(p.count);
-      margs2[p.coords.bin1.rel_id()] += conditional_static_cast<N>(p.count);
+      margs1[p.coords.bin2.rel_id()] += conditional_static_cast<double>(p.count);
+      margs2[p.coords.bin1.rel_id()] += conditional_static_cast<double>(p.count);
     }
-  });
+  }
 
   return std::make_pair(margs1, margs2);
 }
@@ -131,18 +131,17 @@ inline std::vector<bool> mad_max_filtering(std::vector<double>& margs, double ma
   return mask;
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
+template <typename Pixels>
+  requires PixelRange<Pixels>
 inline std::pair<std::vector<bool>, std::vector<bool>> mad_max_filtering(
-    PixelIt first_pixel, PixelIt last_pixel, const hictk::Chromosome& chrom1,
-    const hictk::Chromosome& chrom2, std::uint32_t resolution, double mad_max) {
+    const Pixels& pixels, const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2,
+    std::uint32_t resolution, double mad_max) {
   if (mad_max == 0) {
     const auto num_bins1 = (chrom1.size() + resolution - 1) / resolution;
     const auto num_bins2 = (chrom2.size() + resolution - 1) / resolution;
     return std::make_pair(std::vector<bool>(num_bins1, false), std::vector<bool>(num_bins2, false));
   }
-  auto [margs1, margs2] =
-      internal::compute_marginals(first_pixel, last_pixel, chrom1, chrom2, resolution);
+  auto [margs1, margs2] = internal::compute_marginals(pixels, chrom1, chrom2, resolution);
 
   auto mask1 = mad_max_filtering(margs1, mad_max);
   auto mask2 = chrom1 == chrom2 ? mask1 : mad_max_filtering(margs2, mad_max);
@@ -155,16 +154,15 @@ inline std::pair<std::vector<bool>, std::vector<bool>> mad_max_filtering(
   return std::make_pair(mask1, mask2);
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline std::vector<bool> mad_max_filtering(PixelIt first_pixel, PixelIt last_pixel,
-                                           const hictk::Chromosome& chrom, std::uint32_t resolution,
-                                           double mad_max) {
+template <typename Pixels>
+  requires PixelRange<Pixels>
+inline std::vector<bool> mad_max_filtering(const Pixels& pixels, const hictk::Chromosome& chrom,
+                                           std::uint32_t resolution, double mad_max) {
   if (mad_max == 0) {
     const auto num_bins = (chrom.size() + resolution - 1) / resolution;
     return std::vector<bool>(num_bins, false);  // NOLINT
   }
-  auto [margs, _] = internal::compute_marginals(first_pixel, last_pixel, chrom, chrom, resolution);
+  auto [margs, _] = internal::compute_marginals(pixels, chrom, chrom, resolution);
 
   auto mask = mad_max_filtering(margs, mad_max);
   SPDLOG_INFO(FMT_STRING("[{}]: MAD-max masking procedure flagged {}/{} bins"), chrom.name(),

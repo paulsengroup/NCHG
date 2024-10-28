@@ -25,6 +25,7 @@
 #include <cstddef>
 #include <memory>
 #include <numeric>
+#include <ranges>
 #include <stdexcept>
 #include <tuple>
 #include <utility>
@@ -41,10 +42,8 @@ inline void BH_FDR<Stats>::add_record(Stats&& s) {
 }
 
 template <typename Stats>
-template <typename StatsIt>
-  requires std::input_iterator<StatsIt>
-inline void BH_FDR<Stats>::add_records(StatsIt first, StatsIt last) {
-  _pvalues.insert(_pvalues.end(), first, last);
+inline void BH_FDR<Stats>::add_records(const std::ranges::input_range auto& values) {
+  _pvalues.insert(_pvalues.end(), values.begin(), values.end());
 }
 
 template <typename Stats>

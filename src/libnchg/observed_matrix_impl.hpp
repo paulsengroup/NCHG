@@ -31,13 +31,14 @@
 
 namespace nchg {
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline auto ObservedMatrix<PixelIt>::compute_stats(
-    PixelIt first_pixel, PixelIt last_pixel, const hictk::Chromosome &chrom1,
-    const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
-    const std::vector<bool> &bin_mask1, const std::vector<bool> &bin_mask2,
-    std::uint64_t min_delta_, std::uint64_t max_delta_) {
+template <typename Pixels>
+  requires PixelRange<Pixels>
+inline auto ObservedMatrix::compute_stats(const Pixels &pixels, const hictk::Chromosome &chrom1,
+                                          const hictk::Chromosome &chrom2,
+                                          const hictk::BinTable &bins,
+                                          const std::vector<bool> &bin_mask1,
+                                          const std::vector<bool> &bin_mask2,
+                                          std::uint64_t min_delta_, std::uint64_t max_delta_) {
   assert(min_delta_ <= max_delta_);
   struct Result {
     std::shared_ptr<std::vector<std::uint64_t>> marginals1{
@@ -71,12 +72,12 @@ inline auto ObservedMatrix<PixelIt>::compute_stats(
   marginals1_.resize(num_bins1, 0);
   marginals2_.resize(num_bins2, 0);
 
-  std::for_each(first_pixel, last_pixel, [&](const hictk::Pixel<N> &p) {
+  for (const hictk::Pixel<N> &p : pixels) {
     const auto &bin1 = p.coords.bin1;
     const auto &bin2 = p.coords.bin2;
     const auto delta = bin2.start() - bin1.start();
     if (intra_matrix && (delta < min_delta_ || delta >= max_delta_)) {
-      return;
+      continue;
     }
 
     const auto bin1_id = p.coords.bin1.rel_id();
@@ -86,7 +87,7 @@ inline auto ObservedMatrix<PixelIt>::compute_stats(
     const auto bin2_masked = !bin_mask2.empty() && bin_mask2[bin2_id];
 
     if (bin1_masked || bin2_masked) {
-      return;
+      continue;
     }
 
     if (intra_matrix) {
@@ -104,106 +105,65 @@ inline auto ObservedMatrix<PixelIt>::compute_stats(
       const auto i2 = bin2.rel_id();
       marginals2_[i2] += p.count;
     }
-  });
+  };
 
   return res;
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline ObservedMatrix<PixelIt>::ObservedMatrix(PixelIt first_pixel, PixelIt last_pixel,
-                                               hictk::Chromosome chrom1, hictk::Chromosome chrom2,
-                                               hictk::BinTable bins, double mad_max_,
-                                               const std::vector<bool> &bin_mask1,
-                                               const std::vector<bool> &bin_mask2,
-                                               std::uint64_t min_delta_, std::uint64_t max_delta_)
+template <typename Pixels>
+  requires PixelRange<Pixels>
+inline ObservedMatrix::ObservedMatrix(const Pixels &pixels, hictk::Chromosome chrom1,
+                                      hictk::Chromosome chrom2, hictk::BinTable bins,
+                                      double mad_max_, const std::vector<bool> &bin_mask1,
+                                      const std::vector<bool> &bin_mask2, std::uint64_t min_delta_,
+                                      std::uint64_t max_delta_)
     : _chrom1(std::move(chrom1)),
       _chrom2(std::move(chrom2)),
       _bins(std::move(bins)),
       _mad_max(mad_max_),
       _min_delta(min_delta_),
       _max_delta(max_delta_) {
-  auto stats = compute_stats(first_pixel, last_pixel, _chrom1, _chrom2, _bins, bin_mask1, bin_mask2,
-                             min_delta_, max_delta_);
+  auto stats =
+      compute_stats(pixels, _chrom1, _chrom2, _bins, bin_mask1, bin_mask2, min_delta_, max_delta_);
   _marginals1 = std::move(stats.marginals1);
   _marginals2 = std::move(stats.marginals2);
   _nnz = stats.nnz;
   _sum = stats.sum;
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline std::uint32_t ObservedMatrix<PixelIt>::resolution() const noexcept {
-  return _bins.resolution();
-}
+inline std::uint32_t ObservedMatrix::resolution() const noexcept { return _bins.resolution(); }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline std::size_t ObservedMatrix<PixelIt>::num_rows() const noexcept {
+inline std::size_t ObservedMatrix::num_rows() const noexcept {
   return _bins.subset(chrom1()).size();
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline std::size_t ObservedMatrix<PixelIt>::num_cols() const noexcept {
+inline std::size_t ObservedMatrix::num_cols() const noexcept {
   return _bins.subset(chrom2()).size();
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline const hictk::Chromosome &ObservedMatrix<PixelIt>::chrom1() const noexcept {
-  return _chrom1;
-}
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline const hictk::Chromosome &ObservedMatrix<PixelIt>::chrom2() const noexcept {
-  return _chrom2;
-}
+inline const hictk::Chromosome &ObservedMatrix::chrom1() const noexcept { return _chrom1; }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline std::uint64_t ObservedMatrix<PixelIt>::nnz() const noexcept {
-  return _nnz;
-}
+inline const hictk::Chromosome &ObservedMatrix::chrom2() const noexcept { return _chrom2; }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline std::uint64_t ObservedMatrix<PixelIt>::sum() const noexcept {
-  return _sum;
-}
+inline std::uint64_t ObservedMatrix::nnz() const noexcept { return _nnz; }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline double ObservedMatrix<PixelIt>::nnz_avg() const noexcept {
+inline std::uint64_t ObservedMatrix::sum() const noexcept { return _sum; }
+
+inline double ObservedMatrix::nnz_avg() const noexcept {
   return static_cast<double>(sum()) / static_cast<double>(nnz());
 }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline double ObservedMatrix<PixelIt>::mad_max() const noexcept {
-  return _mad_max;
-}
+inline double ObservedMatrix::mad_max() const noexcept { return _mad_max; }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline std::uint64_t ObservedMatrix<PixelIt>::min_delta() const noexcept {
-  return _min_delta;
-}
+inline std::uint64_t ObservedMatrix::min_delta() const noexcept { return _min_delta; }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline std::uint64_t ObservedMatrix<PixelIt>::max_delta() const noexcept {
-  return _max_delta;
-}
+inline std::uint64_t ObservedMatrix::max_delta() const noexcept { return _max_delta; }
 
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline const std::vector<std::uint64_t> &ObservedMatrix<PixelIt>::marginals1() const noexcept {
+inline const std::vector<std::uint64_t> &ObservedMatrix::marginals1() const noexcept {
   return *_marginals1;
 }
-template <typename PixelIt>
-  requires PixelStream<PixelIt>
-inline const std::vector<std::uint64_t> &ObservedMatrix<PixelIt>::marginals2() const noexcept {
+
+inline const std::vector<std::uint64_t> &ObservedMatrix::marginals2() const noexcept {
   return *_marginals2;
 }
 

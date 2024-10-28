@@ -32,18 +32,32 @@ template <typename T>
 concept arithmetic = std::integral<T> || std::floating_point<T>;
 
 template <typename It>
-concept PixelStream = requires(It it) {
-  std::input_iterator<It>;
+concept PixelIterator = requires(It it) {
+  requires std::input_iterator<It>;
   { it->coords } -> std::convertible_to<hictk::PixelCoordinates>;
-  { std::remove_cvref_t<decltype(it->count)>{} } -> arithmetic;
+  { auto(it->count) } -> arithmetic;
 };
 
 template <typename It>
-concept ThinPixelStream = requires(It it) {
-  std::input_iterator<It>;
-  { it->bin1_id } -> std::integral;
-  { it->bin2_id } -> std::integral;
-  { it->count } -> arithmetic;
+concept ThinPixelIterator = requires(It it) {
+  requires std::input_iterator<It>;
+  { auto(it->bin1_id) } -> std::integral;
+  { auto(it->bin2_id) } -> std::integral;
+  { auto(it->count) } -> arithmetic;
+};
+
+template <typename R>
+concept PixelRange = requires(R rng) {
+  requires std::ranges::range<R>;
+  { rng.begin() } -> PixelIterator;
+  { rng.end() } -> PixelIterator;
+};
+
+template <typename R>
+concept ThinPixelRange = requires(R rng) {
+  requires std::ranges::range<R>;
+  { rng.begin() } -> ThinPixelIterator;
+  { rng.end() } -> ThinPixelIterator;
 };
 
 template <typename File>

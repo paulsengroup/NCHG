@@ -18,10 +18,10 @@
 
 #pragma once
 
-#include <concepts>
 #include <cstddef>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <vector>
 
 #include "nchg/common.hpp"
@@ -39,9 +39,7 @@ class BH_FDR {
   explicit BH_FDR(std::vector<Stats> pvalues_);
 
   void add_record(Stats&& s);
-  template <typename StatsIt>
-    requires std::input_iterator<StatsIt>
-  void add_records(StatsIt first, StatsIt last);
+  void add_records(const std::ranges::input_range auto& values);
 
   void clear() noexcept;
 

@@ -39,9 +39,7 @@ template <typename File>
   requires HictkSingleResFile<File>
 class ExpectedValues {
   using N = std::uint32_t;
-  using ThinPixelIt = decltype(std::declval<File>().fetch("chr1").template begin<N>());
-  using PixelIt =
-      decltype(std::declval<hictk::transformers::JoinGenomicCoords<ThinPixelIt>>().begin());
+
   std::shared_ptr<const File> _fp{};
   std::uint32_t _resolution{};
 
@@ -89,7 +87,7 @@ class ExpectedValues {
   // clang-format on
 
   template <typename OtherFile>
-    requires HictkSingleResFile<File>
+    requires HictkSingleResFile<OtherFile>
   friend class ExpectedValues;
 
   explicit ExpectedValues(
@@ -130,18 +128,18 @@ class ExpectedValues {
   [[nodiscard]] const phmap::btree_map<hictk::Chromosome, double>& scaling_factors() const noexcept;
   [[nodiscard]] double scaling_factor(const hictk::Chromosome& chrom) const;
 
-  [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom) const
-      -> ExpectedMatrix<PixelIt>;
+  [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom) const;
+  template <typename Pixels>
+    requires PixelRange<Pixels>
   [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom, const hictk::BinTable& bins,
-                                     PixelIt first_pixel, PixelIt last_pixel) const
-      -> ExpectedMatrix<PixelIt>;
+                                     const Pixels& pixels) const;
   [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom1,
-                                     const hictk::Chromosome& chrom2) const
-      -> ExpectedMatrix<PixelIt>;
+                                     const hictk::Chromosome& chrom2) const;
+  template <typename Pixels>
+    requires PixelRange<Pixels>
   [[nodiscard]] auto expected_matrix(const hictk::Chromosome& chrom1,
                                      const hictk::Chromosome& chrom2, const hictk::BinTable& bins,
-                                     PixelIt first_pixel, PixelIt last_pixel) const
-      -> ExpectedMatrix<PixelIt>;
+                                     const Pixels& pixels) const;
 
   void serialize(const std::filesystem::path& path) const;
 

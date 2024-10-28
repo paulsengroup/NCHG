@@ -173,6 +173,9 @@ class NCHG {
              std::shared_ptr<const std::vector<bool>> bin_mask2, std::uint64_t min_delta,
              std::uint64_t max_delta);
 
+    [[nodiscard]] static auto at_end(PixelSelector sel, std::shared_ptr<const ObservedMatrix> obs,
+                                     std::shared_ptr<const ExpectedMatrix> exp) -> iterator;
+
     iterator(const iterator& other);
     iterator(iterator&& other) noexcept = default;
 

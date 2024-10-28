@@ -73,6 +73,21 @@ inline NCHG::iterator<PixelSelector>::iterator(PixelSelector selector,
 }
 
 template <typename PixelSelector>
+inline auto NCHG::iterator<PixelSelector>::at_end(PixelSelector selector,
+                                                  std::shared_ptr<const ObservedMatrix> obs,
+                                                  std::shared_ptr<const ExpectedMatrix> exp)
+    -> iterator {
+  iterator it{};
+  it._sel = std::make_shared<const PixelSelector>(std::move(selector));
+  it._pixel_it = it._sel->template end<N>();
+  it._sentinel_it = it._pixel_it;
+  it._obs = std::move(obs);
+  it._exp = std::move(exp);
+
+  return it;
+}
+
+template <typename PixelSelector>
 inline NCHG::iterator<PixelSelector>::iterator(const iterator &other)
     : _sel(other._sel),
       _pixel_it(other._pixel_it),
@@ -226,6 +241,10 @@ inline auto NCHG::iterator<PixelSelector>::operator++(int) -> iterator {
 
 template <typename PixelSelector>
 inline void NCHG::iterator<PixelSelector>::jump_to_next_valid_pixel() {
+  assert(_sel);
+  assert(_bin_mask1);
+  assert(_bin_mask2);
+
   while (_pixel_it != _sentinel_it) {
     const hictk::Pixel p{_sel->bins(), *_pixel_it};
     const auto bin1_id = p.coords.bin1.rel_id();

@@ -320,12 +320,12 @@ void ExpectedValues::compute_expected_values_cis(
         init_bin_masks(f, bin_mask_seed);
 
         const auto [selectors, merger] = init_pixel_merger_cis(f);
-        const hictk::transformers::JoinGenomicCoords mjsel(merger.begin(), merger.end(),
-                                                           f.bins_ptr());
-
         if (selectors.empty()) {
           return true;
         }
+
+        const hictk::transformers::JoinGenomicCoords mjsel(merger.begin(), merger.end(),
+                                                           f.bins_ptr());
 
         for (const hictk::Pixel<N> &p : mjsel) {
           const auto &mask = *bin_mask(p.coords.bin1.chrom());

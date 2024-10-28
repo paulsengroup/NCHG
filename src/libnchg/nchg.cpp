@@ -208,8 +208,9 @@ auto NCHG::cend(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2
     -> IteratorVariant {
   return std::visit(
       [&](const auto &f) -> IteratorVariant {
-        return {iterator{f.fetch(chrom1.name(), chrom2.name()), _obs_matrix, _exp_matrix, nullptr,
-                         nullptr, params().min_delta, params().max_delta}};
+        using PixelSelector = decltype(f.fetch("chr1", "chr2"));
+        return {iterator<PixelSelector>::at_end(f.fetch(chrom1.name(), chrom2.name()), _obs_matrix,
+                                                _exp_matrix)};
       },
       _fp->get());
 }

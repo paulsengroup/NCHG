@@ -28,11 +28,16 @@ NCHG_DISABLE_WARNING_POP
 // clang-format on
 
 #include <cstdint>
+#include <hictk/cooler/pixel_selector.hpp>
 #include <hictk/file.hpp>
 #include <hictk/genomic_interval.hpp>
+#include <hictk/hic/pixel_selector.hpp>
 #include <hictk/pixel.hpp>
-#include <hictk/transformers/join_genomic_coords.hpp>
 #include <memory>
+#include <type_traits>
+#include <utility>
+#include <variant>
+#include <vector>
 
 #include "nchg/concepts.hpp"
 #include "nchg/expected_matrix.hpp"

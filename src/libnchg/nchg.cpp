@@ -85,7 +85,7 @@ auto NCHG::compute(const hictk::GenomicInterval &range, double bad_bin_fraction)
 
 auto NCHG::compute(const hictk::GenomicInterval &range1, const hictk::GenomicInterval &range2,
                    double bad_bin_fraction) const -> Stats {
-  if (bad_bin_fraction < 0.0 || bad_bin_fraction > 1.0) {
+  if (bad_bin_fraction < 0.0 || bad_bin_fraction > 1.0) [[unlikely]] {
     throw std::logic_error("bad_bin_fraction should be between 0 and 1");
   }
 
@@ -139,7 +139,7 @@ auto NCHG::compute(const hictk::GenomicInterval &range1, const hictk::GenomicInt
   double obs = 0.0;
   double exp = 0.0;
 
-  if (bin1_masked_frac < bad_bin_fraction && bin2_masked_frac < bad_bin_fraction) {
+  if (bin1_masked_frac < bad_bin_fraction && bin2_masked_frac < bad_bin_fraction) [[likely]] {
     const auto sel = _fp->fetch(range1.chrom().name(), range1.start(), range1.end(),
                                 range2.chrom().name(), range2.start(), range2.end());
     const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<double>(),
@@ -152,7 +152,8 @@ auto NCHG::compute(const hictk::GenomicInterval &range1, const hictk::GenomicInt
 
       const auto bin1_id = p.coords.bin1.rel_id();
       const auto bin2_id = p.coords.bin2.rel_id();
-      if (delta >= min_delta && delta < max_delta && !mask1[bin1_id] && !mask2[bin2_id]) {
+      if (delta >= min_delta && delta < max_delta && !mask1[bin1_id] && !mask2[bin2_id])
+          [[likely]] {
         obs += p.count;
         exp += _exp_matrix->at(bin1_id, bin2_id);
       }
@@ -169,7 +170,7 @@ auto NCHG::compute(const hictk::GenomicInterval &range1, const hictk::GenomicInt
       static_cast<std::uint32_t>(obs)};
   // clang-format on
 
-  if (obs == 0) {
+  if (obs == 0) [[unlikely]] {
     return {p, exp, 1.0, 0.0, 0.0, 0.0};
   }
 
@@ -178,11 +179,11 @@ auto NCHG::compute(const hictk::GenomicInterval &range1, const hictk::GenomicInt
 
   const auto log_ratio = std::log2(obs) - std::log2(exp);
 
-  if ((L1 - exp) * (L2 - exp) <= cutoff) {
+  if ((L1 - exp) * (L2 - exp) <= cutoff) [[unlikely]] {
     return {p, exp, 1.0, log_ratio, odds_ratio, omega};
   }
 
-  if (!std::isfinite(omega) || omega > odds_ratio) {
+  if (!std::isfinite(omega) || omega > odds_ratio) [[unlikely]] {
     return {p, exp, 1.0, log_ratio, odds_ratio, omega};
   }
 
@@ -276,7 +277,7 @@ double NCHG::compute_cumulative_nchg(std::vector<double> &buffer, std::uint64_t 
 
   const auto ub = std::numeric_limits<std::int32_t>::max();
 
-  if (N2 > ub || N1 > ub || N > ub) {
+  if (N2 > ub || N1 > ub || N > ub) [[unlikely]] {
     throw std::runtime_error(
         "unable to compute NCHG CDF: one of the parameters is too large to fit in a "
         "std::int32_t");
@@ -332,7 +333,7 @@ double NCHG::compute_pvalue_nchg(std::uint64_t obs, std::uint64_t N1, std::uint6
 double NCHG::compute_pvalue_nchg(std::vector<double> &buffer, std::uint64_t obs, std::uint64_t N1,
                                  std::uint64_t N2, std::uint64_t N, double odds, double precision,
                                  double min_omega) {
-  if (obs == 1) {
+  if (obs == 1) [[unlikely]] {
     return 1.0;
   }
   const auto pvalue =
@@ -347,7 +348,7 @@ NCHG::compute_expected_profile() const {
   return std::visit(
       [&](const auto &f) {
         const auto [selectors, merger] = ExpectedValues::init_pixel_merger_cis(f);
-        if (merger.begin() == merger.end()) {
+        if (merger.begin() == merger.end()) [[unlikely]] {
           std::vector<double> weights(f.bins().size(), 0);
           phmap::btree_map<hictk::Chromosome, double> scaling_factors{};
           for (const auto &chrom : f.chromosomes()) {

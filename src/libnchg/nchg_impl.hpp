@@ -36,7 +36,7 @@ namespace nchg {
 namespace internal {
 [[nodiscard]] constexpr double compute_odds_ratio(double n, double total_sum, double sum1,
                                                   double sum2) {
-  if (std::isnan(n) || sum1 == 0 || sum2 == 0) {
+  if (std::isnan(n) || sum1 == 0 || sum2 == 0) [[unlikely]] {
     return std::numeric_limits<double>::quiet_NaN();
   }
 
@@ -190,7 +190,7 @@ inline auto NCHG::iterator<PixelSelector>::operator*() const -> const_reference 
   const auto exp = std::max(_exp->at(i1, i2), cutoff);
 
   const auto delta = p.coords.bin2.start() - p.coords.bin1.start();
-  if (intra_matrix && (delta < _min_delta || delta >= _max_delta)) {
+  if (intra_matrix && (delta < _min_delta || delta >= _max_delta)) [[unlikely]] {
     _value = {p, exp, 1.0, 0.0, 0.0, 0.0};
     return _value;
   }
@@ -200,12 +200,12 @@ inline auto NCHG::iterator<PixelSelector>::operator*() const -> const_reference 
 
   const auto log_ratio = std::log2(odds_ratio) - std::log2(omega);
 
-  if ((L1 - exp) * (L2 - exp) <= cutoff) {
+  if ((L1 - exp) * (L2 - exp) <= cutoff) [[unlikely]] {
     _value = {p, exp, 1.0, log_ratio, odds_ratio, omega};
     return _value;
   }
 
-  if (!std::isfinite(omega) || omega > odds_ratio) {
+  if (!std::isfinite(omega) || omega > odds_ratio) [[unlikely]] {
     _value = {p, exp, 1.0, log_ratio, odds_ratio, omega};
     return _value;
   }
@@ -253,7 +253,7 @@ inline void NCHG::iterator<PixelSelector>::jump_to_next_valid_pixel() {
     const auto bin1_masked = (*_bin_mask1)[bin1_id];
     const auto bin2_masked = (*_bin_mask2)[bin2_id];
 
-    if (!bin1_masked && !bin2_masked) {
+    if (!bin1_masked && !bin2_masked) [[likely]] {
       break;
     }
     std::ignore = ++_pixel_it;

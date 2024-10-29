@@ -79,7 +79,7 @@ inline auto ExpectedValues::init_pixel_merger_cis(const File &f) {
   std::vector<PixelSelector> selectors{};
 
   for (const auto &chrom : f.chromosomes()) {
-    if (chrom.is_all()) {
+    if (chrom.is_all()) [[unlikely]] {
       continue;
     }
     auto sel = f.fetch(chrom.name());
@@ -87,7 +87,7 @@ inline auto ExpectedValues::init_pixel_merger_cis(const File &f) {
     auto first = sel.template begin<N>();
     auto last = sel.template end<N>();
 
-    if (!sel.empty()) {
+    if (!sel.empty()) [[likely]] {
       selectors.emplace_back(std::move(sel));
     }
   }

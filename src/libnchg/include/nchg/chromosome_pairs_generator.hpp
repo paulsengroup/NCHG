@@ -34,12 +34,12 @@ namespace nchg {
 [[nodiscard]] inline std::generator<std::pair<hictk::Chromosome, hictk::Chromosome>>
 generate_chromosome_pairs_upper_triangle(hictk::Reference reference, bool include_ALL = false) {
   for (const auto& chrom1 : reference) {
-    if (chrom1.is_all() && !include_ALL) {
+    if (chrom1.is_all() && !include_ALL) [[unlikely]] {
       continue;
     }
     for (auto chrom2_id = chrom1.id(); chrom2_id < reference.size(); ++chrom2_id) {
       const auto& chrom2 = reference.at(chrom2_id);
-      if (chrom2.is_all() && !include_ALL) {
+      if (chrom2.is_all() && !include_ALL) [[unlikely]] {
         continue;
       }
 
@@ -53,12 +53,12 @@ generate_chromosome_pairs_upper_triangle(const hictk::Reference& reference,
                                          bool include_ALL = false) {
   std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> pairs{};
   for (const auto& chrom1 : reference) {
-    if (chrom1.is_all() && !include_ALL) {
+    if (chrom1.is_all() && !include_ALL) [[unlikely]] {
       continue;
     }
     for (auto chrom2_id = chrom1.id(); chrom2_id < reference.size(); ++chrom2_id) {
       const auto& chrom2 = reference.at(chrom2_id);
-      if (chrom2.is_all() && !include_ALL) {
+      if (chrom2.is_all() && !include_ALL) [[unlikely]] {
         continue;
       }
 

@@ -75,7 +75,7 @@ inline auto ObservedMatrix::compute_stats(const Pixels &pixels, const hictk::Chr
     const auto &bin1 = p.coords.bin1;
     const auto &bin2 = p.coords.bin2;
     const auto delta = bin2.start() - bin1.start();
-    if (intra_matrix && (delta < min_delta_ || delta >= max_delta_)) {
+    if (intra_matrix && (delta < min_delta_ || delta >= max_delta_)) [[unlikely]] {
       continue;
     }
 
@@ -85,7 +85,7 @@ inline auto ObservedMatrix::compute_stats(const Pixels &pixels, const hictk::Chr
     const auto bin1_masked = !bin_mask1.empty() && bin_mask1[bin1_id];
     const auto bin2_masked = !bin_mask2.empty() && bin_mask2[bin2_id];
 
-    if (bin1_masked || bin2_masked) {
+    if (bin1_masked || bin2_masked) [[unlikely]] {
       continue;
     }
 

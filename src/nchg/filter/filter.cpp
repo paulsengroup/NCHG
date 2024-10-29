@@ -101,7 +101,7 @@ struct PValue {
                                            std::string{record.pixel.coords.bin2.chrom().name()}),
                             std::vector<PValue>{{i, record.pval}});
 
-    if (!inserted) {
+    if (!inserted) [[likely]] {
       it->second.emplace_back(PValue{i, record.pval});
     }
     ++i;
@@ -225,17 +225,18 @@ int run_nchg_filter(const FilterConfig& c) {
     std::size_t i = 0;
     try {
       for (const auto& r : ParquetStatsFile<NCHGResult>(c.input_path)) {
-        if (early_return) {
+        if (early_return) [[unlikely]] {
           return;
         }
 
         const auto pvalue_corrected = corrected_pvalues[i++];
         assert(r.pval <= pvalue_corrected);
 
-        if (!c.drop_non_significant || (pvalue_corrected <= c.fdr && r.log_ratio >= c.log_ratio)) {
+        if (!c.drop_non_significant || (pvalue_corrected <= c.fdr && r.log_ratio >= c.log_ratio))
+            [[likely]] {
           const NCHGFilterResult res{r, pvalue_corrected};
-          while (!queue.try_enqueue(res)) {
-            if (early_return) {
+          while (!queue.try_enqueue(res)) [[unlikely]] {
+            if (early_return) [[unlikely]] {
               return;
             }
           }
@@ -268,14 +269,14 @@ int run_nchg_filter(const FilterConfig& c) {
 
     NCHGFilterResult res{};
 
-    while (!early_return) {
-      while (!queue.wait_dequeue_timed(res, std::chrono::milliseconds(20))) {
-        if (early_return) {
+    while (!early_return) [[likely]] {
+      while (!queue.wait_dequeue_timed(res, std::chrono::milliseconds(20))) [[unlikely]] {
+        if (early_return) [[likely]] {
           return;
         }
       }
 
-      if (res.pval == -1) {
+      if (res.pval == -1) [[unlikely]] {
         // EOQ
         if (builder.size() != 0) {
           builder.write(*writer);
@@ -283,7 +284,7 @@ int run_nchg_filter(const FilterConfig& c) {
         return;
       }
 
-      if (builder.size() == batch_size) {
+      if (builder.size() == batch_size) [[unlikely]] {
         builder.write(*writer);
         builder.reset();
       }

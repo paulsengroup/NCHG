@@ -33,7 +33,7 @@ inline void ExpectedValuesAggregator::add(const hictk::ThinPixel<N> &p) {
 template <typename N>
 inline void ExpectedValuesAggregator::add(const hictk::Pixel<N> &p) {
   const auto count = conditional_static_cast<double>(p.count);
-  if (std::isnan(count)) {
+  if (std::isnan(count)) [[unlikely]] {
     return;
   }
 
@@ -44,8 +44,8 @@ inline void ExpectedValuesAggregator::add(const hictk::Pixel<N> &p) {
     at(chrom1) += count;
     const auto i = p.coords.bin2.id() - p.coords.bin1.id();
     // skip last bin in chromosome if chromosome size is not a multiple of bin size
-    // this is done to mimick HiCTools' behavior
-    if (i < _observed_distances.size()) {
+    // this is done to mimic HiCTools' behavior
+    if (i < _observed_distances.size()) [[likely]] {
       _observed_distances[i] += count;
     }
   } else {

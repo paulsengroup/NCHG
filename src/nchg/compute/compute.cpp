@@ -208,11 +208,11 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 
       const auto s = nchg.compute(d1, d2, c.bad_bin_fraction);
 
-      if (builder.size() == batch_size) {
+      if (builder.size() == batch_size) [[unlikely]] {
         builder.write(*writer);
       }
 
-      if (std::isfinite(s.odds_ratio) && s.omega != 0) {
+      if (std::isfinite(s.odds_ratio) && s.omega != 0) [[likely]] {
         builder.append(s);
       }
 
@@ -252,11 +252,11 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
         std::for_each(it1, it2, [&](const auto &s) {
           ++num_records;
 
-          if (builder.size() == batch_size) {
+          if (builder.size() == batch_size) [[unlikely]] {
             builder.write(*writer);
           }
 
-          if (std::isfinite(s.odds_ratio) && s.omega != 0) {
+          if (std::isfinite(s.odds_ratio) && s.omega != 0) [[likely]] {
             builder.append(s);
           }
         });
@@ -287,7 +287,7 @@ init_cis_chromosomes(const hictk::Reference &chroms) {
   std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> buffer{};
 
   for (const auto &chrom : chroms) {
-    if (chrom.is_all()) {
+    if (chrom.is_all()) [[unlikely]] {
       continue;
     }
     buffer.emplace_back(chrom, chrom);
@@ -301,7 +301,7 @@ init_trans_chromosomes(const hictk::Reference &chroms) {
   std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> buffer{};
 
   for (const auto &chrom1 : chroms) {
-    if (chrom1.is_all()) {
+    if (chrom1.is_all()) [[unlikely]] {
       continue;
     }
     for (std::uint32_t chrom2_id = chrom1.id() + 1; chrom2_id < chroms.size(); ++chrom2_id) {

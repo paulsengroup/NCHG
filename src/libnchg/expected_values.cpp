@@ -288,7 +288,7 @@ void ExpectedValues::init_bin_masks(
     const File &f,
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask_seed) {
   for (const auto &chrom : f.chromosomes()) {
-    if (chrom.is_all()) {
+    if (chrom.is_all()) [[unlikely]] {
       continue;
     }
     auto sel = f.fetch(chrom.name());
@@ -334,7 +334,8 @@ void ExpectedValues::compute_expected_values_cis(
           const auto bin2_id = p.coords.bin2.rel_id();
           const auto bin1_masked = !mask.empty() && mask[bin1_id];
           const auto bin2_masked = !mask.empty() && mask[bin2_id];
-          if (delta >= _min_delta && delta < _max_delta && !bin1_masked && !bin2_masked) {
+          if (delta >= _min_delta && delta < _max_delta && !bin1_masked && !bin2_masked)
+              [[likely]] {
             aggr.add(p);
           }
         }

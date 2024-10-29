@@ -77,7 +77,7 @@ inline auto ExpectedMatrix::compute_stats(const Pixels &pixels, const hictk::Chr
     const auto &bin1 = p.coords.bin1;
     const auto &bin2 = p.coords.bin2;
     const auto delta = bin2.start() - bin1.start();
-    if (intra_matrix && (delta < min_delta_ || delta >= max_delta_)) {
+    if (intra_matrix && (delta < min_delta_ || delta >= max_delta_)) [[unlikely]] {
       continue;
     }
 
@@ -87,13 +87,13 @@ inline auto ExpectedMatrix::compute_stats(const Pixels &pixels, const hictk::Chr
     const auto bin1_masked = !bin_mask1.empty() && bin_mask1[bin1_id];
     const auto bin2_masked = !bin_mask2.empty() && bin_mask2[bin2_id];
 
-    if (bin1_masked || bin2_masked) {
+    if (bin1_masked || bin2_masked) [[unlikely]] {
       continue;
     }
 
     auto count =
         intra_matrix ? weights.at(bin2.id() - bin1.id()) : conditional_static_cast<double>(p.count);
-    if (std::isnan(count)) {
+    if (std::isnan(count)) [[unlikely]] {
       count = 0.0;
     }
 
@@ -175,7 +175,7 @@ ExpectedMatrix::build_expected_vector(const Pixels &pixels, const hictk::BinTabl
 
   for (const auto &p : pixels) {
     const auto delta = p.coords.bin2.start() - p.coords.bin1.start();
-    if (delta >= min_delta_ && delta < max_delta_) {
+    if (delta >= min_delta_ && delta < max_delta_) [[likely]] {
       aggr.add(p);
     }
   }

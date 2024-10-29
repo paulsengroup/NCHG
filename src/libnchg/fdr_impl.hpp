@@ -57,7 +57,7 @@ template <typename Stats>
 template <typename UnaryOperation>
   requires std::invocable<UnaryOperation, Stats&>
 inline auto BH_FDR<Stats>::correct(UnaryOperation op) -> std::vector<Stats> {
-  if (_pvalues.size() < 2) {
+  if (_pvalues.size() < 2) [[unlikely]] {
     return _pvalues;
   }
 

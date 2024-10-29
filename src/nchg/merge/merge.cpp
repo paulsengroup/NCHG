@@ -58,7 +58,7 @@ init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference 
   SPDLOG_INFO(FMT_STRING("enumerating chrom-chrom tables under prefix {}..."), prefix);
   for (std::uint32_t chrom1_id = 0; chrom1_id < chroms.size(); ++chrom1_id) {
     const auto &chrom1 = chroms.at(chrom1_id);
-    if (chrom1.is_all()) {
+    if (chrom1.is_all()) [[unlikely]] {
       break;
     }
     for (std::uint32_t chrom2_id = chrom1_id; chrom2_id < chroms.size(); ++chrom2_id) {
@@ -69,7 +69,7 @@ init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference 
         ParquetStatsFile<NCHGResult> f(path);
         auto first = f.begin();
         auto last = f.end();
-        if (first != last) {
+        if (first != last) [[likely]] {
           heads.emplace_back(std::move(first));
           tails.emplace_back(std::move(last));
         }
@@ -109,8 +109,8 @@ int run_nchg_merge(const MergeConfig &c) {
       const KMerger merger(heads, tails);
 
       for (const auto &s : merger) {
-        while (!queue.try_enqueue(s)) {
-          if (early_return) {
+        while (!queue.try_enqueue(s)) [[unlikely]] {
+          if (early_return) [[unlikely]] {
             return;
           }
         }
@@ -142,21 +142,22 @@ int run_nchg_merge(const MergeConfig &c) {
 
       auto t1 = std::chrono::steady_clock::now();
       for (std::size_t i = 0; true; ++i) {
-        while (!queue.wait_dequeue_timed(buffer, std::chrono::milliseconds(10))) {
-          if (early_return) {
+        while (!queue.wait_dequeue_timed(buffer, std::chrono::milliseconds(10))) [[unlikely]] {
+          if (early_return) [[unlikely]] {
             return records_processed;
           }
         }
-        if (buffer.pval == -1) {  // EOQ
+        if (buffer.pval == -1) [[unlikely]] {  // EOQ
           break;
         }
-        if (builder.size() == batch_size) {
+
+        if (builder.size() == batch_size) [[unlikely]] {
           builder.write(*writer);
         }
         builder.append(buffer);
         ++records_processed;
 
-        if (i == 10'000'000) {
+        if (i == 10'000'000) [[unlikely]] {
           const auto t2 = std::chrono::steady_clock::now();
           const auto delta =
               static_cast<double>(

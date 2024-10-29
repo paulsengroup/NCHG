@@ -42,7 +42,7 @@ ExpectedValuesAggregator::ExpectedValuesAggregator(std::shared_ptr<const hictk::
   SPDLOG_INFO(FMT_STRING("[{} bp] initializing expected value vector"), _bins->resolution());
   std::uint32_t max_length = 0;
   for (const auto &chrom : chromosomes()) {
-    if (chrom.is_all()) {
+    if (chrom.is_all()) [[unlikely]] {
       continue;
     }
 
@@ -101,7 +101,7 @@ void ExpectedValuesAggregator::init_possible_distances() {
   const auto bin_size = _bins->resolution();
 
   for (const auto &[chrom, _] : _cis_sum) {
-    if (chrom.is_all()) {
+    if (chrom.is_all()) [[unlikely]] {
       continue;
     }
     const auto n_bins = chrom.size() / bin_size;
@@ -188,7 +188,7 @@ phmap::btree_map<hictk::Chromosome, double> ExpectedValuesAggregator::compute_sc
     const {
   phmap::btree_map<hictk::Chromosome, double> scaling_factors{};
   for (const auto &[chrom, _] : _cis_sum) {
-    if (chrom.is_all()) {
+    if (chrom.is_all()) [[unlikely]] {
       continue;
     }
 
@@ -197,7 +197,7 @@ phmap::btree_map<hictk::Chromosome, double> ExpectedValuesAggregator::compute_sc
     auto expected_count = 0.0;
     for (std::size_t i = 0; i < num_chrom_bins; ++i) {
       const auto v = _weights[i];
-      if (std::isfinite(v)) {
+      if (std::isfinite(v)) [[likely]] {
         expected_count += (static_cast<double>(num_chrom_bins) - static_cast<double>(i)) * v;
       }
     }
@@ -232,7 +232,7 @@ void ExpectedValuesAggregator::correct_outliers(double quantile, std::uint32_t w
 
   std::vector<double> buffer{};
   for (std::size_t i = window_arm; i + window_arm < _weights.size(); ++i) {
-    if (!std::isfinite(_weights[i])) {
+    if (!std::isfinite(_weights[i])) [[unlikely]] {
       continue;
     }
     const auto i0 = i - window_arm;
@@ -243,7 +243,7 @@ void ExpectedValuesAggregator::correct_outliers(double quantile, std::uint32_t w
     const auto thresh = internal::approx_quantile(buffer, quantile);
     if (_weights[i] > thresh) {
       const auto n = median(buffer);
-      if (std::isfinite(n)) {
+      if (std::isfinite(n)) [[likely]] {
         _weights[i] = n;
       }
     }

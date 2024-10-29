@@ -121,7 +121,7 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
 [[nodiscard]] static phmap::flat_hash_map<std::size_t, double> correct_pvalues_chrom_chrom(
     const phmap::btree_map<ChromPair, std::vector<PValue>>& records) {
   SPDLOG_INFO(
-      FMT_STRING("proceeding to correct pvalues for individual chromosme pairs separately..."));
+      FMT_STRING("proceeding to correct pvalues for individual chromosome pairs separately..."));
 
   auto corrected_records = alloc_pvalue_hashmap(records);
 
@@ -198,6 +198,16 @@ struct NCHGFilterResult {
   double log_ratio{};
   double odds_ratio{};
   double omega{};
+
+  NCHGFilterResult() = default;
+  NCHGFilterResult(const NCHGResult& r, double pval_corrected_)
+      : pixel(r.pixel),
+        expected(r.expected),
+        pval(r.pval),
+        pval_corrected(pval_corrected_),
+        log_ratio(r.log_ratio),
+        odds_ratio(r.odds_ratio),
+        omega(r.omega) {}
 };
 
 static_assert(has_pval_corrected<NCHGFilterResult>::value);
@@ -223,8 +233,7 @@ int run_nchg_filter(const FilterConfig& c) {
         assert(r.pval <= pvalue_corrected);
 
         if (!c.drop_non_significant || (pvalue_corrected <= c.fdr && r.log_ratio >= c.log_ratio)) {
-          const NCHGFilterResult res{r.pixel,     r.expected,   r.pval, pvalue_corrected,
-                                     r.log_ratio, r.odds_ratio, r.omega};
+          const NCHGFilterResult res{r, pvalue_corrected};
           while (!queue.try_enqueue(res)) {
             if (early_return) {
               return;

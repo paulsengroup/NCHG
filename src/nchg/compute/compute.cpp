@@ -135,9 +135,14 @@ namespace nchg {
 
   const auto evs = ExpectedValues::chromosome_pair(
       f, chrom1, chrom2,
-      {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
-       c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
-       c.interpolation_qtile, c.interpolation_window_size},
+      {.mad_max = c.mad_max,
+       .min_delta = c.min_delta,
+       .max_delta = c.max_delta,
+       .bin_aggregation_possible_distances_cutoff = c.bin_aggregation_possible_distances_cutoff,
+       .bin_aggregation_observed_distances_cutoff = c.bin_aggregation_observed_distances_cutoff,
+       .interpolate = c.interpolate_expected_values,
+       .interpolation_qtile = c.interpolation_qtile,
+       .interpolation_window_size = c.interpolation_window_size},
       bin_mask);
 
   return NCHG(f, chrom1, chrom2, evs);

@@ -53,9 +53,14 @@ static void process_all_chromosomes(FilePtr f, const ExpectedConfig &c) {
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
   const ExpectedValues evs(
       f,
-      {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
-       c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
-       c.interpolation_qtile, c.interpolation_window_size},
+      {.mad_max = c.mad_max,
+       .min_delta = c.min_delta,
+       .max_delta = c.max_delta,
+       .bin_aggregation_possible_distances_cutoff = c.bin_aggregation_possible_distances_cutoff,
+       .bin_aggregation_observed_distances_cutoff = c.bin_aggregation_observed_distances_cutoff,
+       .interpolate = c.interpolate_expected_values,
+       .interpolation_qtile = c.interpolation_qtile,
+       .interpolation_window_size = c.interpolation_window_size},
       mask);
   if (c.force) {
     std::filesystem::remove(c.output_path);
@@ -70,9 +75,14 @@ static void process_cis_chromosomes(FilePtr f, const ExpectedConfig &c) {
 
   const auto evs = ExpectedValues::cis_only(
       f,
-      {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
-       c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
-       c.interpolation_qtile, c.interpolation_window_size},
+      {.mad_max = c.mad_max,
+       .min_delta = c.min_delta,
+       .max_delta = c.max_delta,
+       .bin_aggregation_possible_distances_cutoff = c.bin_aggregation_possible_distances_cutoff,
+       .bin_aggregation_observed_distances_cutoff = c.bin_aggregation_observed_distances_cutoff,
+       .interpolate = c.interpolate_expected_values,
+       .interpolation_qtile = c.interpolation_qtile,
+       .interpolation_window_size = c.interpolation_window_size},
       mask);
   if (c.force) {
     std::filesystem::remove(c.output_path);
@@ -87,9 +97,14 @@ static void process_trans_chromosomes(FilePtr f, const ExpectedConfig &c) {
 
   const auto evs = ExpectedValues::trans_only(
       f,
-      {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
-       c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
-       c.interpolation_qtile, c.interpolation_window_size},
+      {.mad_max = c.mad_max,
+       .min_delta = c.min_delta,
+       .max_delta = c.max_delta,
+       .bin_aggregation_possible_distances_cutoff = c.bin_aggregation_possible_distances_cutoff,
+       .bin_aggregation_observed_distances_cutoff = c.bin_aggregation_observed_distances_cutoff,
+       .interpolate = c.interpolate_expected_values,
+       .interpolation_qtile = c.interpolation_qtile,
+       .interpolation_window_size = c.interpolation_window_size},
       mask);
   if (c.force) {
     std::filesystem::remove(c.output_path);
@@ -108,9 +123,14 @@ static void process_one_chromosome_pair(FilePtr f, const ExpectedConfig &c) {
 
   const auto evs = ExpectedValues::chromosome_pair(
       f, chrom1, chrom2,
-      {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
-       c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
-       c.interpolation_qtile, c.interpolation_window_size},
+      {.mad_max = c.mad_max,
+       .min_delta = c.min_delta,
+       .max_delta = c.max_delta,
+       .bin_aggregation_possible_distances_cutoff = c.bin_aggregation_possible_distances_cutoff,
+       .bin_aggregation_observed_distances_cutoff = c.bin_aggregation_observed_distances_cutoff,
+       .interpolate = c.interpolate_expected_values,
+       .interpolation_qtile = c.interpolation_qtile,
+       .interpolation_window_size = c.interpolation_window_size},
       mask);
   if (c.force) {
     std::filesystem::remove(c.output_path);

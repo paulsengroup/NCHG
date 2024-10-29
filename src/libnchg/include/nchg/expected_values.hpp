@@ -74,14 +74,14 @@ class ExpectedValues {
 
   // clang-format off
   static constexpr Params DefaultParams{
-      5.0,
-      40'000,
-      std::numeric_limits<std::uint64_t>::max(),
-      10'000,
-      100'000,
-      true,
-      0.975,
-      750'000
+      .mad_max = 5.0,
+      .min_delta = 40'000,
+      .max_delta = std::numeric_limits<std::uint64_t>::max(),
+      .bin_aggregation_possible_distances_cutoff = 10'000,
+      .bin_aggregation_observed_distances_cutoff = 100'000,
+      .interpolate = true,
+      .interpolation_qtile = 0.975,
+      .interpolation_window_size = 750'000
   };
   // clang-format on
 

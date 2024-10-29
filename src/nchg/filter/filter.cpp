@@ -89,7 +89,7 @@ struct PValue {
 };
 
 [[nodiscard]] static auto read_records(const std::filesystem::path& path) {
-  SPDLOG_INFO(FMT_STRING("reading records from {}"), path);
+  SPDLOG_INFO("reading records from {}", path);
   phmap::btree_map<ChromPair, std::vector<PValue>> records{};
 
   ParquetStatsFile<NCHGResult> f(path);
@@ -120,8 +120,7 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
 
 [[nodiscard]] static phmap::flat_hash_map<std::size_t, double> correct_pvalues_chrom_chrom(
     const phmap::btree_map<ChromPair, std::vector<PValue>>& records) {
-  SPDLOG_INFO(
-      FMT_STRING("proceeding to correct pvalues for individual chromosome pairs separately..."));
+  SPDLOG_INFO("proceeding to correct pvalues for individual chromosome pairs separately...");
 
   const auto t0 = std::chrono::steady_clock::now();
 
@@ -129,7 +128,7 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
 
   BH_FDR<PValue> bh;
   for (const auto& [cp, values] : records) {
-    SPDLOG_INFO(FMT_STRING("processing {}:{} values..."), cp.first, cp.second);
+    SPDLOG_INFO("processing {}:{} values...", cp.first, cp.second);
     const auto t1 = std::chrono::steady_clock::now();
     bh.clear();
     bh.add_records(values);
@@ -138,20 +137,19 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
       corrected_records.emplace(record.i, record.pvalue);
     }
     const auto t2 = std::chrono::steady_clock::now();
-    SPDLOG_INFO(FMT_STRING("correcting pvalues for {}:{} took {}"), cp.first, cp.second,
+    SPDLOG_INFO("correcting pvalues for {}:{} took {}", cp.first, cp.second,
                 format_duration(t2 - t1));
   }
 
   const auto t1 = std::chrono::steady_clock::now();
-  SPDLOG_INFO(FMT_STRING("corrected {} pvalues in {}"), corrected_records.size(),
-              format_duration(t1 - t0));
+  SPDLOG_INFO("corrected {} pvalues in {}", corrected_records.size(), format_duration(t1 - t0));
 
   return corrected_records;
 }
 
 [[nodiscard]] static phmap::flat_hash_map<std::size_t, double> correct_pvalues_cis_trans(
     const phmap::btree_map<ChromPair, std::vector<PValue>>& records) {
-  SPDLOG_INFO(FMT_STRING("proceeding to correct pvalues for cis and trans matrices separately..."));
+  SPDLOG_INFO("proceeding to correct pvalues for cis and trans matrices separately...");
 
   const auto t0 = std::chrono::steady_clock::now();
 
@@ -177,8 +175,7 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
   }
 
   const auto t1 = std::chrono::steady_clock::now();
-  SPDLOG_INFO(FMT_STRING("corrected {} pvalues in {}"), corrected_records.size(),
-              format_duration(t1 - t0));
+  SPDLOG_INFO("corrected {} pvalues in {}", corrected_records.size(), format_duration(t1 - t0));
 
   return corrected_records;
 }
@@ -193,7 +190,7 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
     return correct_pvalues_cis_trans(records);
   }
 
-  SPDLOG_INFO(FMT_STRING("proceeding to correct all pvalues in one go"));
+  SPDLOG_INFO("proceeding to correct all pvalues in one go");
   const auto t0 = std::chrono::steady_clock::now();
 
   BH_FDR<PValue> bh{};
@@ -208,8 +205,7 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
   }
 
   const auto t1 = std::chrono::steady_clock::now();
-  SPDLOG_INFO(FMT_STRING("corrected {} pvalues in {}"), corrected_records.size(),
-              format_duration(t1 - t0));
+  SPDLOG_INFO("corrected {} pvalues in {}", corrected_records.size(), format_duration(t1 - t0));
   return corrected_records;
 }
 
@@ -270,10 +266,9 @@ using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
 
   } catch (const std::exception& e) {
     early_return = true;
-    throw std::runtime_error(
-        fmt::format(FMT_STRING("an exception occurred in producer thread: {}"), e.what()));
+    throw std::runtime_error(fmt::format("an exception occurred in producer thread: {}", e.what()));
   } catch (...) {
-    SPDLOG_ERROR(FMT_STRING("an unknown exception occurred in producer thread"));
+    SPDLOG_ERROR("an unknown exception occurred in producer thread");
     early_return = true;
     throw;
   }
@@ -281,7 +276,7 @@ using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
 
 [[nodiscard]] static std::size_t consumer_fx(const FilterConfig& c, RecordQueue& queue,
                                              std::atomic<bool>& early_return) {
-  SPDLOG_INFO(FMT_STRING("writing records to output file {}"), c.output_path);
+  SPDLOG_INFO("writing records to output file {}", c.output_path);
   std::size_t records_dequeued{};
   try {
     const auto chroms = *ParquetStatsFile<NCHGResult>(c.input_path).chromosomes();
@@ -320,10 +315,9 @@ using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
     return records_dequeued;
   } catch (const std::exception& e) {
     early_return = true;
-    throw std::runtime_error(
-        fmt::format(FMT_STRING("an exception occurred in consumer thread: {}"), e.what()));
+    throw std::runtime_error(fmt::format("an exception occurred in consumer thread: {}", e.what()));
   } catch (...) {
-    SPDLOG_ERROR(FMT_STRING("an unknown exception occurred in consumer thread"));
+    SPDLOG_ERROR("an unknown exception occurred in consumer thread");
     early_return = true;
     throw;
   }
@@ -337,11 +331,11 @@ int run_nchg_filter(const FilterConfig& c) {
   std::atomic<bool> early_return{};
 
   auto producer = std::async(std::launch::deferred, [&] {
-    SPDLOG_DEBUG(FMT_STRING("spawning producer thread..."));
+    SPDLOG_DEBUG("spawning producer thread...");
     return producer_fx(c, corrected_pvalues, queue, early_return);
   });
   auto consumer = std::async(std::launch::async, [&] {
-    SPDLOG_DEBUG(FMT_STRING("spawning consumer thread..."));
+    SPDLOG_DEBUG("spawning consumer thread...");
     return consumer_fx(c, queue, early_return);
   });
   const auto records_enqueued = producer.get();
@@ -349,14 +343,13 @@ int run_nchg_filter(const FilterConfig& c) {
 
   if (records_enqueued != records_dequeued) {
     throw std::runtime_error(
-        fmt::format(FMT_STRING("record queue is corrupted: not all records have been dequeued: "
-                               "expected {} records, found {}"),
+        fmt::format("record queue is corrupted: not all records have been dequeued: "
+                    "expected {} records, found {}",
                     records_enqueued, records_dequeued));
   }
 
   const auto t1 = std::chrono::steady_clock::now();
-  SPDLOG_INFO(FMT_STRING("processed {} records in {}!"), records_dequeued,
-              format_duration(t1 - t0));
+  SPDLOG_INFO("processed {} records in {}!", records_dequeued, format_duration(t1 - t0));
 
   return 0;
 }

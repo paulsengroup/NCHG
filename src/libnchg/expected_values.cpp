@@ -105,7 +105,7 @@ ExpectedValues ExpectedValues::chromosome_pair(
     std::shared_ptr<const hictk::File> file, const hictk::Chromosome &chrom1,
     const hictk::Chromosome &chrom2, const Params &params,
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask) {
-  SPDLOG_INFO(FMT_STRING("[{}:{}] computing expected values..."), chrom1.name(), chrom2.name());
+  SPDLOG_INFO("[{}:{}] computing expected values...", chrom1.name(), chrom2.name());
 
   ExpectedValues ev(nullptr, params);
   ev._fp = std::move(file);
@@ -193,8 +193,8 @@ ExpectedValues::bin_mask(const hictk::Chromosome &chrom1, const hictk::Chromosom
 std::vector<double> ExpectedValues::expected_values(const hictk::Chromosome &chrom,
                                                     bool rescale) const {
   if (_expected_weights.empty()) {
-    throw std::out_of_range(fmt::format(
-        FMT_STRING("expected values for \"{}\" are not available: out of range"), chrom.name()));
+    throw std::out_of_range(
+        fmt::format("expected values for \"{}\" are not available: out of range", chrom.name()));
   }
 
   const auto num_bins = (chrom.size() + _resolution - 1) / _resolution;
@@ -264,7 +264,7 @@ ExpectedMatrix ExpectedValues::expected_matrix(const hictk::Chromosome &chrom1,
 }
 
 void ExpectedValues::serialize(const std::filesystem::path &path) const {
-  SPDLOG_INFO(FMT_STRING("writing expected value profiles to {}..."), path);
+  SPDLOG_INFO("writing expected value profiles to {}...", path);
   if (!_fp) {
     throw std::logic_error("ExpectedValues::expected_matrix() was called on a null file");
   }
@@ -308,7 +308,7 @@ void ExpectedValues::init_bin_masks(
 
 void ExpectedValues::compute_expected_values_cis(
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask_seed) {
-  SPDLOG_INFO(FMT_STRING("initializing expected matrix weights from cis interactions..."));
+  SPDLOG_INFO("initializing expected matrix weights from cis interactions...");
   if (!_fp) {
     throw std::logic_error("ExpectedValues::expected_matrix() was called on a null file");
   }
@@ -382,7 +382,7 @@ void ExpectedValues::compute_expected_values_trans(
           if (chrom1 == chrom2) {
             continue;
           }
-          SPDLOG_INFO(FMT_STRING("processing {}:{}..."), chrom1.name(), chrom2.name());
+          SPDLOG_INFO("processing {}:{}...", chrom1.name(), chrom2.name());
 
           const auto sel = f.fetch(chrom1.name(), chrom2.name());
           const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<N>(),
@@ -675,9 +675,8 @@ auto ExpectedValues::deserialize_trans_profiles(const HighFive::File &f)
 
 void ExpectedValues::merge_bin_masks(std::vector<bool> &mask1, const std::vector<bool> &mask2) {
   if (mask1.size() != mask2.size()) {
-    throw std::runtime_error(
-        fmt::format(FMT_STRING("bin mask shape mismatch: expected shape {}, found {}"),
-                    mask1.size(), mask2.size()));
+    throw std::runtime_error(fmt::format("bin mask shape mismatch: expected shape {}, found {}",
+                                         mask1.size(), mask2.size()));
   }
   for (std::size_t i = 0; i < mask1.size(); ++i) {
     mask1[i] = mask1[i] || mask2[i];

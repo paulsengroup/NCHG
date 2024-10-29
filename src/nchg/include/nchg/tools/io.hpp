@@ -322,8 +322,7 @@ class ParquetStatsFile {
   if (method == "lz4") {
     return parquet::Compression::LZ4;
   }
-  throw std::runtime_error(
-      fmt::format(FMT_STRING("unrecognized compression method \"{}\""), method));
+  throw std::runtime_error(fmt::format("unrecognized compression method \"{}\"", method));
 }
 
 [[nodiscard]] static std::shared_ptr<arrow::Schema> get_schema(const hictk::Reference &chroms) {
@@ -611,7 +610,7 @@ template <typename Record>
     return {};
   }
 
-  SPDLOG_INFO(FMT_STRING("reading the user-provided bin mask from {}..."), path);
+  SPDLOG_INFO("reading the user-provided bin mask from {}...", path);
   phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> mask{};
   std::string buffer{};
 
@@ -646,8 +645,8 @@ template <typename Record>
         }
 
       } catch (const std::exception &e) {
-        throw std::runtime_error(fmt::format(
-            FMT_STRING("found an invalid record at line {} of file {}: {}"), i, path, e.what()));
+        throw std::runtime_error(
+            fmt::format("found an invalid record at line {} of file {}: {}", i, path, e.what()));
       }
     }
 
@@ -662,8 +661,7 @@ template <typename Record>
     num_bad_bins += std::accumulate(v.begin(), v.end(), std::size_t(0));
   }
 
-  SPDLOG_INFO(FMT_STRING("masked {} bad bins based on {} domains read from {}..."), num_bad_bins,
-              i - 1, path);
+  SPDLOG_INFO("masked {} bad bins based on {} domains read from {}...", num_bad_bins, i - 1, path);
   return mask;
 }
 

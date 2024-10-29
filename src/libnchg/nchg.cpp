@@ -229,7 +229,7 @@ auto NCHG::end(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2)
 auto NCHG::init_exp_matrix(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
                            const hictk::File &f, const ExpectedValues &expected_values)
     -> std::shared_ptr<const ExpectedMatrix> {
-  SPDLOG_INFO(FMT_STRING("[{}:{}] initializing expected matrix..."), chrom1.name(), chrom2.name());
+  SPDLOG_INFO("[{}:{}] initializing expected matrix...", chrom1.name(), chrom2.name());
 
   return std::visit(
       [&](const auto &fp) {
@@ -247,7 +247,7 @@ auto NCHG::init_obs_matrix(const hictk::Chromosome &chrom1, const hictk::Chromos
                            const std::vector<bool> &bin2_mask, double mad_max_,
                            std::uint64_t min_delta_, std::uint64_t max_delta_)
     -> std::shared_ptr<const ObservedMatrix> {
-  SPDLOG_INFO(FMT_STRING("[{}:{}] initializing observed matrix..."), chrom1.name(), chrom2.name());
+  SPDLOG_INFO("[{}:{}] initializing observed matrix...", chrom1.name(), chrom2.name());
 
   return std::visit(
       [&](const auto &fp) {
@@ -343,7 +343,7 @@ double NCHG::compute_pvalue_nchg(std::vector<double> &buffer, std::uint64_t obs,
 
 std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>
 NCHG::compute_expected_profile() const {
-  SPDLOG_INFO(FMT_STRING("initializing expected matrix weights from genome-wide interactions..."));
+  SPDLOG_INFO("initializing expected matrix weights from genome-wide interactions...");
 
   return std::visit(
       [&](const auto &f) {

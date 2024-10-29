@@ -66,7 +66,7 @@ namespace nchg {
 [[nodiscard]] static std::vector<hictk::GenomicInterval> parse_domains(
     const hictk::Reference &chroms, const std::filesystem::path &path, std::string_view chrom1,
     std::string_view chrom2) {
-  SPDLOG_INFO(FMT_STRING("[{}:{}] reading domains from {}..."), chrom1, chrom2, path);
+  SPDLOG_INFO("[{}:{}] reading domains from {}...", chrom1, chrom2, path);
   std::vector<hictk::GenomicInterval> domains{};
   std::string buffer{};
 
@@ -98,8 +98,8 @@ namespace nchg {
 
         domains.emplace_back(std::move(domain));
       } catch (const std::exception &e) {
-        throw std::runtime_error(fmt::format(
-            FMT_STRING("found an invalid record at line {} of file {}: {}"), i, path, e.what()));
+        throw std::runtime_error(
+            fmt::format("found an invalid record at line {} of file {}: {}", i, path, e.what()));
       }
     }
 
@@ -110,8 +110,7 @@ namespace nchg {
   }
 
   std::sort(domains.begin(), domains.end());
-  SPDLOG_INFO(FMT_STRING("[{}:{}] read {} domains from {}..."), chrom1, chrom2, domains.size(),
-              path);
+  SPDLOG_INFO("[{}:{}] read {} domains from {}...", chrom1, chrom2, domains.size(), path);
   return domains;
 }
 
@@ -131,7 +130,7 @@ namespace nchg {
   }
 
   if (!c.path_to_expected_values.empty()) {
-    SPDLOG_INFO(FMT_STRING("reading expected values from {}..."), c.path_to_expected_values);
+    SPDLOG_INFO("reading expected values from {}...", c.path_to_expected_values);
     return NCHG(f, chrom1, chrom2, ExpectedValues::deserialize(c.path_to_expected_values));
   }
 
@@ -160,8 +159,8 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
     }
 
     if (std::filesystem::exists(path)) {
-      throw std::runtime_error(fmt::format(
-          FMT_STRING("Refusing to overwrite file {}. Pass --force to overwrite."), path));
+      throw std::runtime_error(
+          fmt::format("Refusing to overwrite file {}. Pass --force to overwrite.", path));
     }
 
     std::ofstream fs{};
@@ -169,11 +168,11 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
     fs.open(path);
 
     for (const auto &chrom : chroms) {
-      fmt::print(fs, FMT_STRING("{}\t{}\n"), chrom.name(), chrom.size());
+      fmt::print(fs, "{}\t{}\n", chrom.name(), chrom.size());
     }
   } catch (const std::exception &e) {
     throw std::runtime_error(
-        fmt::format(FMT_STRING("failed to write chromosomes to file {}: {}"), path, e.what()));
+        fmt::format("failed to write chromosomes to file {}: {}", path, e.what()));
   }
 }
 
@@ -182,8 +181,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
     const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
   assert(std::filesystem::exists(c.path_to_domains));
 
-  SPDLOG_INFO(FMT_STRING("[{}:{}] begin processing domains from {}..."), c.chrom1, c.chrom2,
-              c.path_to_domains);
+  SPDLOG_INFO("[{}:{}] begin processing domains from {}...", c.chrom1, c.chrom2, c.path_to_domains);
 
   auto writer =
       init_parquet_file_writer<NCHGResult>(f->chromosomes(), c.output_prefix, c.force,
@@ -233,7 +231,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 [[nodiscard]] static std::size_t process_one_chromosome_pair(
     const std::shared_ptr<const hictk::File> &f,
     const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
-  SPDLOG_INFO(FMT_STRING("[{}:{}] begin processing interactions..."), c.chrom1, c.chrom2);
+  SPDLOG_INFO("[{}:{}] begin processing interactions...", c.chrom1, c.chrom2);
 
   const auto &chrom1 = f->chromosomes().at(c.chrom1);
   const auto &chrom2 = f->chromosomes().at(c.chrom2);
@@ -318,7 +316,7 @@ init_trans_chromosomes(const hictk::Reference &chroms) {
 [[nodiscard]] static boost::process::child spawn_compute_process(
     const ComputePvalConfig &c, const std::filesystem::path &output_path,
     const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2) {
-  SPDLOG_INFO(FMT_STRING("begin processing {}:{}"), chrom1.name(), chrom2.name());
+  SPDLOG_INFO("begin processing {}:{}", chrom1.name(), chrom2.name());
 
   std::vector<std::string> args{
       "compute",
@@ -385,16 +383,15 @@ init_trans_chromosomes(const hictk::Reference &chroms) {
         c.exec.string(), args,
         boost::process::std_in<boost::process::null, boost::process::std_out> boost::process::null);
     if (proc.running()) {
-      SPDLOG_DEBUG(FMT_STRING("spawned worker process {}..."), proc.id());
+      SPDLOG_DEBUG("spawned worker process {}...", proc.id());
       return proc;
     }
-    SPDLOG_DEBUG(FMT_STRING("spawning worker process failed (attempt {}/10)..."), proc.id(),
-                 attempt + 1);
+    SPDLOG_DEBUG("spawning worker process failed (attempt {}/10)...", proc.id(), attempt + 1);
     proc.terminate();
   }
 
-  throw std::runtime_error(fmt::format(FMT_STRING("failed to spawn worker process: {} {}"),
-                                       c.exec.string(), fmt::join(args, " ")));
+  throw std::runtime_error(
+      fmt::format("failed to spawn worker process: {} {}", c.exec.string(), fmt::join(args, " ")));
 }
 
 static std::size_t process_queries_mt(
@@ -406,11 +403,11 @@ static std::size_t process_queries_mt(
   auto config = c;
   if (c.path_to_expected_values.empty() && expected_values.has_value()) {
     config.path_to_expected_values =
-        fmt::format(FMT_STRING("{}_expected_values.h5"), config.output_prefix.string());
+        fmt::format("{}_expected_values.h5", config.output_prefix.string());
 
     if (!config.force && std::filesystem::exists(config.path_to_expected_values)) {
       throw std::runtime_error(
-          fmt::format(FMT_STRING("Refusing to overwrite file {}. Pass --force to overwrite."),
+          fmt::format("Refusing to overwrite file {}. Pass --force to overwrite.",
                       config.path_to_expected_values));
     }
 
@@ -430,9 +427,8 @@ static std::size_t process_queries_mt(
         const auto &chrom2 = chrom_pairs[i1].second;
 
         try {
-          const auto output_path =
-              fmt::format(FMT_STRING("{}.{}.{}.parquet"), config.output_prefix.string(),
-                          chrom1.name(), chrom2.name());
+          const auto output_path = fmt::format("{}.{}.{}.parquet", config.output_prefix.string(),
+                                               chrom1.name(), chrom2.name());
 
           const auto trans_expected_values_avail = !c.path_to_expected_values.empty();
 
@@ -447,7 +443,7 @@ static std::size_t process_queries_mt(
           if (proc.exit_code() != 0) {
             early_return = true;
             throw std::runtime_error(
-                fmt::format(FMT_STRING("child process terminated with code {}"), proc.exit_code()));
+                fmt::format("child process terminated with code {}", proc.exit_code()));
           }
 
           std::shared_ptr<arrow::io::ReadableFile> fp;
@@ -455,15 +451,14 @@ static std::size_t process_queries_mt(
           const auto records_processed =
               parquet::StreamReader{parquet::ParquetFileReader::Open(fp)}.num_rows();
 
-          SPDLOG_INFO(FMT_STRING("done processing {}:{} ({} records)!"), chrom1.name(),
-                      chrom2.name(), records_processed);
+          SPDLOG_INFO("done processing {}:{} ({} records)!", chrom1.name(), chrom2.name(),
+                      records_processed);
           return static_cast<std::size_t>(records_processed);
 
         } catch (const std::exception &e) {
           early_return = true;
-          throw std::runtime_error(
-              fmt::format(FMT_STRING("error in the worker thread processing {}:{}: {}"),
-                          chrom1.name(), chrom2.name(), e.what()));
+          throw std::runtime_error(fmt::format("error in the worker thread processing {}:{}: {}",
+                                               chrom1.name(), chrom2.name(), e.what()));
         } catch (...) {
           early_return = true;
           throw;
@@ -495,8 +490,8 @@ static std::size_t process_queries_st(
       config.cis_only = false;
       config.trans_only = false;
 
-      config.output_prefix = fmt::format(FMT_STRING("{}.{}.{}.parquet"), c.output_prefix.string(),
-                                         chrom1.name(), chrom2.name());
+      config.output_prefix =
+          fmt::format("{}.{}.{}.parquet", c.output_prefix.string(), chrom1.name(), chrom2.name());
 
       const auto t0 = std::chrono::system_clock::now();
       if (config.chrom1 == config.chrom2) {
@@ -508,17 +503,15 @@ static std::size_t process_queries_st(
       tot_num_records += num_records;
 
       const auto t1 = std::chrono::system_clock::now();
-      const auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
-      SPDLOG_INFO(FMT_STRING("[{}:{}] processed {} records in {}s!"), chrom1.name(), chrom2.name(),
-                  num_records, static_cast<double>(delta) / 1000.0);
+      SPDLOG_INFO("[{}:{}] processed {} records in {}!", chrom1.name(), chrom2.name(), num_records,
+                  format_duration(t1 - t0));
 
     } catch (const std::exception &e) {
-      throw std::runtime_error(fmt::format(FMT_STRING("error in while processing {}:{}: {}"),
-                                           chrom1.name(), chrom2.name(), e.what()));
+      throw std::runtime_error(fmt::format("error in while processing {}:{}: {}", chrom1.name(),
+                                           chrom2.name(), e.what()));
     } catch (...) {
-      throw std::runtime_error(
-          fmt::format(FMT_STRING("An unknown error occurred while processing {}:{}"), chrom1.name(),
-                      chrom2.name()));
+      throw std::runtime_error(fmt::format("An unknown error occurred while processing {}:{}",
+                                           chrom1.name(), chrom2.name()));
     }
   }
 
@@ -527,7 +520,7 @@ static std::size_t process_queries_st(
 
 static std::optional<ExpectedValues> init_cis_expected_values(const ComputePvalConfig &c) {
   if (c.cis_only || (c.chrom1 == c.chrom2)) {
-    SPDLOG_INFO(FMT_STRING("initializing expected values for cis matrices..."));
+    SPDLOG_INFO("initializing expected values for cis matrices...");
     const auto f = std::make_shared<hictk::File>(c.path_to_hic.string(), c.resolution);
 
     const auto bin_mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
@@ -561,8 +554,8 @@ static std::size_t process_queries(
         }
       } catch (const std::out_of_range &) {
         throw std::runtime_error(
-            fmt::format(FMT_STRING("user-specified expected value file does not contain "
-                                   "information for chromosome pair {}:{}"),
+            fmt::format("user-specified expected value file does not contain "
+                        "information for chromosome pair {}:{}",
                         chrom1.name(), chrom2.name()));
       }
     }
@@ -574,7 +567,7 @@ static std::size_t process_queries(
   }
 
   write_chrom_sizes_to_file(hictk::File(c.path_to_hic, c.resolution).chromosomes(),
-                            fmt::format(FMT_STRING("{}.chrom.sizes"), c.output_prefix), c.force);
+                            fmt::format("{}.chrom.sizes", c.output_prefix), c.force);
 
   if (c.threads > 1) {
     BS::thread_pool tpool(conditional_static_cast<BS::concurrency_t>(c.threads));
@@ -590,9 +583,8 @@ int run_nchg_compute(const ComputePvalConfig &c) {
     assert(c.chrom2 != "all");
     const auto interactions_processed = run_nchg_compute_worker(c);
     const auto t1 = std::chrono::system_clock::now();
-    const auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
-    SPDLOG_INFO(FMT_STRING("[{}:{}] processed {} records in {}s!"), c.chrom1, c.chrom2,
-                interactions_processed, static_cast<double>(delta) / 1000.0);
+    SPDLOG_INFO("[{}:{}] processed {} records in {}!", c.chrom1, c.chrom2, interactions_processed,
+                format_duration(t1 - t0));
     return 0;
   }
 
@@ -621,16 +613,15 @@ int run_nchg_compute(const ComputePvalConfig &c) {
 
   if (expected_values.has_value() && expected_values->resolution() != f.resolution()) {
     throw std::runtime_error(
-        fmt::format(FMT_STRING("mismatch in file resolution: expected values have been computed "
-                               "for {}bp resolution but given Hi-C matrix has {}bp resolution"),
+        fmt::format("mismatch in file resolution: expected values have been computed "
+                    "for {}bp resolution but given Hi-C matrix has {}bp resolution",
                     expected_values->resolution(), f.resolution()));
   }
 
   const auto interactions_processed = process_queries(chrom_pairs, expected_values, c);
 
   const auto t1 = std::chrono::system_clock::now();
-  SPDLOG_INFO(FMT_STRING("Processed {} records in {}!"), interactions_processed,
-              format_duration(t1 - t0));
+  SPDLOG_INFO("Processed {} records in {}!", interactions_processed, format_duration(t1 - t0));
 
   return 0;
 }

@@ -95,13 +95,14 @@ static void process_cis_chromosomes(FilePtr f, const ExpectedConfig &c) {
   }
   evs.serialize(c.output_path);
   const auto t1 = std::chrono::steady_clock::now();
-  SPDLOG_INFO(FMT_STRING("expected values have been written to \"{}\". Computation took {}"),
-              c.output_path, format_duration(t1 - t0));
+  SPDLOG_INFO("expected values have been written to \"{}\". Computation took {}", c.output_path,
+              format_duration(t1 - t0));
 }
 
 template <typename FilePtr>
   requires HictkSingleResFilePtr<FilePtr>
 static void process_trans_chromosomes(FilePtr f, const ExpectedConfig &c) {
+  const auto t0 = std::chrono::steady_clock::now();
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
   const auto evs = ExpectedValues::trans_only(
@@ -119,11 +120,15 @@ static void process_trans_chromosomes(FilePtr f, const ExpectedConfig &c) {
     std::filesystem::remove(c.output_path);
   }
   evs.serialize(c.output_path);
+  const auto t1 = std::chrono::steady_clock::now();
+  SPDLOG_INFO("expected values have been written to \"{}\". Computation took {}", c.output_path,
+              format_duration(t1 - t0));
 }
 
 template <typename FilePtr>
   requires HictkSingleResFilePtr<FilePtr>
 static void process_one_chromosome_pair(FilePtr f, const ExpectedConfig &c) {
+  const auto t0 = std::chrono::steady_clock::now();
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
   assert(c.chrom1 != "all");
@@ -145,6 +150,9 @@ static void process_one_chromosome_pair(FilePtr f, const ExpectedConfig &c) {
     std::filesystem::remove(c.output_path);
   }
   evs.serialize(c.output_path);
+  const auto t1 = std::chrono::steady_clock::now();
+  SPDLOG_INFO("expected values have been written to \"{}\". Computation took {}", c.output_path,
+              format_duration(t1 - t0));
 }
 
 int run_nchg_expected(const ExpectedConfig &c) {

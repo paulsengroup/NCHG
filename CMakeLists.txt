@@ -129,12 +129,7 @@ dynamic_project_options(
 target_compile_features(nchg_project_options INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
 
 # Tweak fmt
-target_compile_definitions(
-  nchg_project_options
-  INTERFACE
-    FMT_HEADER_ONLY
-    FMT_ENFORCE_COMPILE_STRING
-)
+target_compile_definitions(nchg_project_options INTERFACE FMT_HEADER_ONLY)
 # Tweak spdlog
 target_compile_definitions(nchg_project_options INTERFACE SPDLOG_FMT_EXTERNAL)
 

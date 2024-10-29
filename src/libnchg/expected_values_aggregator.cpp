@@ -39,7 +39,7 @@ namespace nchg {
 
 ExpectedValuesAggregator::ExpectedValuesAggregator(std::shared_ptr<const hictk::BinTable> bins)
     : _bins(std::move(bins)) {
-  SPDLOG_INFO(FMT_STRING("[{} bp] initializing expected value vector"), _bins->resolution());
+  SPDLOG_INFO("[{} bp] initializing expected value vector", _bins->resolution());
   std::uint32_t max_length = 0;
   for (const auto &chrom : chromosomes()) {
     if (chrom.is_all()) [[unlikely]] {
@@ -63,7 +63,7 @@ void ExpectedValuesAggregator::compute_density(double bin_aggregation_possible_d
                                                double bin_aggregation_observed_distances_cutoff,
                                                bool intepolate_weights, double interpolation_qtile,
                                                std::uint32_t interpolation_window_size) {
-  SPDLOG_INFO(FMT_STRING("[{} bp] computing expected vector density"), _bins->resolution());
+  SPDLOG_INFO("[{} bp] computing expected vector density", _bins->resolution());
   init_possible_distances();
   compute_density_cis(bin_aggregation_possible_distances_cutoff,
                       bin_aggregation_observed_distances_cutoff, intepolate_weights,

@@ -78,9 +78,9 @@ auto Cli::parse_arguments() -> Config {
   } catch (const std::exception &e) {
     _exit_code = 1;
     throw std::runtime_error(
-        fmt::format(FMT_STRING("An unexpected error has occurred while parsing "
-                               "CLI arguments: {}. If you see this "
-                               "message, please file an issue on GitHub"),
+        fmt::format("An unexpected error has occurred while parsing "
+                    "CLI arguments: {}. If you see this "
+                    "message, please file an issue on GitHub",
                     e.what()));
 
   } catch (...) {
@@ -672,13 +672,13 @@ void Cli::validate_compute_subcommand() const {
   }
 
   for (const auto &w : warnings) {
-    SPDLOG_WARN(FMT_STRING("{}"), w);
+    SPDLOG_WARN("{}", w);
   }
 
   if (!errors.empty()) {
     throw std::runtime_error(
-        fmt::format(FMT_STRING("the following error(s) where encountered while validating CLI "
-                               "arguments and input file(s):\n - {}"),
+        fmt::format("the following error(s) where encountered while validating CLI "
+                    "arguments and input file(s):\n - {}",
                     fmt::join(errors, "\n - ")));
   }
 }
@@ -690,18 +690,18 @@ void Cli::validate_expected_subcommand() const {
   std::vector<std::string> errors;
 
   if (!c.force && std::filesystem::exists(c.output_path)) {
-    errors.emplace_back(fmt::format(
-        FMT_STRING("Refusing to overwrite file {}. Pass --force to overwrite."), c.output_path));
+    errors.emplace_back(
+        fmt::format("Refusing to overwrite file {}. Pass --force to overwrite.", c.output_path));
   }
 
   for (const auto &w : warnings) {
-    SPDLOG_WARN(FMT_STRING("{}"), w);
+    SPDLOG_WARN("{}", w);
   }
 
   if (!errors.empty()) {
     throw std::runtime_error(
-        fmt::format(FMT_STRING("the following error(s) where encountered while validating CLI "
-                               "arguments and input file(s):\n - {}"),
+        fmt::format("the following error(s) where encountered while validating CLI "
+                    "arguments and input file(s):\n - {}",
                     fmt::join(errors, "\n - ")));
   }
 }
@@ -711,14 +711,14 @@ void Cli::validate_filter_subcommand() const {
 
   std::vector<std::string> errors;
   if (!c.force && std::filesystem::exists(c.output_path)) {
-    errors.emplace_back(fmt::format(
-        FMT_STRING("Refusing to overwrite file {}. Pass --force to overwrite."), c.output_path));
+    errors.emplace_back(
+        fmt::format("Refusing to overwrite file {}. Pass --force to overwrite.", c.output_path));
   }
 
   if (!errors.empty()) {
     throw std::runtime_error(
-        fmt::format(FMT_STRING("the following error(s) where encountered while validating CLI "
-                               "arguments and input file(s):\n - {}"),
+        fmt::format("the following error(s) where encountered while validating CLI "
+                    "arguments and input file(s):\n - {}",
                     fmt::join(errors, "\n - ")));
   }
 }
@@ -733,7 +733,7 @@ void Cli::validate_merge_subcommand() const {
   }
 
   for (const auto &w : warnings) {
-    SPDLOG_WARN(FMT_STRING("{}"), w);
+    SPDLOG_WARN("{}", w);
   }
 }
 

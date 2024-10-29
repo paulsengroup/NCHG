@@ -72,10 +72,10 @@ inline std::pair<std::vector<bool>, std::vector<bool>> mad_max_filtering(
   auto mask1 = mad_max_filtering(margs1, mad_max);
   auto mask2 = chrom1 == chrom2 ? mask1 : mad_max_filtering(margs2, mad_max);
 
-  SPDLOG_INFO(
-      FMT_STRING("[{}:{}]: MAD-max masking procedure flagged {}/{} bins for {} and {}/{} for {}"),
-      chrom1.name(), chrom2.name(), std::ranges::fold_left(mask1, 0, std::plus{}), mask1.size(),
-      chrom1.name(), std::accumulate(mask2.begin(), mask2.end(), 0), mask2.size(), chrom2.name());
+  SPDLOG_INFO("[{}:{}]: MAD-max masking procedure flagged {}/{} bins for {} and {}/{} for {}",
+              chrom1.name(), chrom2.name(), std::ranges::fold_left(mask1, 0, std::plus{}),
+              mask1.size(), chrom1.name(), std::accumulate(mask2.begin(), mask2.end(), 0),
+              mask2.size(), chrom2.name());
 
   return std::make_pair(mask1, mask2);
 }
@@ -91,7 +91,7 @@ inline std::vector<bool> mad_max_filtering(const Pixels& pixels, const hictk::Ch
   auto [margs, _] = internal::compute_marginals(pixels, chrom, chrom, resolution);
 
   auto mask = mad_max_filtering(margs, mad_max);
-  SPDLOG_INFO(FMT_STRING("[{}]: MAD-max masking procedure flagged {}/{} bins"), chrom.name(),
+  SPDLOG_INFO("[{}]: MAD-max masking procedure flagged {}/{} bins", chrom.name(),
               std::accumulate(mask.begin(), mask.end(), 0), mask.size());
   return mask;
 }

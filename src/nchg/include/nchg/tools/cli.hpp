@@ -154,9 +154,9 @@ class Formatter : public CLI::Formatter {
           if (s.find('.') == std::string::npos) {
             s += ".0";
           }
-          out += fmt::format(FMT_STRING("={}"), s);
+          out += fmt::format("={}", s);
         } else {
-          out += fmt::format(FMT_STRING("={}"), opt->get_default_str());
+          out += fmt::format("={}", opt->get_default_str());
         }
       }
 
@@ -177,7 +177,7 @@ class Formatter : public CLI::Formatter {
       if (opt->get_expected_max() == CLI::detail::expected_max_vector_size) {
         out += " ...";
       } else if (opt->get_expected_min() > 1) {
-        out += fmt::format(FMT_STRING(" x {}"), opt->get_expected());
+        out += fmt::format(" x {}", opt->get_expected());
       }
 
       if (opt->get_required()) {
@@ -185,18 +185,18 @@ class Formatter : public CLI::Formatter {
       }
     }
     if (!opt->get_envname().empty()) {
-      out += fmt::format(FMT_STRING(" ({}: {})"), get_label("env"), opt->get_envname());
+      out += fmt::format(" ({}: {})", get_label("env"), opt->get_envname());
     }
     if (!opt->get_needs().empty()) {
-      out += fmt::format(FMT_STRING(" {}:"), get_label("needs"));
+      out += fmt::format(" {}:", get_label("needs"));
       for (const auto* op : opt->get_needs()) {
-        out += fmt::format(FMT_STRING(" {}"), op->get_name());
+        out += fmt::format(" {}", op->get_name());
       }
     }
     if (!opt->get_excludes().empty()) {
-      out += fmt::format(FMT_STRING(" {}:"), get_label("excludes"));
+      out += fmt::format(" {}:", get_label("excludes"));
       for (const auto* op : opt->get_excludes()) {
-        out += fmt::format(FMT_STRING(" {}"), op->get_name());
+        out += fmt::format(" {}", op->get_name());
       }
     }
 

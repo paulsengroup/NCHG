@@ -50,7 +50,7 @@ static void setup_logger_console(int verbosity_lvl, bool print_version) {
   spdlog::set_level(spdlog::level::level_enum(verbosity_lvl));
 
   if (print_version) {
-    SPDLOG_INFO(FMT_STRING("Running NCHG v{}"), "0.0.1");
+    SPDLOG_INFO("Running NCHG v{}", "0.0.2");
   }
 }
 
@@ -74,12 +74,12 @@ static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &
     //  This takes care of formatting and printing error messages (if any)
     return std::make_tuple(cli.exit(e), Cli::subcommand::help, Config());
   } catch (const std::filesystem::filesystem_error &e) {
-    SPDLOG_ERROR(FMT_STRING("FAILURE! {}"), e.what());
+    SPDLOG_ERROR("FAILURE! {}", e.what());
     return std::make_tuple(1, Cli::subcommand::help, Config());
   } catch (const spdlog::spdlog_ex &e) {
     fmt::print(stderr,
-               FMT_STRING("FAILURE! An error occurred while setting up the main "
-                          "application logger: {}.\n"),
+               "FAILURE! An error occurred while setting up the main "
+               "application logger: {}.\n",
                e.what());
     return std::make_tuple(1, Cli::subcommand::help, Config());
   }
@@ -129,21 +129,21 @@ int main(int argc, char **argv) noexcept {
     return cli->exit(e);  //  This takes care of formatting and printing error
                           //  messages (if any)
   } catch (const std::bad_alloc &err) {
-    fmt::print(stderr, FMT_STRING("FAILURE! Unable to allocate enough memory: {}\n"), err.what());
+    SPDLOG_CRITICAL("FAILURE! Unable to allocate enough memory: {}\n", err.what());
     return 1;
   } catch (const std::exception &e) {
     if (cli) {
-      fmt::print(stderr, FMT_STRING("FAILURE! nchg encountered the following error: {}\n"),
-                 e.what());
+      SPDLOG_CRITICAL("FAILURE! NCHG {} encountered the following error: {}\n",
+                      cli->get_printable_subcommand(), e.what());
     } else {
-      fmt::print(stderr, FMT_STRING("FAILURE! hictk encountered the following error: {}\n"),
-                 e.what());
+      SPDLOG_CRITICAL("FAILURE! NCHG encountered the following error: {}\n", e.what());
     }
     return 1;
   } catch (...) {
-    fmt::print(stderr, FMT_STRING("FAILURE! nchg encountered the following error: Caught an "
-                                  "unhandled exception! "
-                                  "If you see this message, please file an issue on GitHub.\n"));
+    SPDLOG_CRITICAL(
+        "FAILURE! NCHG encountered the following error: caught an "
+        "unhandled exception!\n"
+        "If you see this message, please file an issue on GitHub.\n");
     return 1;
   }
   return 0;

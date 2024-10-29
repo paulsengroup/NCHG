@@ -49,22 +49,21 @@ template <typename Duration>
   }
 
   if (duration < std::chrono::minutes(1)) {
-    return internal::strip_leading_zero(fmt::format(
-        FMT_STRING("{:%S}s"), std::chrono::duration_cast<std::chrono::milliseconds>(duration)));
+    return internal::strip_leading_zero(
+        fmt::format("{:%S}s", std::chrono::duration_cast<std::chrono::milliseconds>(duration)));
   }
 
   if (duration < std::chrono::hours(1)) {
-    return internal::strip_leading_zero(fmt::format(
-        FMT_STRING("{:%Mm:%S}s"), std::chrono::duration_cast<std::chrono::milliseconds>(duration)));
+    return internal::strip_leading_zero(
+        fmt::format("{:%Mm:%S}s", std::chrono::duration_cast<std::chrono::milliseconds>(duration)));
   }
 
   if (duration < std::chrono::days(1)) {
-    return internal::strip_leading_zero(
-        fmt::format(FMT_STRING("{:%Hh:%Mm:%S}s"),
-                    std::chrono::duration_cast<std::chrono::milliseconds>(duration)));
+    return internal::strip_leading_zero(fmt::format(
+        "{:%Hh:%Mm:%S}s", std::chrono::duration_cast<std::chrono::milliseconds>(duration)));
   }
 
-  return fmt::format(FMT_STRING("{:%jd:%Hh:%Mm:%S}s"),
+  return fmt::format("{:%jd:%Hh:%Mm:%S}s",
                      std::chrono::duration_cast<std::chrono::milliseconds>(duration));
 }
 

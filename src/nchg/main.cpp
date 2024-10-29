@@ -26,10 +26,10 @@
 #include <tuple>
 #include <vector>
 
-#include "nchg/cli.hpp"
 #include "nchg/common.hpp"
-#include "nchg/config.hpp"
-#include "nchg/tools.hpp"
+#include "nchg/tools/cli.hpp"
+#include "nchg/tools/config.hpp"
+#include "nchg/tools/tools.hpp"
 
 using namespace nchg;
 

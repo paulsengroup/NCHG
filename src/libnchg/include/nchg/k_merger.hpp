@@ -67,8 +67,8 @@ class KMerger {
   template <typename ItOfIts>
   KMerger(ItOfIts first_head, ItOfIts last_head, ItOfIts first_tail);
 
-  auto begin() const -> iterator<ItInternal>;
-  auto end() const noexcept -> iterator<ItInternal>;
+  [[nodiscard]] auto begin() const -> iterator<ItInternal>;
+  [[nodiscard]] auto end() const noexcept -> iterator<ItInternal>;
 
   [[nodiscard]] auto read_all() const -> std::vector<T>;
 
@@ -90,21 +90,12 @@ class KMerger {
     using const_pointer = const value_type *;
     using reference = value_type &;
     using const_reference = const value_type &;
-    using iterator_category = std::forward_iterator_tag;
+    using iterator_category = std::input_iterator_tag;
 
     iterator() = default;
 
-    // I'm defining the constructor here to workaround compilation errors when building with clang
-    explicit iterator(std::shared_ptr<std::vector<ItInternal>> heads,
-                      std::shared_ptr<std::vector<ItInternal>> tails)
-        : _pqueue(std::make_shared<PQueueT>()), _heads(std::move(heads)), _tails(std::move(tails)) {
-      assert(_heads->size() == _tails->size());
-      for (auto &it : *_heads) {
-        _pqueue->emplace(Node{*it, _pqueue->size()});
-        std::ignore = ++it;
-      }
-      _value = next();
-    }
+    iterator(std::shared_ptr<std::vector<ItInternal>> heads,
+             std::shared_ptr<std::vector<ItInternal>> tails);
     iterator(const iterator &other);
     iterator(iterator &&other) noexcept;
     ~iterator() noexcept = default;

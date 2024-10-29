@@ -37,7 +37,7 @@
 #include <string_view>
 #include <vector>
 
-#include "nchg/config.hpp"
+#include "nchg/tools/config.hpp"
 
 namespace nchg {
 

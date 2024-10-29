@@ -23,10 +23,10 @@
 #include <hictk/numeric_utils.hpp>
 #include <type_traits>
 
-#include "nchg/config.hpp"
-#include "nchg/io.hpp"
 #include "nchg/nchg.hpp"
-#include "nchg/tools.hpp"
+#include "nchg/tools/config.hpp"
+#include "nchg/tools/io.hpp"
+#include "nchg/tools/tools.hpp"
 
 namespace nchg {
 struct NCHGFilterResult {

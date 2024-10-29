@@ -18,19 +18,18 @@
 
 #include <fmt/compile.h>
 #include <fmt/format.h>
-#include <fmt/std.h>
 #include <parallel_hashmap/btree.h>
 #include <readerwriterqueue/readerwriterqueue.h>
 #include <spdlog/spdlog.h>
 
-#include <BS_thread_pool.hpp>
 #include <cassert>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <fstream>
+#include <future>
 #include <hictk/chromosome.hpp>
 #include <hictk/numeric_utils.hpp>
-#include <iostream>
 #include <memory>
 #include <nchg/nchg.hpp>
 #include <ranges>
@@ -41,8 +40,9 @@
 #include <vector>
 
 #include "nchg/fdr.hpp"
-#include "nchg/io.hpp"
-#include "nchg/tools.hpp"
+#include "nchg/tools/common.hpp"
+#include "nchg/tools/io.hpp"
+#include "nchg/tools/tools.hpp"
 
 namespace nchg {
 
@@ -123,24 +123,37 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
   SPDLOG_INFO(
       FMT_STRING("proceeding to correct pvalues for individual chromosome pairs separately..."));
 
+  const auto t0 = std::chrono::steady_clock::now();
+
   auto corrected_records = alloc_pvalue_hashmap(records);
 
   BH_FDR<PValue> bh;
   for (const auto& [cp, values] : records) {
     SPDLOG_INFO(FMT_STRING("processing {}:{} values..."), cp.first, cp.second);
+    const auto t1 = std::chrono::steady_clock::now();
     bh.clear();
     bh.add_records(values);
 
     for (const auto& record : bh.correct([](auto& record) -> double& { return record.pvalue; })) {
       corrected_records.emplace(record.i, record.pvalue);
     }
+    const auto t2 = std::chrono::steady_clock::now();
+    SPDLOG_INFO(FMT_STRING("correcting pvalues for {}:{} took {}"), cp.first, cp.second,
+                format_duration(t2 - t1));
   }
+
+  const auto t1 = std::chrono::steady_clock::now();
+  SPDLOG_INFO(FMT_STRING("corrected {} pvalues in {}"), corrected_records.size(),
+              format_duration(t1 - t0));
+
   return corrected_records;
 }
 
 [[nodiscard]] static phmap::flat_hash_map<std::size_t, double> correct_pvalues_cis_trans(
     const phmap::btree_map<ChromPair, std::vector<PValue>>& records) {
   SPDLOG_INFO(FMT_STRING("proceeding to correct pvalues for cis and trans matrices separately..."));
+
+  const auto t0 = std::chrono::steady_clock::now();
 
   auto corrected_records = alloc_pvalue_hashmap(records);
 
@@ -163,6 +176,10 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
     corrected_records.emplace(record.i, record.pvalue);
   }
 
+  const auto t1 = std::chrono::steady_clock::now();
+  SPDLOG_INFO(FMT_STRING("corrected {} pvalues in {}"), corrected_records.size(),
+              format_duration(t1 - t0));
+
   return corrected_records;
 }
 
@@ -177,6 +194,8 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
   }
 
   SPDLOG_INFO(FMT_STRING("proceeding to correct all pvalues in one go"));
+  const auto t0 = std::chrono::steady_clock::now();
+
   BH_FDR<PValue> bh{};
   for (const auto& values : records | std::views::values) {
     bh.add_records(values);
@@ -187,6 +206,10 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
   for (const auto& record : bh.correct([](auto& record) -> double& { return record.pvalue; })) {
     corrected_records.emplace(std::make_pair(record.i, record.pvalue));
   }
+
+  const auto t1 = std::chrono::steady_clock::now();
+  SPDLOG_INFO(FMT_STRING("corrected {} pvalues in {}"), corrected_records.size(),
+              format_duration(t1 - t0));
   return corrected_records;
 }
 
@@ -213,52 +236,54 @@ struct NCHGFilterResult {
 static_assert(has_pval_corrected<NCHGFilterResult>::value);
 static_assert(has_log_ratio<NCHGFilterResult>::value);
 
-int run_nchg_filter(const FilterConfig& c) {
-  auto corrected_pvalues = correct_pvalues(read_records(c.input_path), c);
+using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
 
-  BS::thread_pool tpool(2);
+[[nodiscard]] static std::size_t producer_fx(
+    const FilterConfig& c, const phmap::flat_hash_map<std::size_t, double>& corrected_pvalues,
+    RecordQueue& queue, std::atomic<bool>& early_return) {
+  std::size_t records_enqueued{};
+  try {
+    for (const auto& r : ParquetStatsFile<NCHGResult>(c.input_path)) {
+      if (early_return) [[unlikely]] {
+        return records_enqueued;
+      }
 
-  moodycamel::BlockingReaderWriterQueue<NCHGFilterResult> queue{64 * 1024};
-  std::atomic<bool> early_return{};
+      const auto pvalue_corrected = corrected_pvalues.at(records_enqueued++);
+      assert(r.pval <= pvalue_corrected);
 
-  auto producer = tpool.submit_task([&]() {
-    std::size_t i = 0;
-    try {
-      for (const auto& r : ParquetStatsFile<NCHGResult>(c.input_path)) {
-        if (early_return) [[unlikely]] {
-          return;
-        }
-
-        const auto pvalue_corrected = corrected_pvalues[i++];
-        assert(r.pval <= pvalue_corrected);
-
-        if (!c.drop_non_significant || (pvalue_corrected <= c.fdr && r.log_ratio >= c.log_ratio))
-            [[likely]] {
-          const NCHGFilterResult res{r, pvalue_corrected};
-          while (!queue.try_enqueue(res)) [[unlikely]] {
-            if (early_return) [[unlikely]] {
-              return;
-            }
+      if (!c.drop_non_significant || (pvalue_corrected <= c.fdr && r.log_ratio >= c.log_ratio))
+          [[likely]] {
+        const NCHGFilterResult res{r, pvalue_corrected};
+        while (!queue.try_enqueue(res)) [[unlikely]] {
+          if (early_return) [[unlikely]] {
+            return records_enqueued;
           }
         }
       }
-
-      NCHGFilterResult eoq{};
-      eoq.pval = -1;
-      queue.enqueue(eoq);
-
-    } catch (const std::exception& e) {
-      early_return = true;
-      throw std::runtime_error(
-          fmt::format(FMT_STRING("an exception occurred in producer thread: {}"), e.what()));
-    } catch (...) {
-      early_return = true;
-      throw;
     }
-  });
 
-  auto consumer = tpool.submit_task([&]() {
-    SPDLOG_INFO(FMT_STRING("writing records to output file {}"), c.output_path);
+    NCHGFilterResult eoq{};
+    eoq.pval = -1;
+    queue.enqueue(eoq);
+
+    return records_enqueued;
+
+  } catch (const std::exception& e) {
+    early_return = true;
+    throw std::runtime_error(
+        fmt::format(FMT_STRING("an exception occurred in producer thread: {}"), e.what()));
+  } catch (...) {
+    SPDLOG_ERROR(FMT_STRING("an unknown exception occurred in producer thread"));
+    early_return = true;
+    throw;
+  }
+}
+
+[[nodiscard]] static std::size_t consumer_fx(const FilterConfig& c, RecordQueue& queue,
+                                             std::atomic<bool>& early_return) {
+  SPDLOG_INFO(FMT_STRING("writing records to output file {}"), c.output_path);
+  std::size_t records_dequeued{};
+  try {
     const auto chroms = *ParquetStatsFile<NCHGResult>(c.input_path).chromosomes();
 
     auto writer = init_parquet_file_writer<NCHGFilterResult>(
@@ -272,7 +297,7 @@ int run_nchg_filter(const FilterConfig& c) {
     while (!early_return) [[likely]] {
       while (!queue.wait_dequeue_timed(res, std::chrono::milliseconds(20))) [[unlikely]] {
         if (early_return) [[likely]] {
-          return;
+          return records_dequeued;
         }
       }
 
@@ -281,7 +306,7 @@ int run_nchg_filter(const FilterConfig& c) {
         if (builder.size() != 0) {
           builder.write(*writer);
         }
-        return;
+        return records_dequeued;
       }
 
       if (builder.size() == batch_size) [[unlikely]] {
@@ -289,11 +314,49 @@ int run_nchg_filter(const FilterConfig& c) {
         builder.reset();
       }
       builder.append(res);
+      ++records_dequeued;
     }
-  });
 
-  producer.wait();
-  consumer.wait();
+    return records_dequeued;
+  } catch (const std::exception& e) {
+    early_return = true;
+    throw std::runtime_error(
+        fmt::format(FMT_STRING("an exception occurred in consumer thread: {}"), e.what()));
+  } catch (...) {
+    SPDLOG_ERROR(FMT_STRING("an unknown exception occurred in consumer thread"));
+    early_return = true;
+    throw;
+  }
+}
+
+int run_nchg_filter(const FilterConfig& c) {
+  const auto t0 = std::chrono::steady_clock::now();
+  const auto corrected_pvalues = correct_pvalues(read_records(c.input_path), c);
+
+  RecordQueue queue{64 * 1024};
+  std::atomic<bool> early_return{};
+
+  auto producer = std::async(std::launch::deferred, [&] {
+    SPDLOG_DEBUG(FMT_STRING("spawning producer thread..."));
+    return producer_fx(c, corrected_pvalues, queue, early_return);
+  });
+  auto consumer = std::async(std::launch::async, [&] {
+    SPDLOG_DEBUG(FMT_STRING("spawning consumer thread..."));
+    return consumer_fx(c, queue, early_return);
+  });
+  const auto records_enqueued = producer.get();
+  const auto records_dequeued = consumer.get();
+
+  if (records_enqueued != records_dequeued) {
+    throw std::runtime_error(
+        fmt::format(FMT_STRING("record queue is corrupted: not all records have been dequeued: "
+                               "expected {} records, found {}"),
+                    records_enqueued, records_dequeued));
+  }
+
+  const auto t1 = std::chrono::steady_clock::now();
+  SPDLOG_INFO(FMT_STRING("processed {} records in {}!"), records_dequeued,
+              format_duration(t1 - t0));
 
   return 0;
 }

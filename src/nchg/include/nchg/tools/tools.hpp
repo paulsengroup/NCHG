@@ -21,7 +21,7 @@
 #include <atomic>
 #include <cstddef>
 
-#include "nchg/config.hpp"
+#include "nchg/tools/config.hpp"
 
 namespace nchg {
 

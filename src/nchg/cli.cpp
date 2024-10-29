@@ -16,7 +16,7 @@
 // with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-#include "nchg/cli.hpp"
+#include "nchg/tools/cli.hpp"
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -42,7 +42,7 @@
 #include <unistd.h>
 #endif
 
-#include "nchg/config.hpp"
+#include "nchg/tools/config.hpp"
 
 namespace nchg {
 

@@ -17,6 +17,9 @@
 // <https://www.gnu.org/licenses/>.
 
 // clang-format off
+
+
+
 #include "nchg/suppress_warnings.hpp"
 NCHG_DISABLE_WARNING_PUSH
 NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
@@ -52,10 +55,11 @@ NCHG_DISABLE_WARNING_POP
 
 #include "nchg/common.hpp"
 #include "nchg/concepts.hpp"
-#include "nchg/config.hpp"
-#include "nchg/io.hpp"
 #include "nchg/nchg.hpp"
-#include "nchg/tools.hpp"
+#include "nchg/tools/common.hpp"
+#include "nchg/tools/config.hpp"
+#include "nchg/tools/io.hpp"
+#include "nchg/tools/tools.hpp"
 
 namespace nchg {
 
@@ -530,9 +534,14 @@ static std::optional<ExpectedValues> init_cis_expected_values(const ComputePvalC
 
     return {ExpectedValues::cis_only(
         f,
-        {c.mad_max, c.min_delta, c.max_delta, c.bin_aggregation_possible_distances_cutoff,
-         c.bin_aggregation_observed_distances_cutoff, c.interpolate_expected_values,
-         c.interpolation_qtile, c.interpolation_window_size},
+        {.mad_max = c.mad_max,
+         .min_delta = c.min_delta,
+         .max_delta = c.max_delta,
+         .bin_aggregation_possible_distances_cutoff = c.bin_aggregation_possible_distances_cutoff,
+         .bin_aggregation_observed_distances_cutoff = c.bin_aggregation_observed_distances_cutoff,
+         .interpolate = c.interpolate_expected_values,
+         .interpolation_qtile = c.interpolation_qtile,
+         .interpolation_window_size = c.interpolation_window_size},
         bin_mask)};
   }
 
@@ -620,9 +629,8 @@ int run_nchg_compute(const ComputePvalConfig &c) {
   const auto interactions_processed = process_queries(chrom_pairs, expected_values, c);
 
   const auto t1 = std::chrono::system_clock::now();
-  const auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
-  SPDLOG_INFO(FMT_STRING("Processed {} records in {}s!"), interactions_processed,
-              static_cast<double>(delta) / 1000.0);
+  SPDLOG_INFO(FMT_STRING("Processed {} records in {}!"), interactions_processed,
+              format_duration(t1 - t0));
 
   return 0;
 }

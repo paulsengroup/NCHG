@@ -24,20 +24,25 @@ NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
 NCHG_DISABLE_WARNING_POP
 // clang-format on
 
+#include <spdlog/spdlog.h>
+
 #include <cassert>
+#include <chrono>
 #include <concepts>
 #include <filesystem>
 #include <hictk/chromosome.hpp>
 #include <memory>
+#include <nchg/tools/common.hpp>
 #include <type_traits>
 #include <variant>
 
 #include "nchg/common.hpp"
 #include "nchg/concepts.hpp"
-#include "nchg/config.hpp"
 #include "nchg/expected_values.hpp"
-#include "nchg/io.hpp"
-#include "nchg/tools.hpp"
+#include "nchg/tools/common.hpp"
+#include "nchg/tools/config.hpp"
+#include "nchg/tools/io.hpp"
+#include "nchg/tools/tools.hpp"
 
 namespace nchg {
 
@@ -71,6 +76,7 @@ static void process_all_chromosomes(FilePtr f, const ExpectedConfig &c) {
 template <typename FilePtr>
   requires HictkSingleResFilePtr<FilePtr>
 static void process_cis_chromosomes(FilePtr f, const ExpectedConfig &c) {
+  const auto t0 = std::chrono::steady_clock::now();
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
   const auto evs = ExpectedValues::cis_only(
@@ -88,6 +94,9 @@ static void process_cis_chromosomes(FilePtr f, const ExpectedConfig &c) {
     std::filesystem::remove(c.output_path);
   }
   evs.serialize(c.output_path);
+  const auto t1 = std::chrono::steady_clock::now();
+  SPDLOG_INFO(FMT_STRING("expected values have been written to \"{}\". Computation took {}"),
+              c.output_path, format_duration(t1 - t0));
 }
 
 template <typename FilePtr>

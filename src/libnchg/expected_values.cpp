@@ -488,16 +488,16 @@ void ExpectedValues::serialize_bin_masks(
   std::vector<bool> values1{};
   std::vector<bool> values2{};
 
-  std::for_each(bin_masks.begin(), bin_masks.end(), [&](const auto &kv) {
-    chrom1.emplace_back(std::string{kv.first.first.name()});
-    chrom2.emplace_back(std::string{kv.first.second.name()});
+  for (const auto &[k, v] : bin_masks) {
+    chrom1.emplace_back(k.first.name());
+    chrom2.emplace_back(k.second.name());
 
     offsets1.emplace_back(values1.size());
-    values1.insert(values1.end(), kv.second.first->begin(), kv.second.first->end());
+    values1.insert(values1.end(), v.first->begin(), v.first->end());
 
     offsets2.emplace_back(values2.size());
-    values2.insert(values2.end(), kv.second.second->begin(), kv.second.second->end());
-  });
+    values2.insert(values2.end(), v.second->begin(), v.second->end());
+  }
 
   offsets1.emplace_back(values1.size());
   offsets2.emplace_back(values2.size());

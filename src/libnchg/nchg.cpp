@@ -142,12 +142,13 @@ auto NCHG::compute(const hictk::GenomicInterval &range1, const hictk::GenomicInt
   if (bin1_masked_frac < bad_bin_fraction && bin2_masked_frac < bad_bin_fraction) [[likely]] {
     const auto sel = _fp->fetch(range1.chrom().name(), range1.start(), range1.end(),
                                 range2.chrom().name(), range2.start(), range2.end());
-    const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<double>(),
-                                                      sel.template end<double>(), _fp->bins_ptr());
+
     const auto min_delta = params().min_delta;
     const auto max_delta = params().max_delta;
 
-    std::for_each(jsel.begin(), jsel.end(), [&](const hictk::Pixel<double> &p) {
+    const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<double>(),
+                                                      sel.template end<double>(), _fp->bins_ptr());
+    for (const hictk::Pixel<double> &p : jsel) {
       const auto delta = intra_matrix ? p.coords.bin2.start() - p.coords.bin1.start() : min_delta;
 
       const auto bin1_id = p.coords.bin1.rel_id();
@@ -157,7 +158,7 @@ auto NCHG::compute(const hictk::GenomicInterval &range1, const hictk::GenomicInt
         obs += p.count;
         exp += _exp_matrix->at(bin1_id, bin2_id);
       }
-    });
+    }
   } else {
     obs = 0;
     exp = 0;

@@ -544,13 +544,13 @@ jobs:
         run: |
           sudo -u devel                                           \
           bin/NCHG filter                                         \
-            "$DATA_DIR/merge/$OUT_PREFIX.parquet                  \
+            "$DATA_DIR/merge/$OUT_PREFIX.parquet"                 \
             "$OUT_PREFIX.filtered.parquet"                        \
             --threads "$(nproc)"
 
           test/scripts/validate_nchg_output.py filter \
             "$OUT_PREFIX.filtered.parquet"            \
-            "$DATA_DIR/filter/$OUT_PREFIX.filtered.parquet"
+            "$DATA_DIR/filter/$OUT_PREFIX.parquet"
 
           rm "$OUT_PREFIX"*
 
@@ -564,7 +564,7 @@ jobs:
         run: |
           sudo -u devel                                        \
           bin/NCHG view                                        \
-            "$DATA_DIR/filter/$OUT_PREFIX.filtered"            \
+            "$DATA_DIR/filter/$OUT_PREFIX.parquet"             \
             > "$OUT_PREFIX.tsv"
 
           test/scripts/validate_nchg_output.py view  \

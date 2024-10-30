@@ -446,7 +446,14 @@ jobs:
 
       - name: Setup test dependencies
         run: |
-          pip3 install -r test/requirements.txt
+          pip install -r test/requirements.txt --user
+          which pip
+          which python3
+
+      - name: Setup test environment
+        run: |
+          echo "DATA_DIR=$PWD/test/data/integration_tests" | tee -a "$GITHUB_ENV"
+          echo "OUT_PREFIX=ENCFF447ERX.1000000" | tee -a "$GITHUB_ENV"
 
       - name: Test NCHG compute (mt)
         run: |

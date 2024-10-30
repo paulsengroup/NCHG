@@ -494,7 +494,7 @@ jobs:
           python3.12 -m venv venv --upgrade
           echo "PATH=$PWD/venv/bin:$PATH" | tee -a "$GITHUB_ENV"
 
-          venv/bin/pip install numpy pandas
+          venv/bin/pip install numpy 'pandas[pyarrow]'
 
       - name: Setup test environment
         run: |

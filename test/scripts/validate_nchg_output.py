@@ -219,9 +219,9 @@ def validate_nchg_compute(test_prefix: pathlib.Path, ref_prefix: pathlib.Path) -
     if test_prefix == ref_prefix:
         raise RuntimeError(f"test-prefix and ref-prefix point to the same files: {ref_prefix}")
 
-    expected_chrom_sizes = import_chrom_sizes(ref_prefix.with_suffix(".chrom.sizes"))
+    expected_chrom_sizes = import_chrom_sizes(pathlib.Path(f"{ref_prefix}.chrom.sizes"))
 
-    chrom_sizes_path = test_prefix.with_suffix(".chrom.sizes")
+    chrom_sizes_path = pathlib.Path(f"{test_prefix}.chrom.sizes")
     try:
         found_chrom_sizes = import_chrom_sizes(chrom_sizes_path)
     except Exception as e:

@@ -23,6 +23,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/build-conan-deps.yml"
+      - ".github/workflows/cache-test-dataset.yml"
       - ".github/workflows/ubuntu-ci.yml"
       - "cmake/**"
       - "src/**"
@@ -33,6 +34,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/build-conan-deps.yml"
+      - ".github/workflows/cache-test-dataset.yml"
       - ".github/workflows/ubuntu-ci.yml"
       - "cmake/**"
       - "src/**"
@@ -115,6 +117,10 @@ jobs:
             includes.push({ compiler: 'clang-19',  os: 'ubuntu-24.04',  generator: 'Unix Makefiles', cmake: '3.30.*', build_type: 'Release', developer_mode: 'OFF' })
 
             return { include: includes }
+
+  cache-test-dataset:
+    name: Cache test dataset
+    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@main
 
   build-conan-deps:
     name: Build Conan deps
@@ -356,7 +362,7 @@ jobs:
 
   run-unit-tests:
     name: Run unit tests
-    needs: [matrix-factory, build-project]
+    needs: [matrix-factory, cache-test-dataset, build-project]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -370,6 +376,13 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Restore test dataset
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ needs.cache-test-dataset.outputs.cache-key }}
+          path: test/data/nchg_test_data.tar.zst
+          fail-on-cache-miss: true
+
       - name: Download unit tests artifact
         uses: actions/download-artifact@v4
         with:
@@ -379,8 +392,10 @@ jobs:
             ${{ matrix.build_type }}-\
             ${{ matrix.developer_mode }}"
 
-      - name: Extract binaries
-        run: zstd -dcf unit-tests.tar.zst | tar -xf -
+      - name: Extract binaries and test dataset
+        run: |
+          tar -xf unit-tests.tar.zst
+          tar -xf test/data/nchg_test_data.tar.zst
 
       - name: Add test user
         run: useradd devel
@@ -411,7 +426,7 @@ jobs:
 
   run-integration-tests:
     name: Run integration tests
-    needs: [matrix-factory, build-project]
+    needs: [matrix-factory, cache-test-dataset, build-project]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -443,6 +458,13 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Restore test dataset
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ needs.cache-test-dataset.outputs.cache-key }}
+          path: test/data/nchg_test_data.tar.zst
+          fail-on-cache-miss: true
+
       - name: Download binaries artifact
         uses: actions/download-artifact@v4
         with:
@@ -452,8 +474,10 @@ jobs:
             ${{ matrix.build_type }}-\
             ${{ matrix.developer_mode }}"
 
-      - name: Extract binaries
-        run: tar -xf binaries.tar.zst
+      - name: Extract binaries and test dataset
+        run: |
+          tar -xf binaries.tar.zst
+          tar -xf test/data/nchg_test_data.tar.zst
 
       - name: Add test user
         run: useradd devel

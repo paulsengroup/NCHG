@@ -24,6 +24,7 @@ on:
     paths:
       - ".github/codecov.yml"
       - ".github/workflows/build-conan-deps.yml"
+      - ".github/workflows/cache-test-dataset.yml"
       - ".github/workflows/codecov.yml"
       - "cmake/**"
       - "src/**"
@@ -36,6 +37,7 @@ on:
     paths:
       - ".github/codecov.yml"
       - ".github/workflows/build-conan-deps.yml"
+      - ".github/workflows/cache-test-dataset.yml"
       - ".github/workflows/codecov.yml"
       - "cmake/**"
       - "src/**"
@@ -54,6 +56,10 @@ defaults:
     shell: bash
 
 jobs:
+  cache-test-dataset:
+    name: Cache test dataset
+    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@main
+
   build-conan-deps:
     name: Build Conan deps
     uses: paulsengroup/nchg/.github/workflows/build-conan-deps.yml@main
@@ -234,7 +240,7 @@ jobs:
 
   run-unit-tests:
     name: Run unit tests
-    needs: [build-project]
+    needs: [cache-test-dataset, build-project]
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-clang-19
@@ -244,13 +250,22 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Restore test dataset
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ needs.cache-test-dataset.outputs.cache-key }}
+          path: test/data/nchg_test_data.tar.zst
+          fail-on-cache-miss: true
+
       - name: Download unit tests artifact
         uses: actions/download-artifact@v4
         with:
           name: "build-codecov"
 
-      - name: Extract binaries
-        run: tar -xf build.tar.zst
+      - name: Extract binaries and test dataset
+        run: |
+          tar -xf build.tar.zst
+          tar -xf test/data/nchg_test_data.tar.zst
 
       - name: Add test user
         run: useradd devel
@@ -314,7 +329,7 @@ jobs:
 
   run-integration-tests:
     name: Run integration tests
-    needs: [build-project]
+    needs: [cache-test-dataset, build-project]
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-clang-19
@@ -324,13 +339,22 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Restore test dataset
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ needs.cache-test-dataset.outputs.cache-key }}
+          path: test/data/nchg_test_data.tar.zst
+          fail-on-cache-miss: true
+
       - name: Download binaries artifact
         uses: actions/download-artifact@v4
         with:
           name: "build-codecov"
 
-      - name: Extract binaries
-        run: tar -xf build.tar.zst
+      - name: Extract binaries and test dataset
+        run: |
+          tar -xf build.tar.zst
+          tar -xf test/data/nchg_test_data.tar.zst
 
       - name: Add test user
         run: useradd devel

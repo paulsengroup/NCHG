@@ -33,6 +33,7 @@ add_executable(NCHG)
 target_sources(
   NCHG
   PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/common/io.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/compute/compute.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/expected/expected.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/filter/filter.cpp"

@@ -148,11 +148,11 @@ class ExpectedValues {
       const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask);
 
   void add_bin_mask(
-      const hictk::Chromosome& chrom, std::vector<bool>&& mask,
+      const hictk::Chromosome& chrom, std::vector<bool> mask,
       const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask_seed);
   void add_bin_mask(
       const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2,
-      std::pair<std::vector<bool>, std::vector<bool>>&& masks2,
+      std::pair<std::vector<bool>, std::vector<bool>> masks,
       const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask_seed);
 
   static void serialize_attributes(HighFive::File& f, const Params& params);
@@ -168,9 +168,8 @@ class ExpectedValues {
   [[nodiscard]] static auto deserialize_attributes(const HighFive::File& f) -> Params;
   [[nodiscard]] static hictk::Reference deserialize_chromosomes(const HighFive::File& f);
   [[nodiscard]] static auto deserialize_bin_masks(HighFive::File& f)
-      -> const phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>>;
-  [[nodiscard]] static std::pair<const std::vector<double>,
-                                 const phmap::btree_map<hictk::Chromosome, double>>
+      -> phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>>;
+  [[nodiscard]] static std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>
   deserialize_cis_profiles(const HighFive::File& f);
   [[nodiscard]] static auto deserialize_trans_profiles(const HighFive::File& f)
       -> phmap::btree_map<ChromPair, double>;

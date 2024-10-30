@@ -52,7 +52,7 @@ ExpectedValuesAggregator::ExpectedValuesAggregator(std::shared_ptr<const hictk::
   }
 
   const auto bin_size = _bins->resolution();
-  // round down to mimick HiCTools' behavior
+  // round down to mimic HiCTools' behavior
   const auto max_n_bins = max_length / bin_size;
   _possible_distances.resize(max_n_bins, 0.0);
   _observed_distances.resize(max_n_bins, 0.0);
@@ -177,8 +177,8 @@ std::size_t ExpectedValuesAggregator::aggregate_low_cov_bins(
 
   i1 = std::min(i1, static_cast<std::size_t>(std::distance(last_nnz, _observed_distances.rend())));
 
-  auto it1 = _observed_distances.begin() + static_cast<std::ptrdiff_t>(i1);
-  auto it2 = _observed_distances.end();
+  const auto it1 = _observed_distances.begin() + static_cast<std::ptrdiff_t>(i1);
+  const auto it2 = _observed_distances.end();
   std::fill(it1, it2, std::numeric_limits<double>::quiet_NaN());
 
   return i1;
@@ -213,7 +213,7 @@ namespace internal {
 
 [[nodiscard]] double approx_quantile(std::vector<double> &v, double quantile) {
   auto nth = v.begin() + static_cast<std::ptrdiff_t>(quantile * static_cast<double>(v.size() - 1));
-  std::nth_element(v.begin(), nth, v.end());
+  std::ranges::nth_element(v, nth);
   return *nth;
 };
 

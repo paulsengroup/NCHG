@@ -39,7 +39,6 @@ NCHG_DISABLE_WARNING_POP
 #include "nchg/common.hpp"
 #include "nchg/concepts.hpp"
 #include "nchg/expected_values.hpp"
-#include "nchg/tools/common.hpp"
 #include "nchg/tools/config.hpp"
 #include "nchg/tools/io.hpp"
 #include "nchg/tools/tools.hpp"
@@ -68,7 +67,7 @@ static void process_all_chromosomes(FilePtr f, const ExpectedConfig &c) {
        .interpolation_window_size = c.interpolation_window_size},
       mask);
   if (c.force) {
-    std::filesystem::remove(c.output_path);
+    std::filesystem::remove(c.output_path);  // NOLINT
   }
   evs.serialize(c.output_path);
 }
@@ -91,7 +90,7 @@ static void process_cis_chromosomes(FilePtr f, const ExpectedConfig &c) {
        .interpolation_window_size = c.interpolation_window_size},
       mask);
   if (c.force) {
-    std::filesystem::remove(c.output_path);
+    std::filesystem::remove(c.output_path);  // NOLINT
   }
   evs.serialize(c.output_path);
   const auto t1 = std::chrono::steady_clock::now();
@@ -117,7 +116,7 @@ static void process_trans_chromosomes(FilePtr f, const ExpectedConfig &c) {
        .interpolation_window_size = c.interpolation_window_size},
       mask);
   if (c.force) {
-    std::filesystem::remove(c.output_path);
+    std::filesystem::remove(c.output_path);  // NOLINT
   }
   evs.serialize(c.output_path);
   const auto t1 = std::chrono::steady_clock::now();
@@ -147,7 +146,7 @@ static void process_one_chromosome_pair(FilePtr f, const ExpectedConfig &c) {
        .interpolation_window_size = c.interpolation_window_size},
       mask);
   if (c.force) {
-    std::filesystem::remove(c.output_path);
+    std::filesystem::remove(c.output_path);  // NOLINT
   }
   evs.serialize(c.output_path);
   const auto t1 = std::chrono::steady_clock::now();

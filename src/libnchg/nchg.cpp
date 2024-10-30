@@ -105,7 +105,7 @@ auto NCHG::compute(const hictk::GenomicInterval &range1, const hictk::GenomicInt
   const auto &mask1 = *_expected_values.bin_mask(chrom1, chrom2).first;
   const auto &mask2 = *_expected_values.bin_mask(chrom1, chrom2).second;
 
-  const double cutoff = 1.0e-20;
+  constexpr double cutoff = 1.0e-20;
 
   double N1 = 0.0;
   double N2 = 0.0;
@@ -165,7 +165,7 @@ auto NCHG::compute(const hictk::GenomicInterval &range1, const hictk::GenomicInt
   }
 
   // clang-format off
-  const hictk::Pixel<std::uint32_t> p{
+  const hictk::Pixel p{
       range1.chrom(), range1.start(), range1.end(),
       range2.chrom(), range2.start(), range2.end(),
       static_cast<std::uint32_t>(obs)};
@@ -237,8 +237,8 @@ auto NCHG::init_exp_matrix(const hictk::Chromosome &chrom1, const hictk::Chromos
         const auto sel = fp.fetch(chrom1.name(), chrom2.name());
         const auto jsel = hictk::transformers::JoinGenomicCoords(
             sel.template begin<N>(), sel.template end<N>(), fp.bins_ptr());
-        return std::make_shared<const ExpectedMatrix>(expected_values.expected_matrix(
-            chrom1, chrom2, fp.bins(), std::ranges::subrange(jsel.begin(), jsel.end())));
+        return std::make_shared<const ExpectedMatrix>(
+            expected_values.expected_matrix(chrom1, chrom2, fp.bins(), jsel));
       },
       f.get());
 }
@@ -255,9 +255,8 @@ auto NCHG::init_obs_matrix(const hictk::Chromosome &chrom1, const hictk::Chromos
         const auto sel = fp.fetch(chrom1.name(), chrom2.name());
         const auto jsel = hictk::transformers::JoinGenomicCoords(
             sel.template begin<N>(), sel.template end<N>(), fp.bins_ptr());
-        return std::make_shared<const ObservedMatrix>(
-            std::ranges::subrange(jsel.begin(), jsel.end()), chrom1, chrom2, fp.bins(), mad_max_,
-            bin1_mask, bin2_mask, min_delta_, max_delta_);
+        return std::make_shared<const ObservedMatrix>(jsel, chrom1, chrom2, fp.bins(), mad_max_,
+                                                      bin1_mask, bin2_mask, min_delta_, max_delta_);
       },
       f.get());
 }
@@ -276,7 +275,7 @@ double NCHG::compute_cumulative_nchg(std::vector<double> &buffer, std::uint64_t 
     std::int32_t x2{};
   };
 
-  const auto ub = std::numeric_limits<std::int32_t>::max();
+  constexpr auto ub = std::numeric_limits<std::int32_t>::max();
 
   if (N2 > ub || N1 > ub || N > ub) [[unlikely]] {
     throw std::runtime_error(
@@ -347,23 +346,25 @@ NCHG::compute_expected_profile() const {
   SPDLOG_INFO("initializing expected matrix weights from genome-wide interactions...");
 
   return std::visit(
-      [&](const auto &f) {
+      [&](const auto &f)
+          -> std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>> {
         const auto [selectors, merger] = ExpectedValues::init_pixel_merger_cis(f);
         if (merger.begin() == merger.end()) [[unlikely]] {
-          std::vector<double> weights(f.bins().size(), 0);
           phmap::btree_map<hictk::Chromosome, double> scaling_factors{};
+          std::ranges::transform(
+              f.chromosomes(), std::inserter(scaling_factors, scaling_factors.end()),
+              [](const hictk::Chromosome &chrom) { return std::make_pair(chrom, 1.0); });
           for (const auto &chrom : f.chromosomes()) {
             scaling_factors.emplace(chrom, 1.0);
           }
-          return std::make_pair(weights, scaling_factors);
+          return {std::vector<double>(f.bins().size(), 0), scaling_factors};
         }
 
         const hictk::transformers::JoinGenomicCoords mjsel(merger.begin(), merger.end(),
                                                            f.bins_ptr());
 
-        return ExpectedMatrix::build_expected_vector(
-            std::ranges::subrange(mjsel.begin(), mjsel.end()), f.bins(), params().min_delta,
-            params().max_delta);
+        return ExpectedMatrix::build_expected_vector(mjsel, f.bins(), params().min_delta,
+                                                     params().max_delta);
       },
       _fp->get());
 }

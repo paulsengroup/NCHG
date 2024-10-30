@@ -174,7 +174,7 @@ inline auto NCHG::iterator<PixelSelector>::operator*() const -> const_reference 
   const auto obs_sum = _obs->sum();
   const auto exp_sum = _exp->sum();
 
-  const double cutoff = 1.0e-20;
+  constexpr double cutoff = 1.0e-20;
 
   const hictk::Pixel p{_sel->bins(), *_pixel_it};
   const auto i1 = p.coords.bin1.rel_id();

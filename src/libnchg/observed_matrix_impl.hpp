@@ -40,10 +40,9 @@ inline auto ObservedMatrix::compute_stats(const Pixels &pixels, const hictk::Chr
                                           std::uint64_t min_delta_, std::uint64_t max_delta_) {
   assert(min_delta_ <= max_delta_);
   struct Result {
-    std::shared_ptr<std::vector<std::uint64_t>> marginals1{
-        std::make_shared<std::vector<std::uint64_t>>()};
-    std::shared_ptr<std::vector<std::uint64_t>> marginals2{
-        std::make_shared<std::vector<std::uint64_t>>()};
+    using BuffT = std::vector<std::uint64_t>;
+    std::shared_ptr<BuffT> marginals1{std::make_shared<BuffT>()};
+    std::shared_ptr<BuffT> marginals2{std::make_shared<BuffT>()};
     std::uint64_t sum{};
     std::uint64_t nnz{};
   };

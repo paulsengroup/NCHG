@@ -53,11 +53,11 @@ NCHG_DISABLE_WARNING_POP
 
 namespace nchg {
 
-[[nodiscard]] static std::pair<std::vector<ParquetStatsFile<NCHGResult>::iterator>,
-                               std::vector<ParquetStatsFile<NCHGResult>::iterator>>
+[[nodiscard]] static std::pair<std::vector<ParquetStatsFile::iterator<NCHGResult>>,
+                               std::vector<ParquetStatsFile::iterator<NCHGResult>>>
 init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference &chroms) {
-  std::vector<ParquetStatsFile<NCHGResult>::iterator> heads{};
-  std::vector<ParquetStatsFile<NCHGResult>::iterator> tails{};
+  std::vector<ParquetStatsFile::iterator<NCHGResult>> heads{};
+  std::vector<ParquetStatsFile::iterator<NCHGResult>> tails{};
 
   SPDLOG_INFO("enumerating chrom-chrom tables under prefix {}...", prefix);
   for (std::uint32_t chrom1_id = 0; chrom1_id < chroms.size(); ++chrom1_id) {
@@ -70,9 +70,9 @@ init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference 
       const auto path =
           fmt::format("{}.{}.{}.parquet", prefix.string(), chrom1.name(), chrom2.name());
       if (std::filesystem::exists(path)) {
-        ParquetStatsFile<NCHGResult> f(path);
-        auto first = f.begin();
-        auto last = f.end();
+        ParquetStatsFile f(path, ParquetStatsFile::RecordType::NCHGCompute);
+        auto first = f.begin<NCHGResult>();
+        auto last = f.end<NCHGResult>();
         if (first != last) [[likely]] {
           heads.emplace_back(std::move(first));
           tails.emplace_back(std::move(last));
@@ -87,7 +87,7 @@ init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference 
 
   SPDLOG_INFO("enumerated {} non-empty tables", heads.size());
 
-  return std::make_pair(std::move(heads), std::move(tails));
+  return {heads, tails};
 }
 
 using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
@@ -184,7 +184,7 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
 }
 
 int run_nchg_merge(const MergeConfig &c) {
-  const auto t0 = std::chrono::system_clock::now();
+  const auto t0 = std::chrono::steady_clock::now();
 
   const auto path_to_chrom_sizes = fmt::format("{}.chrom.sizes", c.input_prefix.string());
 
@@ -215,7 +215,7 @@ int run_nchg_merge(const MergeConfig &c) {
                     records_enqueued, records_dequeued));
   }
 
-  const auto t1 = std::chrono::system_clock::now();
+  const auto t1 = std::chrono::steady_clock::now();
   SPDLOG_INFO("processed {} records in {}!", records_dequeued, format_duration(t1 - t0));
 
   return 0;

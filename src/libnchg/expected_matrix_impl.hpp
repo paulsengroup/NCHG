@@ -46,8 +46,9 @@ inline auto ExpectedMatrix::compute_stats(const Pixels &pixels, const hictk::Chr
                                           const std::vector<bool> &bin_mask2,
                                           std::uint64_t min_delta_, std::uint64_t max_delta_) {
   struct Result {
-    std::shared_ptr<std::vector<double>> marginals1{std::make_shared<std::vector<double>>()};
-    std::shared_ptr<std::vector<double>> marginals2{std::make_shared<std::vector<double>>()};
+    using BuffT = std::vector<double>;
+    std::shared_ptr<BuffT> marginals1{std::make_shared<BuffT>()};
+    std::shared_ptr<BuffT> marginals2{std::make_shared<BuffT>()};
     double sum{};
     std::uint64_t nnz{};
   };
@@ -102,7 +103,7 @@ inline auto ExpectedMatrix::compute_stats(const Pixels &pixels, const hictk::Chr
       nnz_ += bin1 == bin2 ? 1ULL : 2ULL;
     } else {
       sum_ += count;
-      nnz_++;
+      ++nnz_;
     }
 
     const auto i1 = bin1.rel_id();
@@ -166,7 +167,7 @@ ExpectedMatrix::build_expected_vector(const Pixels &pixels, const hictk::BinTabl
     std::ranges::transform(
         bins.chromosomes(), std::inserter(scaling_factors, scaling_factors.begin()),
         [](const hictk::Chromosome &chrom) { return std::make_pair(chrom, 0.0); });
-    return std::make_pair(std::vector<double>(bins.size(), 0), scaling_factors);
+    return {std::vector<double>(bins.size(), 0), scaling_factors};
   }
 
   const auto bins_ = std::make_shared<const hictk::BinTable>(bins);
@@ -187,7 +188,7 @@ ExpectedMatrix::build_expected_vector(const Pixels &pixels, const hictk::BinTabl
   weights.resize((chrom.size() + bins.resolution() - 1) / bins.resolution(),
                  std::numeric_limits<double>::quiet_NaN());
 
-  return std::make_pair(std::move(weights), aggr.scaling_factors());
+  return {weights, aggr.scaling_factors()};
 }
 
 template <typename Pixels>
@@ -205,8 +206,7 @@ inline std::vector<double> ExpectedMatrix::compute_weights(
                  std::numeric_limits<double>::quiet_NaN());
 
   const auto sf = scaling_factors.at(chrom1);
-  std::transform(weights.begin(), weights.end(), weights.begin(),
-                 [&](const auto n) { return n / sf; });
+  std::ranges::transform(weights, weights.begin(), [&](const auto n) { return n / sf; });
 
   return weights;
 }

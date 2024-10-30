@@ -53,7 +53,7 @@ template <typename Pixels>
     }
   }
 
-  return std::make_pair(margs1, margs2);
+  return {margs1, margs2};
 }
 }  // namespace internal
 
@@ -65,7 +65,7 @@ inline std::pair<std::vector<bool>, std::vector<bool>> mad_max_filtering(
   if (mad_max == 0) {
     const auto num_bins1 = (chrom1.size() + resolution - 1) / resolution;
     const auto num_bins2 = (chrom2.size() + resolution - 1) / resolution;
-    return std::make_pair(std::vector<bool>(num_bins1, false), std::vector<bool>(num_bins2, false));
+    return {std::vector(num_bins1, false), std::vector(num_bins2, false)};
   }
   auto [margs1, margs2] = internal::compute_marginals(pixels, chrom1, chrom2, resolution);
 
@@ -74,10 +74,10 @@ inline std::pair<std::vector<bool>, std::vector<bool>> mad_max_filtering(
 
   SPDLOG_INFO("[{}:{}]: MAD-max masking procedure flagged {}/{} bins for {} and {}/{} for {}",
               chrom1.name(), chrom2.name(), std::ranges::fold_left(mask1, 0, std::plus{}),
-              mask1.size(), chrom1.name(), std::accumulate(mask2.begin(), mask2.end(), 0),
+              mask1.size(), chrom1.name(), std::ranges::fold_left(mask2, 0, std::plus{}),
               mask2.size(), chrom2.name());
 
-  return std::make_pair(mask1, mask2);
+  return {mask1, mask2};
 }
 
 template <typename Pixels>
@@ -92,7 +92,7 @@ inline std::vector<bool> mad_max_filtering(const Pixels& pixels, const hictk::Ch
 
   auto mask = mad_max_filtering(margs, mad_max);
   SPDLOG_INFO("[{}]: MAD-max masking procedure flagged {}/{} bins", chrom.name(),
-              std::accumulate(mask.begin(), mask.end(), 0), mask.size());
+              std::ranges::fold_left(mask, 0, std::plus{}), mask.size());
   return mask;
 }
 }  // namespace nchg

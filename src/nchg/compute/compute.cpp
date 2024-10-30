@@ -109,7 +109,7 @@ namespace nchg {
     }
   }
 
-  std::sort(domains.begin(), domains.end());
+  std::ranges::sort(domains);
   SPDLOG_INFO("[{}:{}] read {} domains from {}...", chrom1, chrom2, domains.size(), path);
   return domains;
 }
@@ -126,12 +126,12 @@ namespace nchg {
   const auto &chrom2 = f->chromosomes().at(c.chrom2);
 
   if (expected_values.has_value()) {
-    return NCHG(f, chrom1, chrom2, *expected_values);
+    return {f, chrom1, chrom2, *expected_values};
   }
 
   if (!c.path_to_expected_values.empty()) {
     SPDLOG_INFO("reading expected values from {}...", c.path_to_expected_values);
-    return NCHG(f, chrom1, chrom2, ExpectedValues::deserialize(c.path_to_expected_values));
+    return {f, chrom1, chrom2, ExpectedValues::deserialize(c.path_to_expected_values)};
   }
 
   const auto bin_mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
@@ -148,14 +148,14 @@ namespace nchg {
        .interpolation_window_size = c.interpolation_window_size},
       bin_mask);
 
-  return NCHG(f, chrom1, chrom2, evs);
+  return {f, chrom1, chrom2, evs};
 }
 
 static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
                                       const std::filesystem::path &path, bool force) {
   try {
     if (force) {
-      std::filesystem::remove(path);
+      std::filesystem::remove(path);  // NOLINT
     }
 
     if (std::filesystem::exists(path)) {
@@ -183,7 +183,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 
   SPDLOG_INFO("[{}:{}] begin processing domains from {}...", c.chrom1, c.chrom2, c.path_to_domains);
 
-  auto writer =
+  const auto writer =
       init_parquet_file_writer<NCHGResult>(f->chromosomes(), c.output_prefix, c.force,
                                            c.compression_method, c.compression_lvl, c.threads);
 
@@ -195,7 +195,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 
   const auto nchg = init_nchg(f, expected_values, c);
 
-  std::size_t batch_size = 1'000'000;
+  constexpr std::size_t batch_size = 1'000'000;
   RecordBatchBuilder builder(f->bins().chromosomes());
 
   std::size_t num_records = 0;
@@ -235,13 +235,13 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 
   const auto &chrom1 = f->chromosomes().at(c.chrom1);
   const auto &chrom2 = f->chromosomes().at(c.chrom2);
-  auto nchg = init_nchg(f, expected_values, c);
+  const auto nchg = init_nchg(f, expected_values, c);
 
-  auto writer =
+  const auto writer =
       init_parquet_file_writer<NCHGResult>(f->chromosomes(), c.output_prefix, c.force,
                                            c.compression_method, c.compression_lvl, c.threads);
 
-  const std::size_t batch_size = 1'000'000;
+  constexpr std::size_t batch_size = 1'000'000;
   RecordBatchBuilder builder{f->chromosomes()};
 
   std::size_t num_records = 0;
@@ -284,9 +284,10 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   return process_one_chromosome_pair(f, expected_values, c);
 }
 
-[[nodiscard]] static std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>>
-init_cis_chromosomes(const hictk::Reference &chroms) {
-  std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> buffer{};
+using ChromosomePairs = std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>>;
+
+[[nodiscard]] static ChromosomePairs init_cis_chromosomes(const hictk::Reference &chroms) {
+  ChromosomePairs buffer{};
 
   for (const auto &chrom : chroms) {
     if (chrom.is_all()) [[unlikely]] {
@@ -298,9 +299,8 @@ init_cis_chromosomes(const hictk::Reference &chroms) {
   return buffer;
 }
 
-[[nodiscard]] static std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>>
-init_trans_chromosomes(const hictk::Reference &chroms) {
-  std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> buffer{};
+[[nodiscard]] static ChromosomePairs init_trans_chromosomes(const hictk::Reference &chroms) {
+  ChromosomePairs buffer{};
 
   for (const auto &chrom1 : chroms) {
     if (chrom1.is_all()) [[unlikely]] {
@@ -394,6 +394,55 @@ init_trans_chromosomes(const hictk::Reference &chroms) {
       fmt::format("failed to spawn worker process: {} {}", c.exec.string(), fmt::join(args, " ")));
 }
 
+[[nodiscard]] static std::size_t worker_fx(const hictk::Chromosome &chrom1,
+                                           const hictk::Chromosome &chrom2,
+                                           const ComputePvalConfig &config,
+                                           std::atomic<bool> &early_return) {
+  if (early_return) {
+    return 0;
+  }
+
+  try {
+    const auto output_path = fmt::format("{}.{}.{}.parquet", config.output_prefix.string(),
+                                         chrom1.name(), chrom2.name());
+
+    const auto trans_expected_values_avail = !config.path_to_expected_values.empty();
+
+    auto child_config = config;
+    if (!trans_expected_values_avail && chrom1 != chrom2) {
+      child_config.path_to_expected_values.clear();
+    }
+
+    auto proc = spawn_compute_process(child_config, output_path, chrom1, chrom2);
+    proc.wait();
+
+    if (proc.exit_code() != 0) {
+      early_return = true;
+      throw std::runtime_error(
+          fmt::format("child process terminated with code {}", proc.exit_code()));
+    }
+
+    std::shared_ptr<arrow::io::ReadableFile> fp;
+    PARQUET_ASSIGN_OR_THROW(fp, arrow::io::ReadableFile::Open(output_path));
+    const auto records_processed =
+        parquet::StreamReader{parquet::ParquetFileReader::Open(fp)}.num_rows();
+
+    SPDLOG_INFO("done processing {}:{} ({} records)!", chrom1.name(), chrom2.name(),
+                records_processed);
+    return static_cast<std::size_t>(records_processed);
+
+  } catch (const std::exception &e) {
+    early_return = true;
+    throw std::runtime_error(fmt::format("error in the worker thread processing {}:{}: {}",
+                                         chrom1.name(), chrom2.name(), e.what()));
+  } catch (...) {
+    SPDLOG_ERROR("an unknown error occurred in worker thread processing {}:{}", chrom1.name(),
+                 chrom2.name());
+    early_return = true;
+    throw;
+  }
+}
+
 static std::size_t process_queries_mt(
     BS::thread_pool &tpool,
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
@@ -411,65 +460,23 @@ static std::size_t process_queries_mt(
                       config.path_to_expected_values));
     }
 
-    std::filesystem::remove(config.path_to_expected_values);
+    std::filesystem::remove(config.path_to_expected_values);  // NOLINT
 
     expected_values->serialize(config.path_to_expected_values);
   }
 
-  auto workers = tpool.submit_blocks(
-      std::size_t{0}, chrom_pairs.size(),
-      [&](std::size_t i1, [[maybe_unused]] std::size_t i2) -> std::size_t {
-        if (early_return) {
-          return 0;
-        }
-
-        const auto &chrom1 = chrom_pairs[i1].first;
-        const auto &chrom2 = chrom_pairs[i1].second;
-
-        try {
-          const auto output_path = fmt::format("{}.{}.{}.parquet", config.output_prefix.string(),
-                                               chrom1.name(), chrom2.name());
-
-          const auto trans_expected_values_avail = !c.path_to_expected_values.empty();
-
-          auto child_config = config;
-          if (!trans_expected_values_avail && chrom1 != chrom2) {
-            child_config.path_to_expected_values.clear();
-          }
-
-          auto proc = spawn_compute_process(child_config, output_path, chrom1, chrom2);
-          proc.wait();
-
-          if (proc.exit_code() != 0) {
-            early_return = true;
-            throw std::runtime_error(
-                fmt::format("child process terminated with code {}", proc.exit_code()));
-          }
-
-          std::shared_ptr<arrow::io::ReadableFile> fp;
-          PARQUET_ASSIGN_OR_THROW(fp, arrow::io::ReadableFile::Open(output_path));
-          const auto records_processed =
-              parquet::StreamReader{parquet::ParquetFileReader::Open(fp)}.num_rows();
-
-          SPDLOG_INFO("done processing {}:{} ({} records)!", chrom1.name(), chrom2.name(),
-                      records_processed);
-          return static_cast<std::size_t>(records_processed);
-
-        } catch (const std::exception &e) {
-          early_return = true;
-          throw std::runtime_error(fmt::format("error in the worker thread processing {}:{}: {}",
-                                               chrom1.name(), chrom2.name(), e.what()));
-        } catch (...) {
-          early_return = true;
-          throw;
-        }
-      },
-      chrom_pairs.size());
+  BS::multi_future<std::size_t> workers(chrom_pairs.size());
+  for (std::size_t i = 0; i < workers.size(); ++i) {
+    workers[i] = tpool.submit_task([&, i] {
+      SPDLOG_DEBUG("submitting task {}/{}...", i + 1, workers.size());
+      const auto &[chrom1, chrom2] = chrom_pairs[i];
+      return worker_fx(chrom1, chrom2, config, early_return);
+    });
+  }
 
   std::size_t num_records = 0;
-  const auto results = workers.get();
-  for (const auto &res : results) {
-    num_records += res;
+  for (const auto result : workers.get()) {
+    num_records += result;
   }
 
   return num_records;
@@ -479,10 +486,7 @@ static std::size_t process_queries_st(
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
     const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
   std::size_t tot_num_records = 0;
-  for (const auto &pair : chrom_pairs) {
-    const auto &chrom1 = pair.first;
-    const auto &chrom2 = pair.second;
-
+  for (const auto &[chrom1, chrom2] : chrom_pairs) {
     try {
       auto config = c;
       config.chrom1 = chrom1.name();
@@ -493,7 +497,7 @@ static std::size_t process_queries_st(
       config.output_prefix =
           fmt::format("{}.{}.{}.parquet", c.output_prefix.string(), chrom1.name(), chrom2.name());
 
-      const auto t0 = std::chrono::system_clock::now();
+      const auto t0 = std::chrono::steady_clock::now();
       if (config.chrom1 == config.chrom2) {
         assert(expected_values.has_value());
       }
@@ -502,7 +506,7 @@ static std::size_t process_queries_st(
                                    : run_nchg_compute_worker(config);
       tot_num_records += num_records;
 
-      const auto t1 = std::chrono::system_clock::now();
+      const auto t1 = std::chrono::steady_clock::now();
       SPDLOG_INFO("[{}:{}] processed {} records in {}!", chrom1.name(), chrom2.name(), num_records,
                   format_duration(t1 - t0));
 
@@ -577,12 +581,12 @@ static std::size_t process_queries(
 }
 
 int run_nchg_compute(const ComputePvalConfig &c) {
-  const auto t0 = std::chrono::system_clock::now();
+  const auto t0 = std::chrono::steady_clock::now();
 
   if (c.chrom1 != "all") {
     assert(c.chrom2 != "all");
     const auto interactions_processed = run_nchg_compute_worker(c);
-    const auto t1 = std::chrono::system_clock::now();
+    const auto t1 = std::chrono::steady_clock::now();
     SPDLOG_INFO("[{}:{}] processed {} records in {}!", c.chrom1, c.chrom2, interactions_processed,
                 format_duration(t1 - t0));
     return 0;
@@ -603,8 +607,7 @@ int run_nchg_compute(const ComputePvalConfig &c) {
 
   if (c.chrom1 == "all" && !c.cis_only && !c.trans_only) {
     chrom_pairs = init_cis_chromosomes(f.chromosomes());
-    const auto chrom_pairs2 = init_trans_chromosomes(f.chromosomes());
-    std::copy(chrom_pairs2.begin(), chrom_pairs2.end(), std::back_inserter(chrom_pairs));
+    std::ranges::copy(init_trans_chromosomes(f.chromosomes()), std::back_inserter(chrom_pairs));
   }
 
   if (!expected_values.has_value() && !c.path_to_expected_values.empty()) {
@@ -620,7 +623,7 @@ int run_nchg_compute(const ComputePvalConfig &c) {
 
   const auto interactions_processed = process_queries(chrom_pairs, expected_values, c);
 
-  const auto t1 = std::chrono::system_clock::now();
+  const auto t1 = std::chrono::steady_clock::now();
   SPDLOG_INFO("Processed {} records in {}!", interactions_processed, format_duration(t1 - t0));
 
   return 0;

@@ -50,7 +50,7 @@ std::vector<bool> mad_max_filtering(std::vector<double>& margs, double mad_max) 
     }
   }
 
-  std::vector<bool> mask(margs.size(), false);
+  std::vector mask(margs.size(), false);
   if (log_nz_marg.empty()) {
     return mask;
   }

@@ -19,8 +19,6 @@
 #pragma once
 
 #include <cstddef>
-#include <memory>
-#include <optional>
 #include <ranges>
 #include <vector>
 
@@ -36,7 +34,7 @@ class BH_FDR {
 
  public:
   BH_FDR() = default;
-  explicit BH_FDR(std::vector<Stats> pvalues_);
+  explicit BH_FDR(std::vector<Stats> pvalues_) noexcept;
 
   void add_record(Stats&& s);
   void add_records(const std::ranges::input_range auto& values);

@@ -91,8 +91,14 @@ ExpectedValues ExpectedValues::cis_only(
 ExpectedValues ExpectedValues::trans_only(
     std::shared_ptr<const hictk::File> file, const Params &params_,
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask) {
-  ExpectedValues ev(
-      nullptr, {params_.mad_max, 0, std::numeric_limits<std::uint64_t>::max(), 0, 0, false, 0, 0});
+  ExpectedValues ev(nullptr, {.mad_max = params_.mad_max,
+                              .min_delta = 0,
+                              .max_delta = std::numeric_limits<std::uint64_t>::max(),
+                              .bin_aggregation_possible_distances_cutoff = 0,
+                              .bin_aggregation_observed_distances_cutoff = 0,
+                              .interpolate = false,
+                              .interpolation_qtile = 0,
+                              .interpolation_window_size = 0});
   ev._fp = std::move(file);
   ev._resolution = ev._fp->resolution();
   if (ev._fp) {
@@ -128,10 +134,10 @@ ExpectedValues ExpectedValues::chromosome_pair(
                           bin_mask);
         }
 
-        const ExpectedMatrix em(
-            std::ranges::subrange(jsel.begin(), jsel.end()), chrom1, chrom2, ev._fp->bins(),
-            std::vector<double>{}, 0, *ev.bin_mask(chrom1, chrom2).first,
-            *ev.bin_mask(chrom1, chrom2).second, std::numeric_limits<std::uint64_t>::max());
+        const ExpectedMatrix em(jsel, chrom1, chrom2, ev._fp->bins(), std::vector<double>{}, 0,
+                                *ev.bin_mask(chrom1, chrom2).first,
+                                *ev.bin_mask(chrom1, chrom2).second,
+                                std::numeric_limits<std::uint64_t>::max());
 
         ev._expected_values_trans.emplace(std::make_pair(chrom1, chrom2), em.nnz_avg());
       },
@@ -200,8 +206,8 @@ std::vector<double> ExpectedValues::expected_values(const hictk::Chromosome &chr
   const auto num_bins = (chrom.size() + _resolution - 1) / _resolution;
   assert(num_bins <= _expected_weights.size());
 
-  std::vector<double> weights(_expected_weights.begin(),
-                              _expected_weights.begin() + static_cast<std::ptrdiff_t>(num_bins));
+  std::vector weights(_expected_weights.begin(),
+                      _expected_weights.begin() + static_cast<std::ptrdiff_t>(num_bins));
 
   if (!rescale) {
     return weights;
@@ -237,7 +243,7 @@ ExpectedMatrix ExpectedValues::expected_matrix(const hictk::Chromosome &chrom) c
         const auto sel = fp.fetch(chrom.name());
         const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<N>(),
                                                           sel.template end<N>(), fp.bins_ptr());
-        return expected_matrix(chrom, _fp->bins(), std::ranges::subrange(jsel.begin(), jsel.end()));
+        return expected_matrix(chrom, _fp->bins(), jsel);
       },
       _fp->get());
 }
@@ -257,8 +263,7 @@ ExpectedMatrix ExpectedValues::expected_matrix(const hictk::Chromosome &chrom1,
         const auto sel = fp.fetch(chrom1.name(), chrom2.name());
         const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<N>(),
                                                           sel.template end<N>(), fp.bins_ptr());
-        return expected_matrix(chrom1, chrom2, fp.bins(),
-                               std::ranges::subrange(jsel.begin(), jsel.end()));
+        return expected_matrix(chrom1, chrom2, fp.bins(), jsel);
       },
       _fp->get());
 }
@@ -298,10 +303,7 @@ void ExpectedValues::init_bin_masks(
 
     if (!_bin_masks.contains(std::make_pair(chrom, chrom))) {
       const hictk::transformers::JoinGenomicCoords jsel(first, last, f.bins_ptr());
-      add_bin_mask(chrom,
-                   mad_max_filtering(std::ranges::subrange(jsel.begin(), jsel.end()), chrom,
-                                     f.resolution(), _mad_max),
-                   bin_mask_seed);
+      add_bin_mask(chrom, mad_max_filtering(jsel, chrom, f.resolution(), _mad_max), bin_mask_seed);
     }
   }
 }
@@ -390,13 +392,11 @@ void ExpectedValues::compute_expected_values_trans(
 
           if (!_bin_masks.contains(std::make_pair(chrom1, chrom2))) {
             add_bin_mask(chrom1, chrom2,
-                         mad_max_filtering(std::ranges::subrange(jsel.begin(), jsel.end()), chrom1,
-                                           chrom2, _resolution, _mad_max),
+                         mad_max_filtering(jsel, chrom1, chrom2, _resolution, _mad_max),
                          bin_mask_seed);
           }
 
-          const ExpectedMatrix em(std::ranges::subrange(jsel.begin(), jsel.end()), chrom1, chrom2,
-                                  _fp->bins(), std::vector<double>{}, 0,
+          const ExpectedMatrix em(jsel, chrom1, chrom2, f.bins(), std::vector<double>{}, 0,
                                   *bin_mask(chrom1, chrom2).first, *bin_mask(chrom1, chrom2).second,
                                   std::numeric_limits<std::uint64_t>::max());
           _expected_values_trans.emplace(std::make_pair(chrom1, chrom2), em.nnz_avg());
@@ -406,14 +406,14 @@ void ExpectedValues::compute_expected_values_trans(
 }
 
 void ExpectedValues::add_bin_mask(
-    const hictk::Chromosome &chrom, std::vector<bool> &&mask,
+    const hictk::Chromosome &chrom, std::vector<bool> mask,
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask_seed) {
   const auto key = std::make_pair(chrom, chrom);
   if (_bin_masks.contains(key)) {
     return;
   }
-  auto value = std::make_shared<std::vector<bool>>(std::move(mask));
-  auto match = bin_mask_seed.find(chrom);
+  const auto value = std::make_shared<std::vector<bool>>(std::move(mask));
+  const auto match = bin_mask_seed.find(chrom);
   if (match != bin_mask_seed.end()) {
     merge_bin_masks(*value, match->second);
   }
@@ -423,7 +423,7 @@ void ExpectedValues::add_bin_mask(
 
 void ExpectedValues::add_bin_mask(
     const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
-    std::pair<std::vector<bool>, std::vector<bool>> &&masks,
+    std::pair<std::vector<bool>, std::vector<bool>> masks,
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask_seed) {
   const auto key = std::make_pair(chrom1, chrom2);
   if (_bin_masks.contains(key)) {
@@ -464,13 +464,13 @@ void ExpectedValues::serialize_chromosomes(HighFive::File &f, const hictk::Refer
   auto grp = f.createGroup("chroms");
 
   std::vector<std::string> chromosome_names(chroms.size());
-  std::transform(chroms.begin(), chroms.end(), chromosome_names.begin(),
-                 [](const hictk::Chromosome &c) { return std::string{c.name()}; });
+  std::ranges::transform(chroms, chromosome_names.begin(),
+                         [](const hictk::Chromosome &c) { return std::string{c.name()}; });
   grp.createDataSet("name", chromosome_names);
 
   std::vector<std::uint32_t> chromosome_sizes(chroms.size());
-  std::transform(chroms.begin(), chroms.end(), chromosome_sizes.begin(),
-                 [](const hictk::Chromosome &c) { return c.size(); });
+  std::ranges::transform(chroms, chromosome_sizes.begin(),
+                         [](const hictk::Chromosome &c) { return c.size(); });
   grp.createDataSet("length", chromosome_sizes);
 }
 
@@ -530,8 +530,8 @@ void ExpectedValues::serialize_cis_profiles(
     grp.createDataSet("values", profile, props);
 
     std::vector<double> scaling_factors_flat(scaling_factors.size());
-    std::transform(scaling_factors.begin(), scaling_factors.end(), scaling_factors_flat.begin(),
-                   [](const auto &kv) { return kv.second; });
+    std::ranges::transform(scaling_factors, scaling_factors_flat.begin(),
+                           [](const auto &kv) { return kv.second; });
     grp.createDataSet("scaling-factors", scaling_factors_flat);
   }
 }
@@ -548,8 +548,8 @@ void ExpectedValues::serialize_trans_profiles(
   std::vector<double> values{};
 
   for (const auto &[cp, value] : nnz_avg_values) {
-    chrom1.emplace_back(std::string{cp.first.name()});   // NOLINT
-    chrom2.emplace_back(std::string{cp.second.name()});  // NOLINT
+    chrom1.emplace_back(cp.first.name());
+    chrom2.emplace_back(cp.second.name());
     values.emplace_back(value);
   }
 
@@ -559,14 +559,17 @@ void ExpectedValues::serialize_trans_profiles(
 }
 
 auto ExpectedValues::deserialize_attributes(const HighFive::File &f) -> Params {
-  return {f.getAttribute("mad_max").read<double>(),
-          f.getAttribute("min_delta").read<std::uint64_t>(),
-          f.getAttribute("max_delta").read<std::uint64_t>(),
-          f.getAttribute("bin_aggregation_possible_distances_cutoff").read<double>(),
-          f.getAttribute("bin_aggregation_observed_distances_cutoff").read<double>(),
-          f.getAttribute("interpolate").read<bool>(),
-          f.getAttribute("interpolation_qtile").read<double>(),
-          f.getAttribute("interpolation_window_size").read<std::uint32_t>()};
+  return {.mad_max = f.getAttribute("mad_max").read<double>(),
+          .min_delta = f.getAttribute("min_delta").read<std::uint64_t>(),
+          .max_delta = f.getAttribute("max_delta").read<std::uint64_t>(),
+          .bin_aggregation_possible_distances_cutoff =
+              f.getAttribute("bin_aggregation_possible_distances_cutoff").read<double>(),
+          .bin_aggregation_observed_distances_cutoff =
+              f.getAttribute("bin_aggregation_observed_distances_cutoff").read<double>(),
+          .interpolate = f.getAttribute("interpolate").read<bool>(),
+          .interpolation_qtile = f.getAttribute("interpolation_qtile").read<double>(),
+          .interpolation_window_size =
+              f.getAttribute("interpolation_window_size").read<std::uint32_t>()};
 }
 
 hictk::Reference ExpectedValues::deserialize_chromosomes(const HighFive::File &f) {
@@ -581,7 +584,7 @@ hictk::Reference ExpectedValues::deserialize_chromosomes(const HighFive::File &f
 }
 
 auto ExpectedValues::deserialize_bin_masks(HighFive::File &f)
-    -> const phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>> {
+    -> phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>> {
   const auto grp = f.getGroup("bin-masks");
   if (!grp.exist("chrom1")) {
     return {};
@@ -620,13 +623,14 @@ auto ExpectedValues::deserialize_bin_masks(HighFive::File &f)
 
     auto mask1_ptr = std::make_shared<const std::vector<bool>>(std::move(mask1));
     auto mask2_ptr = mask2.empty() ? mask1_ptr : std::make_shared<const std::vector<bool>>(mask2);
-    buffer.emplace(std::make_pair(chrom1, chrom2), std::make_pair(mask1_ptr, mask2_ptr));
+    buffer.emplace(std::make_pair(chrom1, chrom2),
+                   std::make_pair(std::move(mask1_ptr), std::move(mask2_ptr)));
   }
 
   return buffer;
 }
 
-std::pair<const std::vector<double>, const phmap::btree_map<hictk::Chromosome, double>>
+std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>
 ExpectedValues::deserialize_cis_profiles(const HighFive::File &f) {
   std::vector<double> weights{};
   if (f.exist("profile/values")) {
@@ -645,7 +649,7 @@ ExpectedValues::deserialize_cis_profiles(const HighFive::File &f) {
     }
   }
 
-  return std::make_pair(weights, scaling_factors);
+  return {weights, scaling_factors};
 }
 
 auto ExpectedValues::deserialize_trans_profiles(const HighFive::File &f)

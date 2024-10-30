@@ -23,18 +23,15 @@
 #include <cassert>
 #include <concepts>
 #include <cstddef>
-#include <memory>
 #include <numeric>
-#include <ranges>
-#include <stdexcept>
-#include <tuple>
 #include <utility>
 #include <vector>
 
 namespace nchg {
 
 template <typename Stats>
-inline BH_FDR<Stats>::BH_FDR(std::vector<Stats> pvalues_) : _pvalues(std::move(pvalues_)) {}
+inline BH_FDR<Stats>::BH_FDR(std::vector<Stats> pvalues_) noexcept
+    : _pvalues(std::move(pvalues_)) {}
 
 template <typename Stats>
 inline void BH_FDR<Stats>::add_record(Stats&& s) {
@@ -62,10 +59,9 @@ inline auto BH_FDR<Stats>::correct(UnaryOperation op) -> std::vector<Stats> {
   }
 
   _idx.resize(_pvalues.size());
-  std::iota(_idx.begin(), _idx.end(), 0);
+  std::ranges::iota(_idx, 0);
 
-  std::sort(_idx.begin(), _idx.end(),
-            [&](const auto i1, const auto i2) { return op(_pvalues[i1]) < op(_pvalues[i2]); });
+  std::ranges::sort(_idx, std::less{}, [&](const auto i) { return op(_pvalues[i]); });
 
   _ranks.resize(_pvalues.size());
   for (std::size_t i = 0; i < _ranks.size(); ++i) {

@@ -48,31 +48,58 @@ namespace nchg {
 
 struct SharedPtrStringCmp {
   using is_transparent = void;
-  bool operator()(const std::shared_ptr<std::string>& a,
-                  const std::shared_ptr<std::string>& b) const noexcept {
+  constexpr bool operator()(const std::shared_ptr<std::string>& a,
+                            const std::shared_ptr<std::string>& b) const noexcept {
     assert(!!a);
     assert(!!b);
     return *a < *b;
   }
 
-  bool operator()(const std::string& a, const std::shared_ptr<std::string>& b) const noexcept {
+  constexpr bool operator()(const std::string& a,
+                            const std::shared_ptr<std::string>& b) const noexcept {
     assert(!!b);
     return a < *b;
   }
 
-  bool operator()(const std::shared_ptr<std::string>& a, const std::string& b) const noexcept {
+  constexpr bool operator()(const std::shared_ptr<std::string>& a,
+                            const std::string& b) const noexcept {
     assert(!!a);
     return *a < b;
   }
 
-  bool operator()(std::string_view a, const std::shared_ptr<std::string>& b) const noexcept {
+  constexpr bool operator()(std::string_view a,
+                            const std::shared_ptr<std::string>& b) const noexcept {
     assert(!!b);
     return a < *b;
   }
 
-  bool operator()(const std::shared_ptr<std::string>& a, std::string_view b) const noexcept {
+  constexpr bool operator()(const std::shared_ptr<std::string>& a,
+                            std::string_view b) const noexcept {
     assert(!!a);
     return *a < b;
+  }
+};
+
+struct StringPairCmp {
+  using is_transparent = void;
+  constexpr bool operator()(const std::pair<std::string, std::string>& a,
+                            const std::pair<std::string, std::string>& b) const noexcept {
+    return a < b;
+  }
+
+  constexpr bool operator()(const std::pair<std::string_view, std::string_view>& a,
+                            const std::pair<std::string_view, std::string_view>& b) const noexcept {
+    return a < b;
+  }
+
+  constexpr bool operator()(const std::pair<std::string, std::string>& a,
+                            const std::pair<std::string_view, std::string_view>& b) const noexcept {
+    return a < b;
+  }
+
+  constexpr bool operator()(const std::pair<std::string_view, std::string_view>& a,
+                            const std::pair<std::string, std::string>& b) const noexcept {
+    return a < b;
   }
 };
 
@@ -88,38 +115,43 @@ struct PValue {
   double pvalue{};
 };
 
-[[nodiscard]] static auto read_records(const std::filesystem::path& path) {
-  SPDLOG_INFO("reading records from {}", path);
-  phmap::btree_map<ChromPair, std::vector<PValue>> records{};
+using ChromChromPvalueMap = phmap::btree_map<ChromPair, std::vector<PValue>, StringPairCmp>;
+using FlatPvalueMap = phmap::flat_hash_map<std::size_t, double>;
 
-  ParquetStatsFile<NCHGResult> f(path);
+[[nodiscard]] static ChromChromPvalueMap read_records(const std::filesystem::path& path) {
+  SPDLOG_INFO("reading records from {}", path);
+  ChromChromPvalueMap records{};
 
   std::size_t i = 0;
-  for (const auto& record : f) {
-    auto [it, inserted] =
-        records.try_emplace(std::make_pair(std::string{record.pixel.coords.bin1.chrom().name()},
-                                           std::string{record.pixel.coords.bin2.chrom().name()}),
-                            std::vector<PValue>{{i, record.pval}});
+  ParquetStatsFile f{path, ParquetStatsFile::RecordType::NCHGCompute};
+  std::for_each(f.begin<NCHGResult>(), f.end<NCHGResult>(), [&](const NCHGResult& record) {
+    const auto& chrom1 = record.pixel.coords.bin1.chrom();
+    const auto& chrom2 = record.pixel.coords.bin2.chrom();
 
-    if (!inserted) [[likely]] {
-      it->second.emplace_back(PValue{i, record.pval});
+    auto it = records.find(std::make_pair(chrom1.name(), chrom2.name()));
+    if (it == records.end()) [[unlikely]] {
+      it = records
+               .emplace(std::make_pair(std::string{chrom1.name()}, std::string{chrom2.name()}),
+                        std::vector<PValue>{})
+               .first;
     }
+
+    it->second.emplace_back(i, record.pval);
     ++i;
-  }
+  });
 
   return records;
 }
 
-static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<PValue>>& records) {
+[[nodiscard]] static FlatPvalueMap alloc_pvalue_hashmap(const ChromChromPvalueMap& records) {
   auto sizes =
       records | std::views::values | std::views::transform([](const auto& v) { return v.size(); });
   const auto num_records = std::ranges::fold_left(sizes, 0uz, std::plus{});
 
-  return phmap::flat_hash_map<std::size_t, double>(num_records);
+  return FlatPvalueMap{num_records};
 }
 
-[[nodiscard]] static phmap::flat_hash_map<std::size_t, double> correct_pvalues_chrom_chrom(
-    const phmap::btree_map<ChromPair, std::vector<PValue>>& records) {
+[[nodiscard]] static FlatPvalueMap correct_pvalues_chrom_chrom(const ChromChromPvalueMap& records) {
   SPDLOG_INFO("proceeding to correct pvalues for individual chromosome pairs separately...");
 
   const auto t0 = std::chrono::steady_clock::now();
@@ -133,7 +165,7 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
     bh.clear();
     bh.add_records(values);
 
-    for (const auto& record : bh.correct([](auto& record) -> double& { return record.pvalue; })) {
+    for (const auto& record : bh.correct([](auto& r) -> double& { return r.pvalue; })) {
       corrected_records.emplace(record.i, record.pvalue);
     }
     const auto t2 = std::chrono::steady_clock::now();
@@ -147,8 +179,7 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
   return corrected_records;
 }
 
-[[nodiscard]] static phmap::flat_hash_map<std::size_t, double> correct_pvalues_cis_trans(
-    const phmap::btree_map<ChromPair, std::vector<PValue>>& records) {
+[[nodiscard]] static FlatPvalueMap correct_pvalues_cis_trans(const ChromChromPvalueMap& records) {
   SPDLOG_INFO("proceeding to correct pvalues for cis and trans matrices separately...");
 
   const auto t0 = std::chrono::steady_clock::now();
@@ -165,12 +196,11 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
     }
   }
 
-  for (const auto& record : bh_cis.correct([](auto& record) -> double& { return record.pvalue; })) {
+  for (const auto& record : bh_cis.correct([](auto& r) -> double& { return r.pvalue; })) {
     corrected_records.emplace(record.i, record.pvalue);
   }
 
-  for (const auto& record :
-       bh_trans.correct([](auto& record) -> double& { return record.pvalue; })) {
+  for (const auto& record : bh_trans.correct([](auto& r) -> double& { return r.pvalue; })) {
     corrected_records.emplace(record.i, record.pvalue);
   }
 
@@ -180,8 +210,8 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
   return corrected_records;
 }
 
-[[nodiscard]] static phmap::flat_hash_map<std::size_t, double> correct_pvalues(
-    const phmap::btree_map<ChromPair, std::vector<PValue>>& records, const FilterConfig& c) {
+[[nodiscard]] static FlatPvalueMap correct_pvalues(const ChromChromPvalueMap& records,
+                                                   const FilterConfig& c) {
   if (c.correct_chrom_chrom_separately) {
     return correct_pvalues_chrom_chrom(records);
   }
@@ -200,7 +230,7 @@ static auto alloc_pvalue_hashmap(const phmap::btree_map<ChromPair, std::vector<P
 
   auto corrected_records = alloc_pvalue_hashmap(records);
 
-  for (const auto& record : bh.correct([](auto& record) -> double& { return record.pvalue; })) {
+  for (const auto& record : bh.correct([](auto& r) -> double& { return r.pvalue; })) {
     corrected_records.emplace(std::make_pair(record.i, record.pvalue));
   }
 
@@ -234,22 +264,25 @@ static_assert(has_log_ratio<NCHGFilterResult>::value);
 
 using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
 
-[[nodiscard]] static std::size_t producer_fx(
-    const FilterConfig& c, const phmap::flat_hash_map<std::size_t, double>& corrected_pvalues,
-    RecordQueue& queue, std::atomic<bool>& early_return) {
+[[nodiscard]] static std::size_t producer_fx(const FilterConfig& c,
+                                             const FlatPvalueMap& corrected_pvalues,
+                                             RecordQueue& queue, std::atomic<bool>& early_return) {
   std::size_t records_enqueued{};
   try {
-    for (const auto& r : ParquetStatsFile<NCHGResult>(c.input_path)) {
+    ParquetStatsFile f{c.input_path, ParquetStatsFile::RecordType::NCHGCompute};
+    auto first = f.begin<NCHGResult>();
+    const auto last = f.end<NCHGResult>();
+    for (; first != last; ++first) {
       if (early_return) [[unlikely]] {
         return records_enqueued;
       }
 
       const auto pvalue_corrected = corrected_pvalues.at(records_enqueued++);
-      assert(r.pval <= pvalue_corrected);
+      assert(first->pval <= pvalue_corrected);
 
-      if (!c.drop_non_significant || (pvalue_corrected <= c.fdr && r.log_ratio >= c.log_ratio))
+      if (!c.drop_non_significant || (pvalue_corrected <= c.fdr && first->log_ratio >= c.log_ratio))
           [[likely]] {
-        const NCHGFilterResult res{r, pvalue_corrected};
+        const NCHGFilterResult res{*first, pvalue_corrected};
         while (!queue.try_enqueue(res)) [[unlikely]] {
           if (early_return) [[unlikely]] {
             return records_enqueued;
@@ -279,12 +312,13 @@ using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
   SPDLOG_INFO("writing records to output file {}", c.output_path);
   std::size_t records_dequeued{};
   try {
-    const auto chroms = *ParquetStatsFile<NCHGResult>(c.input_path).chromosomes();
+    const auto chroms =
+        *ParquetStatsFile(c.input_path, ParquetStatsFile::RecordType::NCHGCompute).chromosomes();
 
-    auto writer = init_parquet_file_writer<NCHGFilterResult>(
+    const auto writer = init_parquet_file_writer<NCHGFilterResult>(
         chroms, c.output_path, c.force, c.compression_method, c.compression_lvl, c.threads - 2);
 
-    const std::size_t batch_size = 1'000'000;
+    constexpr std::size_t batch_size = 1'000'000;
     RecordBatchBuilder builder{chroms};
 
     NCHGFilterResult res{};
@@ -327,7 +361,7 @@ int run_nchg_filter(const FilterConfig& c) {
   const auto t0 = std::chrono::steady_clock::now();
   const auto corrected_pvalues = correct_pvalues(read_records(c.input_path), c);
 
-  RecordQueue queue{64 * 1024};
+  RecordQueue queue{64uz * 1024uz};
   std::atomic<bool> early_return{};
 
   auto producer = std::async(std::launch::deferred, [&] {

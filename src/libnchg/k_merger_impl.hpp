@@ -90,7 +90,7 @@ inline KMerger<It>::iterator<ItInternal>::iterator(std::shared_ptr<std::vector<I
     : _pqueue(std::make_shared<PQueueT>()), _heads(std::move(heads)), _tails(std::move(tails)) {
   assert(_heads->size() == _tails->size());
   for (auto &it : *_heads) {
-    _pqueue->emplace(Node{*it, _pqueue->size()});
+    _pqueue->emplace(*it, _pqueue->size());
     std::ignore = ++it;
   }
   _value = next();
@@ -195,7 +195,7 @@ inline void KMerger<It>::iterator<ItInternal>::replace_top_node() {
   const auto i = _pqueue->top().i;
   _pqueue->pop();
   if (auto &it = (*_heads)[i]; it != (*_tails)[i]) [[likely]] {
-    _pqueue->emplace(Node{*it, i});
+    _pqueue->emplace(*it, i);
     std::ignore = ++it;
   }
 }

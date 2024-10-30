@@ -216,6 +216,7 @@ def validate_table(expected_path: pathlib.Path, found_path: pathlib.Path):
 
 
 def validate_nchg_compute(test_prefix: pathlib.Path, ref_prefix: pathlib.Path) -> int:
+    logging.info(f"### NCHG compute: validating {test_prefix}...")
     if test_prefix == ref_prefix:
         raise RuntimeError(f"test-prefix and ref-prefix point to the same files: {ref_prefix}")
 
@@ -257,6 +258,7 @@ def validate_nchg_compute(test_prefix: pathlib.Path, ref_prefix: pathlib.Path) -
 
 
 def validate_nchg_merge(test_file: pathlib.Path, ref_file: pathlib.Path) -> int:
+    logging.info(f"### NCHG merge: validating {test_file}...")
     if test_file.resolve() == ref_file.resolve():
         raise RuntimeError(f"test-parquet and ref-parquet point to the same file: {ref_file}")
 
@@ -269,6 +271,7 @@ def validate_nchg_merge(test_file: pathlib.Path, ref_file: pathlib.Path) -> int:
 
 
 def validate_nchg_filter(test_file: pathlib.Path, ref_file: pathlib.Path) -> int:
+    logging.info(f"### NCHG filter: validating {test_file}...")
     if test_file.resolve() == ref_file.resolve():
         raise RuntimeError(f"test-parquet and ref-parquet point to the same file: {ref_file}")
 
@@ -281,6 +284,7 @@ def validate_nchg_filter(test_file: pathlib.Path, ref_file: pathlib.Path) -> int
 
 
 def validate_nchg_view(test_file: pathlib.Path, ref_file: pathlib.Path) -> int:
+    logging.info(f"### NCHG view: validating {test_file}...")
     if test_file.resolve() == ref_file.resolve():
         raise RuntimeError(f"test-tsv and ref-tsv point to the same file: {ref_file}")
 
@@ -293,6 +297,7 @@ def validate_nchg_view(test_file: pathlib.Path, ref_file: pathlib.Path) -> int:
 
 
 def validate_nchg_expected(test_file: pathlib.Path, ref_file: pathlib.Path) -> int:
+    logging.info(f"### NCHG expected: validating {test_file}...")
     import h5py
 
     # TODO fixme

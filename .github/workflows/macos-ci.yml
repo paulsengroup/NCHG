@@ -444,32 +444,98 @@ jobs:
 
           echo "NPROC=$ncpus" >> $GITHUB_ENV
 
+      - name: Setup test dependencies
+        run: |
+          pip3 install -r test/requirements.txt
+
       - name: Test NCHG compute (mt)
         run: |
-          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --threads "$NPROC" out
-          rm out*
+          bin/NCHG compute                                     \
+            test/data/ENCFF447ERX.1000000.cool                 \
+            "$OUT_PREFIX"                                      \
+            --threads "$NPROC"
+
+          test/scripts/validate_nchg_output.py compute \
+            "$OUT_PREFIX"                              \
+            "$DATA_DIR/compute/$OUT_PREFIX"
+
+          rm "$OUT_PREFIX"*
 
       - name: Test NCHG compute (st)
         run: |
-          bin/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads 1 out
+          bin/NCHG compute                                     \
+            test/data/ENCFF447ERX.1000000.cool                 \
+            "$OUT_PREFIX"                                      \
+            --cis-only                                         \
+            --threads 1
+
+          rm "$OUT_PREFIX"*
 
       - name: Test NCHG merge
         run: |
-          bin/NCHG merge out out.parquet --threads "$NPROC"
+          bin/NCHG merge                                       \
+            "$DATA_DIR/compute/$OUT_PREFIX"                    \
+            "$OUT_PREFIX.parquet"                              \
+            --threads "$NPROC"
+
+          test/scripts/validate_nchg_output.py merge \
+            "$OUT_PREFIX.parquet"                    \
+            "$DATA_DIR/merge/$OUT_PREFIX.parquet"
+
+          rm "$OUT_PREFIX"*
 
       - name: Test NCHG filter
         run: |
-          bin/NCHG filter out.parquet out.filtered.parquet --threads "$NPROC"
+          bin/NCHG filter                                         \
+            "$DATA_DIR/merge/$OUT_PREFIX.parquet"                 \
+            "$OUT_PREFIX.filtered.parquet"                        \
+            --threads "$NPROC"
 
-      - name: Test NCHG view
+          test/scripts/validate_nchg_output.py filter \
+            "$OUT_PREFIX.filtered.parquet"            \
+            "$DATA_DIR/filter/$OUT_PREFIX.parquet"
+
+          rm "$OUT_PREFIX"*
+
+      - name: Test NCHG view (compute)
         run: |
-          bin/NCHG view out.parquet > /dev/null
-          bin/NCHG view out.filtered.parquet > /dev/null
+          bin/NCHG view                                        \
+            "$DATA_DIR/merge/$OUT_PREFIX.parquet" > /dev/null
 
-      - name: Test NCHG expected
+      - name: Test NCHG view (filter)
+        run: |
+          bin/NCHG view                                        \
+            "$DATA_DIR/filter/$OUT_PREFIX.parquet"             \
+            > "$OUT_PREFIX.tsv"
+
+          test/scripts/validate_nchg_output.py view  \
+            "$OUT_PREFIX.tsv"                        \
+            "$DATA_DIR/view/$OUT_PREFIX.tsv"
+
+          rm "$OUT_PREFIX"*
+
+      - name: Test NCHG expected (w/ mask)
         run: |
           printf 'chr1\t0\t248956422' > mask.bed
-          bin/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5 --bin-mask mask.bed
+
+          bin/NCHG expected                                    \
+            test/data/ENCFF447ERX.1000000.cool                 \
+            --output "$OUT_PREFIX.h5"                          \
+            --bin-mask mask.bed
+
+          rm "$OUT_PREFIX"* mask.bed
+
+      - name: Test NCHG expected (wo/ mask)
+        run: |
+          bin/NCHG expected                                    \
+            test/data/ENCFF447ERX.1000000.cool                 \
+            --output "$OUT_PREFIX.h5"
+
+          test/scripts/validate_nchg_output.py expected  \
+            "$OUT_PREFIX.h5"                             \
+            "$DATA_DIR/expected/$OUT_PREFIX.h5"
+
+          rm "$OUT_PREFIX"*
 
   macos-ci-status-check:
     name: Status Check (MacOS CI)

@@ -206,7 +206,7 @@ static std::shared_ptr<arrow::Array> make_chrom_dict(const hictk::Reference &chr
     };
 
     auto file_has_nchg_filter_records = [&] {
-      return std::ranges::all_of(expected_columns_nchg_compute, schema_has_column);
+      return std::ranges::all_of(expected_columns_nchg_filter, schema_has_column);
     };
 
     switch (expected_type) {

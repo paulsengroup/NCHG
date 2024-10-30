@@ -205,10 +205,10 @@ int run_nchg_view(const ViewConfig& c) {
   assert(f.record_type() == ParquetStatsFile::RecordType::NCHGFilter);
   using T = NCHGFilterResult;
   if (c.with_header) {
-    print_header<NCHGFilterResult>();
+    print_header<T>();
   }
 
-  std::for_each(f.begin<NCHGFilterResult>(), f.end<NCHGFilterResult>(), [&](const auto& record) {
+  std::for_each(f.begin<T>(), f.end<T>(), [&](const auto& record) {
     process_record(record, filter_by_coords1, chrom1, start1, end1, filter_by_coords2, chrom2,
                    start2, end2, c.pvalue_cutoff, c.log_ratio_cutoff);
   });

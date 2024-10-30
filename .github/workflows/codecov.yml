@@ -137,6 +137,7 @@ jobs:
                 -DOPT_ENABLE_CPPCHECK=OFF                     \
                 -DOPT_ENABLE_CLANG_TIDY=OFF                   \
                 -DNCHG_ENABLE_TESTING=ON                      \
+                -DNCHG_DOWNLOAD_TEST_DATASET=OFF              \
                 -DCMAKE_C_FLAGS="$cov_flags"                  \
                 -DCMAKE_CXX_FLAGS="$cov_flags"                \
                 -S .                                          \

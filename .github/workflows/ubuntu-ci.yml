@@ -245,6 +245,7 @@ jobs:
                 -DOPT_ENABLE_CLANG_TIDY=OFF                          \
                 -DOPT_ENABLE_CPPCHECK=OFF                            \
                 -DNCHG_ENABLE_TESTING=ON                             \
+                -DNCHG_DOWNLOAD_TEST_DATASET=OFF                     \
                 -DCMAKE_INSTALL_PREFIX=dest                          \
                 -S .                                                 \
                 -B build

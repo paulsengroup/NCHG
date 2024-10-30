@@ -33,99 +33,18 @@
 
 #include "nchg/common.hpp"
 #include "nchg/concepts.hpp"
+#include "nchg/matrix_stats.hpp"
 
 namespace nchg {
 
 template <typename Pixels>
   requires PixelRange<Pixels>
-inline auto ExpectedMatrix::compute_stats(const Pixels &pixels, const hictk::Chromosome &chrom1,
-                                          const hictk::Chromosome &chrom2,
-                                          const hictk::BinTable &bins,
-                                          const std::vector<double> &weights,
-                                          const std::vector<bool> &bin_mask1,
-                                          const std::vector<bool> &bin_mask2,
-                                          std::uint64_t min_delta_, std::uint64_t max_delta_) {
-  struct Result {
-    using BuffT = std::vector<double>;
-    std::shared_ptr<BuffT> marginals1{std::make_shared<BuffT>()};
-    std::shared_ptr<BuffT> marginals2{std::make_shared<BuffT>()};
-    double sum{};
-    std::uint64_t nnz{};
-  };
-
-  Result res{};
-  const auto intra_matrix = chrom1 == chrom2;
-  if (intra_matrix) {
-    res.marginals2 = res.marginals1;
-  }
-
-  const auto bin_size = bins.resolution();
-  const auto num_bins1 = (chrom1.size() + bin_size - 1) / bin_size;
-  const auto num_bins2 = (chrom2.size() + bin_size - 1) / bin_size;
-
-  if (num_bins1 == 0 || num_bins2 == 0) {
-    return res;
-  }
-
-  auto &marginals1_ = *res.marginals1;
-  auto &marginals2_ = *res.marginals2;
-  auto &sum_ = res.sum;
-  auto &nnz_ = res.nnz;
-  marginals1_.resize(num_bins1, 0);
-  marginals2_.resize(num_bins2, 0);
-
-  for (const auto &p : pixels) {
-    const auto &bin1 = p.coords.bin1;
-    const auto &bin2 = p.coords.bin2;
-    const auto delta = bin2.start() - bin1.start();
-    if (intra_matrix && (delta < min_delta_ || delta >= max_delta_)) [[unlikely]] {
-      continue;
-    }
-
-    const auto bin1_id = p.coords.bin1.rel_id();
-    const auto bin2_id = p.coords.bin2.rel_id();
-
-    const auto bin1_masked = !bin_mask1.empty() && bin_mask1[bin1_id];
-    const auto bin2_masked = !bin_mask2.empty() && bin_mask2[bin2_id];
-
-    if (bin1_masked || bin2_masked) [[unlikely]] {
-      continue;
-    }
-
-    auto count =
-        intra_matrix ? weights.at(bin2.id() - bin1.id()) : conditional_static_cast<double>(p.count);
-    if (std::isnan(count)) [[unlikely]] {
-      count = 0.0;
-    }
-
-    if (intra_matrix) {
-      sum_ += bin1 == bin2 ? count : 2 * count;
-      nnz_ += bin1 == bin2 ? 1ULL : 2ULL;
-    } else {
-      sum_ += count;
-      ++nnz_;
-    }
-
-    const auto i1 = bin1.rel_id();
-    marginals1_[i1] += count;
-
-    if (!intra_matrix || bin1 != bin2) {
-      const auto i2 = bin2.rel_id();
-      marginals2_[i2] += count;
-    }
-  }
-
-  return res;
-}
-
-template <typename Pixels>
-  requires PixelRange<Pixels>
-inline ExpectedMatrix::ExpectedMatrix(const Pixels &pixels, hictk::Chromosome chrom1,
-                                      hictk::Chromosome chrom2, hictk::BinTable bins,
-                                      std::vector<double> weights, double scaling_factor,
-                                      const std::vector<bool> &bin_mask1,
-                                      const std::vector<bool> &bin_mask2, std::uint64_t min_delta_,
-                                      std::uint64_t max_delta_)
+inline ExpectedMatrixStats::ExpectedMatrixStats(const Pixels &pixels, hictk::Chromosome chrom1,
+                                                hictk::Chromosome chrom2, hictk::BinTable bins,
+                                                std::vector<double> weights, double scaling_factor,
+                                                const std::vector<bool> &bin_mask1,
+                                                const std::vector<bool> &bin_mask2,
+                                                std::uint64_t min_delta_, std::uint64_t max_delta_)
     : _chrom1(std::move(chrom1)),
       _chrom2(std::move(chrom2)),
       _bins(std::move(bins)),
@@ -137,8 +56,10 @@ inline ExpectedMatrix::ExpectedMatrix(const Pixels &pixels, hictk::Chromosome ch
                            [&](const auto n) { return n / scaling_factor; });
   }
 
-  auto stats = compute_stats(pixels, _chrom1, _chrom2, _bins, _weights, bin_mask1, bin_mask2,
-                             min_delta_, max_delta_);
+  MatrixStats<double> stats(_chrom1, _chrom2, bin_mask1, bin_mask2, bins.resolution(), min_delta_,
+                            max_delta_, _weights);
+  stats.add(pixels);
+
   _marginals1 = std::move(stats.marginals1);
   _marginals2 = std::move(stats.marginals2);
   _nnz = stats.nnz;
@@ -147,21 +68,22 @@ inline ExpectedMatrix::ExpectedMatrix(const Pixels &pixels, hictk::Chromosome ch
 
 template <typename Pixels, typename PixelsGW>
   requires PixelRange<Pixels> && PixelRange<PixelsGW>
-inline ExpectedMatrix::ExpectedMatrix(const Pixels &pixels, const PixelsGW &pixels_gw,
-                                      const hictk::Chromosome &chrom1,
-                                      const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
-                                      const std::vector<bool> &bin_mask1,
-                                      const std::vector<bool> &bin_mask2, std::uint64_t min_delta_,
-                                      std::uint64_t max_delta_)
-    : ExpectedMatrix(pixels, chrom1, chrom2, bins,
-                     compute_weights(pixels_gw, chrom1, chrom2, bins, min_delta_, max_delta_), 1.0,
-                     bin_mask1, bin_mask2, min_delta_, max_delta_) {}
+inline ExpectedMatrixStats::ExpectedMatrixStats(const Pixels &pixels, const PixelsGW &pixels_gw,
+                                                const hictk::Chromosome &chrom1,
+                                                const hictk::Chromosome &chrom2,
+                                                const hictk::BinTable &bins,
+                                                const std::vector<bool> &bin_mask1,
+                                                const std::vector<bool> &bin_mask2,
+                                                std::uint64_t min_delta_, std::uint64_t max_delta_)
+    : ExpectedMatrixStats(pixels, chrom1, chrom2, bins,
+                          compute_weights(pixels_gw, chrom1, chrom2, bins, min_delta_, max_delta_),
+                          1.0, bin_mask1, bin_mask2, min_delta_, max_delta_) {}
 
 template <typename Pixels>
   requires PixelRange<Pixels>
 inline std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>
-ExpectedMatrix::build_expected_vector(const Pixels &pixels, const hictk::BinTable &bins,
-                                      std::uint64_t min_delta_, std::uint64_t max_delta_) {
+ExpectedMatrixStats::build_expected_vector(const Pixels &pixels, const hictk::BinTable &bins,
+                                           std::uint64_t min_delta_, std::uint64_t max_delta_) {
   if (std::ranges::empty(pixels)) {
     phmap::btree_map<hictk::Chromosome, double> scaling_factors{};
     std::ranges::transform(
@@ -193,7 +115,7 @@ ExpectedMatrix::build_expected_vector(const Pixels &pixels, const hictk::BinTabl
 
 template <typename Pixels>
   requires PixelRange<Pixels>
-inline std::vector<double> ExpectedMatrix::compute_weights(
+inline std::vector<double> ExpectedMatrixStats::compute_weights(
     const Pixels &pixels, const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
     const hictk::BinTable &bins, std::uint64_t min_delta_, std::uint64_t max_delta_) {
   if (chrom1 != chrom2) {

@@ -73,7 +73,7 @@ class NCHG {
   hictk::Chromosome _chrom1{};
   hictk::Chromosome _chrom2{};
 
-  std::shared_ptr<const ExpectedMatrix> _exp_matrix{};
+  std::shared_ptr<const ExpectedMatrixStats> _exp_matrix{};
   std::shared_ptr<const ObservedMatrix> _obs_matrix{};
   ExpectedValues _expected_values{};
 
@@ -94,7 +94,7 @@ class NCHG {
   [[nodiscard]] auto params() const noexcept -> Params;
 
   [[nodiscard]] const ObservedMatrix& observed_matrix() const noexcept;
-  [[nodiscard]] const ExpectedMatrix& expected_matrix() const noexcept;
+  [[nodiscard]] const ExpectedMatrixStats& expected_matrix() const noexcept;
 
   [[nodiscard]] auto compute(const hictk::GenomicInterval& range, double bad_bin_fraction) const
       -> Stats;
@@ -116,7 +116,7 @@ class NCHG {
   compute_expected_profile() const;
 
  private:
-  [[nodiscard]] static std::shared_ptr<const ExpectedMatrix> init_exp_matrix(
+  [[nodiscard]] static std::shared_ptr<const ExpectedMatrixStats> init_exp_matrix(
       const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2, const hictk::File& f,
       const ExpectedValues& expected_values);
   [[nodiscard]] static std::shared_ptr<const ObservedMatrix> init_obs_matrix(
@@ -150,7 +150,7 @@ class NCHG {
     PixelIt _sentinel_it{};
 
     std::shared_ptr<const ObservedMatrix> _obs{};
-    std::shared_ptr<const ExpectedMatrix> _exp{};
+    std::shared_ptr<const ExpectedMatrixStats> _exp{};
 
     std::shared_ptr<const std::vector<bool>> _bin_mask1{};
     std::shared_ptr<const std::vector<bool>> _bin_mask2{};
@@ -173,13 +173,13 @@ class NCHG {
 
     iterator() = default;
     iterator(PixelSelector sel, std::shared_ptr<const ObservedMatrix> obs,
-             std::shared_ptr<const ExpectedMatrix> exp,
+             std::shared_ptr<const ExpectedMatrixStats> exp,
              std::shared_ptr<const std::vector<bool>> bin_mask1,
              std::shared_ptr<const std::vector<bool>> bin_mask2, std::uint64_t min_delta,
              std::uint64_t max_delta);
 
     [[nodiscard]] static auto at_end(PixelSelector sel, std::shared_ptr<const ObservedMatrix> obs,
-                                     std::shared_ptr<const ExpectedMatrix> exp) -> iterator;
+                                     std::shared_ptr<const ExpectedMatrixStats> exp) -> iterator;
 
     iterator(const iterator& other);
     iterator(iterator&& other) noexcept = default;

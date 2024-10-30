@@ -33,7 +33,7 @@
 
 namespace nchg {
 
-class ExpectedMatrix {
+class ExpectedMatrixStats {
   hictk::Chromosome _chrom1{};
   hictk::Chromosome _chrom2{};
 
@@ -53,19 +53,19 @@ class ExpectedMatrix {
  public:
   template <typename Pixels>
     requires PixelRange<Pixels>
-  ExpectedMatrix(const Pixels &pixels, hictk::Chromosome chrom1, hictk::Chromosome chrom2,
-                 hictk::BinTable bins, std::vector<double> weights, double scaling_factor,
-                 const std::vector<bool> &bin_mask1 = {}, const std::vector<bool> &bin_mask2 = {},
-                 std::uint64_t min_delta_ = 0,
-                 std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max());
+  ExpectedMatrixStats(const Pixels &pixels, hictk::Chromosome chrom1, hictk::Chromosome chrom2,
+                      hictk::BinTable bins, std::vector<double> weights, double scaling_factor,
+                      const std::vector<bool> &bin_mask1 = {},
+                      const std::vector<bool> &bin_mask2 = {}, std::uint64_t min_delta_ = 0,
+                      std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max());
 
   template <typename Pixels, typename PixelsGW>
     requires PixelRange<Pixels> && PixelRange<PixelsGW>
-  ExpectedMatrix(const Pixels &pixels, const PixelsGW &pixels_gw, const hictk::Chromosome &chrom1,
-                 const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
-                 const std::vector<bool> &bin_mask1 = {}, const std::vector<bool> &bin_mask2 = {},
-                 std::uint64_t min_delta_ = 0,
-                 std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max());
+  ExpectedMatrixStats(const Pixels &pixels, const PixelsGW &pixels_gw,
+                      const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
+                      const hictk::BinTable &bins, const std::vector<bool> &bin_mask1 = {},
+                      const std::vector<bool> &bin_mask2 = {}, std::uint64_t min_delta_ = 0,
+                      std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max());
 
   [[nodiscard]] std::uint32_t resolution() const noexcept;
   [[nodiscard]] std::size_t num_rows() const noexcept;
@@ -95,13 +95,6 @@ class ExpectedMatrix {
   build_expected_vector(const Pixels &pixels, const hictk::BinTable &bins, std::uint64_t min_delta_,
                         std::uint64_t max_delta_);
 
-  template <typename Pixels>
-    requires PixelRange<Pixels>
-  static auto compute_stats(const Pixels &pixels, const hictk::Chromosome &chrom1,
-                            const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
-                            const std::vector<double> &weights, const std::vector<bool> &bin_mask1,
-                            const std::vector<bool> &bin_mask2, std::uint64_t min_delta_,
-                            std::uint64_t max_delta_);
   template <typename Pixels>
     requires PixelRange<Pixels>
   static std::vector<double> compute_weights(const Pixels &pixels, const hictk::Chromosome &chrom1,

@@ -56,7 +56,7 @@ namespace internal {
 template <typename PixelSelector>
 inline NCHG::iterator<PixelSelector>::iterator(PixelSelector selector,
                                                std::shared_ptr<const ObservedMatrix> obs,
-                                               std::shared_ptr<const ExpectedMatrix> exp,
+                                               std::shared_ptr<const ExpectedMatrixStats> exp,
                                                std::shared_ptr<const std::vector<bool>> bin_mask1,
                                                std::shared_ptr<const std::vector<bool>> bin_mask2,
                                                std::uint64_t min_delta, std::uint64_t max_delta)
@@ -75,7 +75,7 @@ inline NCHG::iterator<PixelSelector>::iterator(PixelSelector selector,
 template <typename PixelSelector>
 inline auto NCHG::iterator<PixelSelector>::at_end(PixelSelector selector,
                                                   std::shared_ptr<const ObservedMatrix> obs,
-                                                  std::shared_ptr<const ExpectedMatrix> exp)
+                                                  std::shared_ptr<const ExpectedMatrixStats> exp)
     -> iterator {
   iterator it{};
   it._sel = std::make_shared<const PixelSelector>(std::move(selector));

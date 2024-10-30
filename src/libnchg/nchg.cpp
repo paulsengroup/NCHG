@@ -77,7 +77,7 @@ auto NCHG::params() const noexcept -> Params { return _expected_values.params();
 
 const ObservedMatrix &NCHG::observed_matrix() const noexcept { return *_obs_matrix; }
 
-const ExpectedMatrix &NCHG::expected_matrix() const noexcept { return *_exp_matrix; }
+const ExpectedMatrixStats &NCHG::expected_matrix() const noexcept { return *_exp_matrix; }
 
 auto NCHG::compute(const hictk::GenomicInterval &range, double bad_bin_fraction) const -> Stats {
   return compute(range, range, bad_bin_fraction);
@@ -229,15 +229,15 @@ auto NCHG::end(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2)
 
 auto NCHG::init_exp_matrix(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
                            const hictk::File &f, const ExpectedValues &expected_values)
-    -> std::shared_ptr<const ExpectedMatrix> {
+    -> std::shared_ptr<const ExpectedMatrixStats> {
   SPDLOG_INFO("[{}:{}] initializing expected matrix...", chrom1.name(), chrom2.name());
 
   return std::visit(
       [&](const auto &fp) {
         const auto sel = fp.fetch(chrom1.name(), chrom2.name());
         const auto jsel = hictk::transformers::JoinGenomicCoords(
-            sel.template begin<N>(), sel.template end<N>(), fp.bins_ptr());
-        return std::make_shared<const ExpectedMatrix>(
+            sel.template begin<double>(), sel.template end<double>(), fp.bins_ptr());
+        return std::make_shared<const ExpectedMatrixStats>(
             expected_values.expected_matrix(chrom1, chrom2, fp.bins(), jsel));
       },
       f.get());
@@ -363,8 +363,8 @@ NCHG::compute_expected_profile() const {
         const hictk::transformers::JoinGenomicCoords mjsel(merger.begin(), merger.end(),
                                                            f.bins_ptr());
 
-        return ExpectedMatrix::build_expected_vector(mjsel, f.bins(), params().min_delta,
-                                                     params().max_delta);
+        return ExpectedMatrixStats::build_expected_vector(mjsel, f.bins(), params().min_delta,
+                                                          params().max_delta);
       },
       _fp->get());
 }

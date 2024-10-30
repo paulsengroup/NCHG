@@ -124,8 +124,8 @@ ExpectedValues ExpectedValues::chromosome_pair(
   std::visit(
       [&](const auto &fp) {
         const auto sel = fp.fetch(chrom1.name(), chrom2.name());
-        const hictk::transformers::JoinGenomicCoords jsel(
-            sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), fp.bins_ptr());
+        const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<N>(),
+                                                          sel.template end<N>(), fp.bins_ptr());
 
         if (!ev._bin_masks.contains(std::make_pair(chrom1, chrom2))) {
           ev.add_bin_mask(chrom1, chrom2,
@@ -134,10 +134,10 @@ ExpectedValues ExpectedValues::chromosome_pair(
                           bin_mask);
         }
 
-        const ExpectedMatrix em(jsel, chrom1, chrom2, ev._fp->bins(), std::vector<double>{}, 0,
-                                *ev.bin_mask(chrom1, chrom2).first,
-                                *ev.bin_mask(chrom1, chrom2).second,
-                                std::numeric_limits<std::uint64_t>::max());
+        const ExpectedMatrixStats em(jsel, chrom1, chrom2, ev._fp->bins(), std::vector<N>{}, 0,
+                                     *ev.bin_mask(chrom1, chrom2).first,
+                                     *ev.bin_mask(chrom1, chrom2).second,
+                                     std::numeric_limits<std::uint64_t>::max());
 
         ev._expected_values_trans.emplace(std::make_pair(chrom1, chrom2), em.nnz_avg());
       },
@@ -233,7 +233,7 @@ double ExpectedValues::scaling_factor(const hictk::Chromosome &chrom) const {
   return scaling_factors().at(chrom);
 }
 
-ExpectedMatrix ExpectedValues::expected_matrix(const hictk::Chromosome &chrom) const {
+ExpectedMatrixStats ExpectedValues::expected_matrix(const hictk::Chromosome &chrom) const {
   if (!_fp) {
     throw std::logic_error("ExpectedValues::expected_matrix() was called on a null file");
   }
@@ -248,8 +248,8 @@ ExpectedMatrix ExpectedValues::expected_matrix(const hictk::Chromosome &chrom) c
       _fp->get());
 }
 
-ExpectedMatrix ExpectedValues::expected_matrix(const hictk::Chromosome &chrom1,
-                                               const hictk::Chromosome &chrom2) const {
+ExpectedMatrixStats ExpectedValues::expected_matrix(const hictk::Chromosome &chrom1,
+                                                    const hictk::Chromosome &chrom2) const {
   if (chrom1 == chrom2) {
     return expected_matrix(chrom1);
   }
@@ -396,9 +396,9 @@ void ExpectedValues::compute_expected_values_trans(
                          bin_mask_seed);
           }
 
-          const ExpectedMatrix em(jsel, chrom1, chrom2, f.bins(), std::vector<double>{}, 0,
-                                  *bin_mask(chrom1, chrom2).first, *bin_mask(chrom1, chrom2).second,
-                                  std::numeric_limits<std::uint64_t>::max());
+          const ExpectedMatrixStats em(
+              jsel, chrom1, chrom2, f.bins(), std::vector<N>{}, 0, *bin_mask(chrom1, chrom2).first,
+              *bin_mask(chrom1, chrom2).second, std::numeric_limits<std::uint64_t>::max());
           _expected_values_trans.emplace(std::make_pair(chrom1, chrom2), em.nnz_avg());
         }
       },

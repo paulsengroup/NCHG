@@ -33,9 +33,9 @@ namespace nchg {
 
 template <typename Pixels>
   requires PixelRange<Pixels>
-inline ExpectedMatrix ExpectedValues::expected_matrix(const hictk::Chromosome &chrom,
-                                                      const hictk::BinTable &bins,
-                                                      const Pixels &pixels) const {
+inline ExpectedMatrixStats ExpectedValues::expected_matrix(const hictk::Chromosome &chrom,
+                                                           const hictk::BinTable &bins,
+                                                           const Pixels &pixels) const {
   return {pixels,
           chrom,
           chrom,
@@ -50,10 +50,10 @@ inline ExpectedMatrix ExpectedValues::expected_matrix(const hictk::Chromosome &c
 
 template <typename Pixels>
   requires PixelRange<Pixels>
-inline ExpectedMatrix ExpectedValues::expected_matrix(const hictk::Chromosome &chrom1,
-                                                      const hictk::Chromosome &chrom2,
-                                                      const hictk::BinTable &bins,
-                                                      const Pixels &pixels) const {
+inline ExpectedMatrixStats ExpectedValues::expected_matrix(const hictk::Chromosome &chrom1,
+                                                           const hictk::Chromosome &chrom2,
+                                                           const hictk::BinTable &bins,
+                                                           const Pixels &pixels) const {
   if (chrom1 == chrom2) {
     return expected_matrix(chrom1, bins, pixels);
   }
@@ -62,7 +62,7 @@ inline ExpectedMatrix ExpectedValues::expected_matrix(const hictk::Chromosome &c
           chrom1,
           chrom2,
           bins,
-          std::vector<double>{},
+          std::vector<N>{},
           1.0,
           *bin_mask(chrom1, chrom2).first,
           *bin_mask(chrom1, chrom2).second,

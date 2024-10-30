@@ -27,86 +27,9 @@
 #include <vector>
 
 #include "nchg/concepts.hpp"
+#include "nchg/matrix_stats.hpp"
 
 namespace nchg {
-
-template <typename Pixels>
-  requires PixelRange<Pixels>
-inline auto ObservedMatrix::compute_stats(const Pixels &pixels, const hictk::Chromosome &chrom1,
-                                          const hictk::Chromosome &chrom2,
-                                          const hictk::BinTable &bins,
-                                          const std::vector<bool> &bin_mask1,
-                                          const std::vector<bool> &bin_mask2,
-                                          std::uint64_t min_delta_, std::uint64_t max_delta_) {
-  assert(min_delta_ <= max_delta_);
-  struct Result {
-    using BuffT = std::vector<std::uint64_t>;
-    std::shared_ptr<BuffT> marginals1{std::make_shared<BuffT>()};
-    std::shared_ptr<BuffT> marginals2{std::make_shared<BuffT>()};
-    std::uint64_t sum{};
-    std::uint64_t nnz{};
-  };
-
-  Result res{};
-  const auto intra_matrix = chrom1 == chrom2;
-  if (intra_matrix) {
-    res.marginals2 = res.marginals1;
-  }
-
-  const auto bins1 = bins.subset(chrom1);
-  const auto bins2 = bins.subset(chrom2);
-
-  if (bins1.empty() || bins2.empty()) {
-    return res;
-  }
-
-  const auto num_bins1 = bins1.size();
-  const auto num_bins2 = bins2.size();
-
-  auto &marginals1_ = *res.marginals1;
-  auto &marginals2_ = *res.marginals2;
-  auto &sum_ = res.sum;
-  auto &nnz_ = res.nnz;
-  marginals1_.resize(num_bins1, 0);
-  marginals2_.resize(num_bins2, 0);
-
-  for (const hictk::Pixel<N> &p : pixels) {
-    const auto &bin1 = p.coords.bin1;
-    const auto &bin2 = p.coords.bin2;
-    const auto delta = bin2.start() - bin1.start();
-    if (intra_matrix && (delta < min_delta_ || delta >= max_delta_)) [[unlikely]] {
-      continue;
-    }
-
-    const auto bin1_id = p.coords.bin1.rel_id();
-    const auto bin2_id = p.coords.bin2.rel_id();
-
-    const auto bin1_masked = !bin_mask1.empty() && bin_mask1[bin1_id];
-    const auto bin2_masked = !bin_mask2.empty() && bin_mask2[bin2_id];
-
-    if (bin1_masked || bin2_masked) [[unlikely]] {
-      continue;
-    }
-
-    if (intra_matrix) {
-      sum_ += bin1 == bin2 ? p.count : 2 * p.count;
-      nnz_ += bin1 == bin2 ? 1ULL : 2ULL;
-    } else {
-      sum_ += p.count;
-      ++nnz_;
-    }
-
-    const auto i1 = bin1.rel_id();
-    marginals1_[i1] += p.count;
-
-    if (!intra_matrix || bin1 != bin2) {
-      const auto i2 = bin2.rel_id();
-      marginals2_[i2] += p.count;
-    }
-  };
-
-  return res;
-}
 
 template <typename Pixels>
   requires PixelRange<Pixels>
@@ -121,8 +44,10 @@ inline ObservedMatrix::ObservedMatrix(const Pixels &pixels, hictk::Chromosome ch
       _mad_max(mad_max_),
       _min_delta(min_delta_),
       _max_delta(max_delta_) {
-  auto stats =
-      compute_stats(pixels, _chrom1, _chrom2, _bins, bin_mask1, bin_mask2, min_delta_, max_delta_);
+  MatrixStats<N> stats(_chrom1, _chrom2, bin_mask1, bin_mask2, bins.resolution(), _min_delta,
+                       _max_delta);
+  stats.add(pixels);
+
   _marginals1 = std::move(stats.marginals1);
   _marginals2 = std::move(stats.marginals2);
   _nnz = stats.nnz;

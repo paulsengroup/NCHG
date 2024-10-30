@@ -72,6 +72,7 @@ target_sources(
     "${CMAKE_CURRENT_SOURCE_DIR}/k_merger_impl.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/mad_max_filter.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/mad_max_filter_impl.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/matrix_stats_impl.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/nchg.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/nchg_impl.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/observed_matrix.cpp"

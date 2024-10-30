@@ -27,41 +27,41 @@
 
 namespace nchg {
 
-std::uint32_t ExpectedMatrix::resolution() const noexcept { return _bins.resolution(); }
+std::uint32_t ExpectedMatrixStats::resolution() const noexcept { return _bins.resolution(); }
 
-std::size_t ExpectedMatrix::num_rows() const noexcept { return _bins.subset(chrom1()).size(); }
+std::size_t ExpectedMatrixStats::num_rows() const noexcept { return _bins.subset(chrom1()).size(); }
 
-std::size_t ExpectedMatrix::num_cols() const noexcept { return _bins.subset(chrom2()).size(); }
+std::size_t ExpectedMatrixStats::num_cols() const noexcept { return _bins.subset(chrom2()).size(); }
 
-const hictk::Chromosome &ExpectedMatrix::chrom1() const noexcept { return _chrom1; }
+const hictk::Chromosome &ExpectedMatrixStats::chrom1() const noexcept { return _chrom1; }
 
-const hictk::Chromosome &ExpectedMatrix::chrom2() const noexcept { return _chrom2; }
+const hictk::Chromosome &ExpectedMatrixStats::chrom2() const noexcept { return _chrom2; }
 
-std::uint64_t ExpectedMatrix::nnz() const noexcept { return _nnz; }
+std::uint64_t ExpectedMatrixStats::nnz() const noexcept { return _nnz; }
 
-double ExpectedMatrix::sum() const noexcept { return _sum; }
+double ExpectedMatrixStats::sum() const noexcept { return _sum; }
 
-double ExpectedMatrix::nnz_avg() const noexcept { return sum() / static_cast<double>(nnz()); }
+double ExpectedMatrixStats::nnz_avg() const noexcept { return sum() / static_cast<double>(nnz()); }
 
-const std::vector<double> &ExpectedMatrix::weights() const noexcept { return _weights; }
+const std::vector<double> &ExpectedMatrixStats::weights() const noexcept { return _weights; }
 
-const phmap::btree_map<hictk::Chromosome, double> &ExpectedMatrix::scaling_factors()
+const phmap::btree_map<hictk::Chromosome, double> &ExpectedMatrixStats::scaling_factors()
     const noexcept {
   return _scaling_factors;
 }
 
-std::uint64_t ExpectedMatrix::min_delta() const noexcept { return _min_delta; }
+std::uint64_t ExpectedMatrixStats::min_delta() const noexcept { return _min_delta; }
 
-std::uint64_t ExpectedMatrix::max_delta() const noexcept { return _max_delta; }
+std::uint64_t ExpectedMatrixStats::max_delta() const noexcept { return _max_delta; }
 
-double ExpectedMatrix::at(std::uint64_t i, std::uint64_t j) const {
+double ExpectedMatrixStats::at(std::uint64_t i, std::uint64_t j) const {
   if (chrom1() == chrom2()) {
     return _weights.at(j - i);
   }
   return nnz_avg();
 }
 
-const std::vector<double> &ExpectedMatrix::marginals1() const noexcept { return *_marginals1; }
-const std::vector<double> &ExpectedMatrix::marginals2() const noexcept { return *_marginals2; }
+const std::vector<double> &ExpectedMatrixStats::marginals1() const noexcept { return *_marginals1; }
+const std::vector<double> &ExpectedMatrixStats::marginals2() const noexcept { return *_marginals2; }
 
 }  // namespace nchg

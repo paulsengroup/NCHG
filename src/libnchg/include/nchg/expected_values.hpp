@@ -37,8 +37,7 @@
 namespace nchg {
 
 class ExpectedValues {
-  using N = std::uint32_t;
-
+  using N = double;
   std::shared_ptr<const hictk::File> _fp{};
   std::uint32_t _resolution{};
 
@@ -120,20 +119,20 @@ class ExpectedValues {
   [[nodiscard]] const phmap::btree_map<hictk::Chromosome, double>& scaling_factors() const noexcept;
   [[nodiscard]] double scaling_factor(const hictk::Chromosome& chrom) const;
 
-  [[nodiscard]] ExpectedMatrix expected_matrix(const hictk::Chromosome& chrom) const;
+  [[nodiscard]] ExpectedMatrixStats expected_matrix(const hictk::Chromosome& chrom) const;
   template <typename Pixels>
     requires PixelRange<Pixels>
-  [[nodiscard]] ExpectedMatrix expected_matrix(const hictk::Chromosome& chrom,
-                                               const hictk::BinTable& bins,
-                                               const Pixels& pixels) const;
-  [[nodiscard]] ExpectedMatrix expected_matrix(const hictk::Chromosome& chrom1,
-                                               const hictk::Chromosome& chrom2) const;
+  [[nodiscard]] ExpectedMatrixStats expected_matrix(const hictk::Chromosome& chrom,
+                                                    const hictk::BinTable& bins,
+                                                    const Pixels& pixels) const;
+  [[nodiscard]] ExpectedMatrixStats expected_matrix(const hictk::Chromosome& chrom1,
+                                                    const hictk::Chromosome& chrom2) const;
   template <typename Pixels>
     requires PixelRange<Pixels>
-  [[nodiscard]] ExpectedMatrix expected_matrix(const hictk::Chromosome& chrom1,
-                                               const hictk::Chromosome& chrom2,
-                                               const hictk::BinTable& bins,
-                                               const Pixels& pixels) const;
+  [[nodiscard]] ExpectedMatrixStats expected_matrix(const hictk::Chromosome& chrom1,
+                                                    const hictk::Chromosome& chrom2,
+                                                    const hictk::BinTable& bins,
+                                                    const Pixels& pixels) const;
 
   void serialize(const std::filesystem::path& path) const;
 

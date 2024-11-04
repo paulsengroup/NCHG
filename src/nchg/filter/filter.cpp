@@ -94,12 +94,18 @@ struct StringPairCmp {
 
   constexpr bool operator()(const std::pair<std::string, std::string>& a,
                             const std::pair<std::string_view, std::string_view>& b) const noexcept {
-    return a < b;
+    if (a.first == b.first) {
+      return a.second < b.second;
+    }
+    return a.first < b.first;
   }
 
   constexpr bool operator()(const std::pair<std::string_view, std::string_view>& a,
                             const std::pair<std::string, std::string>& b) const noexcept {
-    return a < b;
+    if (a.first == b.first) {
+      return a.second < b.second;
+    }
+    return a.first < b.first;
   }
 };
 

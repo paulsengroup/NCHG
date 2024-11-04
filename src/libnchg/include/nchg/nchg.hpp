@@ -89,7 +89,7 @@ class NCHG {
   explicit NCHG(std::shared_ptr<const hictk::File> f, const hictk::Chromosome& chrom1,
                 const hictk::Chromosome& chrom2, const Params& params);
   NCHG(std::shared_ptr<const hictk::File> f, const hictk::Chromosome& chrom1,
-       const hictk::Chromosome& chrom2, ExpectedValues expected_values) noexcept;
+       const hictk::Chromosome& chrom2, ExpectedValues expected_values);
 
   [[nodiscard]] auto params() const noexcept -> Params;
 

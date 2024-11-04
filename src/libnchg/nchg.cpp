@@ -62,7 +62,7 @@ NCHG::NCHG(std::shared_ptr<const hictk::File> f, const hictk::Chromosome &chrom1
     : NCHG(f, chrom1, chrom2, ExpectedValues::chromosome_pair(f, chrom1, chrom2, params)) {}
 
 NCHG::NCHG(std::shared_ptr<const hictk::File> f, const hictk::Chromosome &chrom1,
-           const hictk::Chromosome &chrom2, ExpectedValues expected_values) noexcept
+           const hictk::Chromosome &chrom2, ExpectedValues expected_values)
     : _fp(std::move(f)),
       _chrom1(chrom1),
       _chrom2(chrom2),

@@ -23,6 +23,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/build-dockerfile.yml"
+      - ".github/workflows/cache-test-dataset.yml"
       - "cmake/**"
       - "external/**"
       - "src/**"
@@ -38,6 +39,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/build-dockerfile.yml"
+      - ".github/workflows/cache-test-dataset.yml"
       - "cmake/**"
       - "external/**"
       - "src/**"
@@ -58,8 +60,13 @@ defaults:
     shell: bash
 
 jobs:
+  cache-test-dataset:
+    uses: paulsengroup/hictk/.github/workflows/cache-test-dataset.yml@main
+    name: Cache test dataset
+
   build-dockerfile:
     name: Build Dockerfile
+    needs: cache-test-dataset
     runs-on: ubuntu-latest
     permissions:
       contents: "read"
@@ -67,6 +74,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Restore test dataset
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ needs.cache-test-dataset.outputs.cache-key }}
+          path: test/data/hictk_test_data.tar.zst
+          fail-on-cache-miss: true
 
       - name: Generate build args
         id: build-args

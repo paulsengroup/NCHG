@@ -54,9 +54,6 @@ MatrixStats<N>::MatrixStats(const hictk::Chromosome &chrom1, const hictk::Chromo
   if (_min_delta > _max_delta) {
     throw std::logic_error("min_delta must be smaller or equal to max delta");
   }
-  if (_intra_matrix && _weights.empty()) {
-    throw std::logic_error("weights is required and should be non-empty when chrom1 == chrom2");
-  }
 }
 
 template <typename N>
@@ -103,7 +100,7 @@ constexpr auto MatrixStats<N>::get_count(const hictk::Pixel<N> &p) const noexcep
 
   const auto count = [&] {
     if constexpr (std::is_floating_point_v<T>) {
-      if (_intra_matrix) {
+      if (_intra_matrix && !_weights.empty()) {
         assert(bin1 <= bin2);
         const auto diag = bin2.id() - bin1.id();
         assert(diag < _weights.size());

@@ -39,7 +39,6 @@ NCHG_DISABLE_WARNING_POP
 #include <variant>
 #include <vector>
 
-#include "nchg/concepts.hpp"
 #include "nchg/expected_matrix.hpp"
 #include "nchg/expected_values.hpp"
 #include "nchg/observed_matrix.hpp"
@@ -47,7 +46,7 @@ NCHG_DISABLE_WARNING_POP
 namespace nchg {
 
 struct NCHGResult {
-  hictk::Pixel<std::uint32_t> pixel{};
+  hictk::Pixel<std::uint64_t> pixel{};
   double expected{};
   double pval{};
   double log_ratio{};
@@ -78,6 +77,7 @@ class NCHG {
   ExpectedValues _expected_values{};
 
   mutable std::vector<double> _nchg_pval_buffer{};
+  static constexpr double _double_lb{1.0e-20};
 
  public:
   using IteratorVariant =
@@ -141,6 +141,30 @@ class NCHG {
                                                   double precision = 1.0e-20,
                                                   double min_omega = 0.1);
 
+  [[nodiscard]] constexpr double compute_N1(const hictk::GenomicInterval& range1,
+                                            const hictk::GenomicInterval& range2,
+                                            double max_bad_bin_threshold) const noexcept;
+  [[nodiscard]] constexpr double compute_N2(const hictk::GenomicInterval& range1,
+                                            const hictk::GenomicInterval& range2,
+                                            double max_bad_bin_threshold) const noexcept;
+  [[nodiscard]] constexpr double compute_L1(const hictk::GenomicInterval& range1,
+                                            const hictk::GenomicInterval& range2,
+                                            double max_bad_bin_threshold) const noexcept;
+  [[nodiscard]] constexpr double compute_L2(const hictk::GenomicInterval& range1,
+                                            const hictk::GenomicInterval& range2,
+                                            double max_bad_bin_threshold) const noexcept;
+  [[nodiscard]] auto aggregate_pixels(const hictk::GenomicInterval& range1,
+                                      const hictk::GenomicInterval& range2) const;
+
+  template <typename N>
+  [[nodiscard]] constexpr auto aggregate_marginals(const hictk::GenomicInterval& range,
+                                                   const std::vector<N>& marginals,
+                                                   const std::vector<bool>& bin_mask) const;
+  [[nodiscard]] static NCHGResult compute_stats(hictk::Pixel<std::uint64_t> pixel, double exp,
+                                                std::uint64_t obs_sum, double N1, double N2,
+                                                double exp_sum, double L1, double L2,
+                                                std::vector<double>& buffer);
+
  public:
   template <typename PixelSelector>
   class iterator {
@@ -161,6 +185,7 @@ class NCHG {
     std::uint64_t _max_delta{};
 
     mutable Stats _value{};
+    mutable bool _read_value{};
 
    public:
     using difference_type = std::ptrdiff_t;
@@ -206,6 +231,14 @@ class NCHG {
 
    private:
     void jump_to_next_valid_pixel();
+    [[nodiscard]] constexpr double compute_N1(
+        const hictk::Pixel<std::uint64_t>& pixel) const noexcept;
+    [[nodiscard]] constexpr double compute_N2(
+        const hictk::Pixel<std::uint64_t>& pixel) const noexcept;
+    [[nodiscard]] constexpr double compute_L1(
+        const hictk::Pixel<std::uint64_t>& pixel) const noexcept;
+    [[nodiscard]] constexpr double compute_L2(
+        const hictk::Pixel<std::uint64_t>& pixel) const noexcept;
   };
 };
 

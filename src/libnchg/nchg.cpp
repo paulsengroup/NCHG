@@ -89,109 +89,34 @@ auto NCHG::compute(const hictk::GenomicInterval &range1, const hictk::GenomicInt
     throw std::logic_error("bad_bin_fraction should be between 0 and 1");
   }
 
-  const auto &chrom1 = range1.chrom();
-  const auto &chrom2 = range2.chrom();
-
-  const auto &obs_marginals1 = _obs_matrix->marginals1();
-  const auto &obs_marginals2 = _obs_matrix->marginals2();
-  const auto &exp_marginals1 = _exp_matrix->marginals1();
-  const auto &exp_marginals2 = _exp_matrix->marginals2();
-
-  const auto intra_matrix = chrom1 == chrom2;
-
   const auto obs_sum = _obs_matrix->sum();
   const auto exp_sum = _exp_matrix->sum();
 
-  const auto &mask1 = *_expected_values.bin_mask(chrom1, chrom2).first;
-  const auto &mask2 = *_expected_values.bin_mask(chrom1, chrom2).second;
+  const auto N1 = compute_N1(range1, range2, bad_bin_fraction);
+  const auto N2 = compute_N2(range1, range2, bad_bin_fraction);
+  const auto L1 = compute_L1(range1, range2, bad_bin_fraction);
+  const auto L2 = compute_L2(range1, range2, bad_bin_fraction);
 
-  constexpr double cutoff = 1.0e-20;
+  const auto range1_masked = std::isnan(N1);
+  const auto range2_masked = std::isnan(N1);
 
-  double N1 = 0.0;
-  double N2 = 0.0;
-  double L1 = 0.0;
-  double L2 = 0.0;
-
-  const auto resolution = _fp->resolution();
-
-  const auto i11 = range1.start() / resolution;
-  const auto i12 = (range1.end() + resolution - 1) / resolution;
-  const auto i21 = range2.start() / resolution;
-  const auto i22 = (range2.end() + resolution - 1) / resolution;
-
-  std::size_t bin1_masked = 0;
-  for (auto i = i11; i < i12; ++i) {
-    N1 += static_cast<double>(obs_marginals1[i]);
-    L1 += exp_marginals1[i];
-    bin1_masked += mask1[i];
-  }
-
-  std::size_t bin2_masked = 0;
-  for (auto i = i21; i < i22; ++i) {
-    N2 += static_cast<double>(obs_marginals2[i]);
-    L2 += exp_marginals2[i];
-    bin2_masked += mask2[i];
-  }
-
-  const auto bin1_masked_frac = static_cast<double>(bin1_masked) / static_cast<double>(i12 - i11);
-  const auto bin2_masked_frac = static_cast<double>(bin2_masked) / static_cast<double>(i22 - i21);
-
-  double obs = 0.0;
+  std::uint64_t obs = 0;
   double exp = 0.0;
 
-  if (bin1_masked_frac < bad_bin_fraction && bin2_masked_frac < bad_bin_fraction) [[likely]] {
-    const auto sel = _fp->fetch(range1.chrom().name(), range1.start(), range1.end(),
-                                range2.chrom().name(), range2.start(), range2.end());
-
-    const auto min_delta = params().min_delta;
-    const auto max_delta = params().max_delta;
-
-    const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<double>(),
-                                                      sel.template end<double>(), _fp->bins_ptr());
-    for (const hictk::Pixel<double> &p : jsel) {
-      const auto delta = intra_matrix ? p.coords.bin2.start() - p.coords.bin1.start() : min_delta;
-
-      const auto bin1_id = p.coords.bin1.rel_id();
-      const auto bin2_id = p.coords.bin2.rel_id();
-      if (delta >= min_delta && delta < max_delta && !mask1[bin1_id] && !mask2[bin2_id])
-          [[likely]] {
-        obs += p.count;
-        exp += _exp_matrix->at(bin1_id, bin2_id);
-      }
-    }
-  } else {
-    obs = 0;
-    exp = 0;
+  if (!range1_masked && !range2_masked) [[likely]] {
+    const auto &result = aggregate_pixels(range1, range2);
+    obs = result.obs;
+    exp = std::max(result.exp, _double_lb);  // TODO double check
   }
 
   // clang-format off
-  const hictk::Pixel p{
+  hictk::Pixel p{
       range1.chrom(), range1.start(), range1.end(),
       range2.chrom(), range2.start(), range2.end(),
-      static_cast<std::uint32_t>(obs)};
+      obs};
   // clang-format on
 
-  if (obs == 0) [[unlikely]] {
-    return {p, exp, 1.0, 0.0, 0.0, 0.0};
-  }
-
-  const auto odds_ratio = internal::compute_odds_ratio(obs, static_cast<double>(obs_sum), N1, N2);
-  const auto omega = intra_matrix ? internal::compute_odds_ratio(exp, exp_sum, L1, L2) : 1;
-
-  const auto log_ratio = std::log2(obs) - std::log2(exp);
-
-  if ((L1 - exp) * (L2 - exp) <= cutoff) [[unlikely]] {
-    return {p, exp, 1.0, log_ratio, odds_ratio, omega};
-  }
-
-  if (!std::isfinite(omega) || omega > odds_ratio) [[unlikely]] {
-    return {p, exp, 1.0, log_ratio, odds_ratio, omega};
-  }
-
-  const auto pvalue = compute_pvalue_nchg(_nchg_pval_buffer, static_cast<std::uint64_t>(obs),
-                                          static_cast<std::uint64_t>(N1),
-                                          static_cast<std::uint64_t>(N2), obs_sum, omega);
-  return {p, exp, pvalue, log_ratio, odds_ratio, omega};
+  return compute_stats(std::move(p), exp, obs_sum, N1, N2, exp_sum, L1, L2, _nchg_pval_buffer);
 }
 
 auto NCHG::cbegin(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2) const

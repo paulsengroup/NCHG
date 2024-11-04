@@ -115,7 +115,7 @@ inline void ParquetStatsFile::iterator<Stats>::read_pixel() {
   std::uint32_t end1{};
   std::uint32_t start2{};
   std::uint32_t end2{};
-  std::uint32_t observed_count{};
+  std::uint64_t observed_count{};
 
   *_sr >> *_buffer;
   const auto chrom1 = !!_chroms ? _chroms->at(*_buffer) : hictk::Chromosome{0, *_buffer, 1};

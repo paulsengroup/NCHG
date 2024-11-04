@@ -30,7 +30,7 @@
 
 namespace nchg {
 struct NCHGFilterResult {
-  hictk::Pixel<std::uint32_t> pixel{};
+  hictk::Pixel<std::uint64_t> pixel{};
   double expected{};
   double pval{};
   double pval_corrected{};

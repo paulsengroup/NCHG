@@ -16,6 +16,10 @@
 # with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
+bioframe
+cooler
+cooltools
 h5py
 numpy
 pandas[pyarrow]
+pysam

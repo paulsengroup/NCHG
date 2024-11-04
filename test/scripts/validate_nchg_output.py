@@ -23,7 +23,9 @@ import argparse
 import logging
 import pathlib
 import sys
+from typing import List, Set, Tuple
 
+import h5py
 import numpy as np
 import pandas as pd
 
@@ -200,6 +202,149 @@ def validate_data(expected: pd.DataFrame, found: pd.DataFrame, path: pathlib.Pat
     logging.debug("%s validation was successful", path)
 
 
+def extract_set_differences(ref: Set, tgt: Set, diff: Set) -> Tuple[List, List]:
+    missing_vals = []
+    extra_vals = []
+    for v in diff:
+        if v in ref:
+            missing_vals.append(v)
+        else:
+            assert v in tgt
+            extra_vals.append(v)
+
+    return missing_vals, extra_vals
+
+
+def format_error_group_mismatch(ref: Set, tgt: Set, diff: Set) -> str:
+    assert len(diff) != 0
+    missing_groups, extra_groups = extract_set_differences(ref, tgt, diff)
+
+    msg = "data validation failed:"
+
+    if len(missing_groups) != 0:
+        msg += f"\n - missing group(s): {missing_groups}"
+
+    if len(extra_groups) != 0:
+        msg += f"\n - unexpected group(s): {extra_groups}"
+
+    return msg
+
+
+def format_error_dset_mismatch(ref: Set, tgt: Set, diff: Set) -> str:
+    assert len(diff) != 0
+    missing_groups, extra_groups = extract_set_differences(ref, tgt, diff)
+
+    msg = "data validation failed:"
+
+    if len(missing_groups) != 0:
+        msg += f"\n - missing dataset(s): {missing_groups}"
+
+    if len(extra_groups) != 0:
+        msg += f"\n - unexpected dataset(s): {extra_groups}"
+
+    return msg
+
+
+def compare_h5_attributes(ref: h5py.Group | h5py.Dataset, tgt: h5py.Group | h5py.Dataset):
+    assert ref.name == tgt.name
+
+    logging.debug('comparing attributes for object "%s"...', ref.name)
+
+    attr1 = dict(ref.attrs)
+    attr2 = dict(tgt.attrs)
+    attr1.pop("source-file", None)
+    attr2.pop("source-file", None)
+
+    diff = set(attr1) ^ set(attr2)
+
+    if len(diff) != 0:
+        missing_keys = []
+        extra_keys = []
+        mismatched_values = []
+        for k, v in diff:
+            if k in attr1:
+                missing_keys.append(k)
+            elif k in attr2:
+                extra_keys.append(k)
+            else:
+                mismatched_values.append((k, attr1[k], attr2[k]))
+
+        msg = "data validation failed:"
+
+        if len(missing_keys) != 0:
+            msg += f"\n - missing keys: {missing_keys}"
+
+        if len(extra_keys) != 0:
+            msg += f"\n - unexpected keys: {extra_keys}"
+
+        if len(mismatched_values) != 0:
+            keys = [x[0] for x in mismatched_values]
+            expected_values = [x[1] for x in mismatched_values]
+            found_values = [x[2] for x in mismatched_values]
+            msg += f"\n - mismatched values for keys: {keys}; expected values: {expected_values}; values found: {found_values}"
+
+        raise RuntimeError(msg)
+
+
+def compare_h5_datasets(ref: h5py.Dataset, tgt: h5py.Dataset):
+    assert ref.name == tgt.name
+    logging.debug('comparing dataset "%s"...', ref.name)
+
+    if ref.dtype != tgt.dtype:
+        raise RuntimeError(f"dataset {ref.name} dtype is not correct: expected {ref.dtype}, found {tgt.dtype}")
+
+    if ref.shape != tgt.shape:
+        raise RuntimeError(f"dataset {ref.name} shape is not correct: expected {ref.shape}, found {tgt.shape}")
+
+    if ref.size != tgt.size:
+        raise RuntimeError(f"dataset {ref.name} size is not correct: expected {ref.size}, found {tgt.size}")
+
+    if np.issubdtype(ref.dtype, np.inexact):
+        num_mismatches = (~np.isclose(ref, tgt, equal_nan=True)).sum()
+    else:
+        num_mismatches = (ref[:] != tgt[:]).sum()
+
+    if num_mismatches != 0:
+        raise RuntimeError(f"dataset {ref.name} (dtype={ref.dtype}) is incorrect: found {num_mismatches} differences")
+
+    compare_h5_attributes(ref, tgt)
+
+
+def compare_h5_nodes_recursive(ref: h5py.Group, tgt: h5py.Group):
+    assert ref.name == tgt.name
+    logging.debug('comparing group "%s"...', ref.name)
+
+    expected_grps = set((k for k, v in ref.items() if isinstance(v, h5py.Group)))
+    found_grps = set((k for k, v in tgt.items() if isinstance(v, h5py.Group)))
+
+    diff = expected_grps ^ found_grps
+    if len(diff) != 0:
+        raise RuntimeError(format_error_group_mismatch(expected_grps, found_grps, diff))
+
+    expected_dsets = set((k for k, v in ref.items() if isinstance(v, h5py.Dataset)))
+    found_dsets = set((k for k, v in tgt.items() if isinstance(v, h5py.Dataset)))
+
+    diff = expected_dsets ^ found_dsets
+    if len(diff) != 0:
+        raise RuntimeError(format_error_dset_mismatch(expected_dsets, found_dsets, diff))
+
+    compare_h5_attributes(ref, tgt)
+
+    for dset in expected_dsets:
+        compare_h5_datasets(ref[dset], tgt[dset])
+
+    for grp in expected_grps:
+        compare_h5_nodes_recursive(ref[grp], tgt[grp])
+
+
+def validate_expected_profile_h5(expected: pathlib.Path, found: pathlib.Path):
+    logging.debug("validating %s...", found)
+
+    with h5py.File(expected) as ref, h5py.File(found) as tgt:
+        compare_h5_attributes(ref, tgt)
+        compare_h5_nodes_recursive(ref["/"], tgt["/"])
+
+
 def validate_table(expected_path: pathlib.Path, found_path: pathlib.Path):
     assert expected_path.is_file()
     try:
@@ -298,10 +443,13 @@ def validate_nchg_view(test_file: pathlib.Path, ref_file: pathlib.Path) -> int:
 
 def validate_nchg_expected(test_file: pathlib.Path, ref_file: pathlib.Path) -> int:
     logging.info(f"### NCHG expected: validating {test_file}...")
-    import h5py
 
-    # TODO fixme
-    raise NotImplementedError
+    try:
+        validate_expected_profile_h5(ref_file, test_file)
+        return 0
+    except RuntimeError as e:
+        logging.error(e)
+        return 1
 
 
 def main() -> int:

@@ -50,11 +50,13 @@ def add_common_flags(parser):
 
 def make_compute_sc(main_parser):
     sc: argparse.ArgumentParser = main_parser.add_parser(
-        "compute", help="Validate the output produced by NCHG compute."
+        "compute",
+        help="Validate the output produced by NCHG compute.",
     )
-
     sc.add_argument(
-        "test-prefix", type=pathlib.Path, help="Path to the prefix corresponding to the files to be tested."
+        "test-prefix",
+        type=pathlib.Path,
+        help="Path to the prefix corresponding to the files to be tested.",
     )
     sc.add_argument(
         "ref-prefix",
@@ -66,49 +68,85 @@ def make_compute_sc(main_parser):
 
 
 def make_merge_sc(main_parser):
-    sc: argparse.ArgumentParser = main_parser.add_parser("merge", help="Validate the output produced by NCHG merge.")
-
-    sc.add_argument("test-parquet", type=existing_file, help="Path to the .parquet file to be tested.")
-
-    sc.add_argument("ref-parquet", type=existing_file, help="Path to the .parquet file to be used as ground truth.")
+    sc: argparse.ArgumentParser = main_parser.add_parser(
+        "merge",
+        help="Validate the output produced by NCHG merge.",
+    )
+    sc.add_argument(
+        "test-parquet",
+        type=existing_file,
+        help="Path to the .parquet file to be tested.",
+    )
+    sc.add_argument(
+        "ref-parquet",
+        type=existing_file,
+        help="Path to the .parquet file to be used as ground truth.",
+    )
 
     add_common_flags(sc)
 
 
 def make_filter_sc(main_parser):
-    sc: argparse.ArgumentParser = main_parser.add_parser("filter", help="Validate the output produced by NCHG filter.")
-
-    sc.add_argument("test-parquet", type=existing_file, help="Path to the .parquet file to be tested.")
-
-    sc.add_argument("ref-parquet", type=existing_file, help="Path to the .parquet file to be used as ground truth.")
+    sc: argparse.ArgumentParser = main_parser.add_parser(
+        "filter",
+        help="Validate the output produced by NCHG filter.",
+    )
+    sc.add_argument(
+        "test-parquet",
+        type=existing_file,
+        help="Path to the .parquet file to be tested.",
+    )
+    sc.add_argument(
+        "ref-parquet",
+        type=existing_file,
+        help="Path to the .parquet file to be used as ground truth.",
+    )
 
     add_common_flags(sc)
 
 
 def make_view_sc(main_parser):
-    sc: argparse.ArgumentParser = main_parser.add_parser("view", help="Validate the output produced by NCHG view.")
-
-    sc.add_argument("test-tsv", type=existing_file, help="Path to the .tsv file to be tested.")
-
-    sc.add_argument("ref-tsv", type=existing_file, help="Path to the .tsv file to be used as ground truth.")
+    sc: argparse.ArgumentParser = main_parser.add_parser(
+        "view",
+        help="Validate the output produced by NCHG view.",
+    )
+    sc.add_argument(
+        "test-tsv",
+        type=existing_file,
+        help="Path to the .tsv file to be tested.",
+    )
+    sc.add_argument(
+        "ref-tsv",
+        type=existing_file,
+        help="Path to the .tsv file to be used as ground truth.",
+    )
 
     add_common_flags(sc)
 
 
 def make_expected_sc(main_parser):
     sc: argparse.ArgumentParser = main_parser.add_parser(
-        "expected", help="Validate the output produced by NCHG expected."
+        "expected",
+        help="Validate the output produced by NCHG expected.",
     )
-
-    sc.add_argument("test-h5", type=existing_file, help="Path to the .h5 file to be tested.")
-
-    sc.add_argument("ref-h5", type=existing_file, help="Path to the .h5 file to be used as ground truth.")
+    sc.add_argument(
+        "test-h5",
+        type=existing_file,
+        help="Path to the .h5 file to be tested.",
+    )
+    sc.add_argument(
+        "ref-h5",
+        type=existing_file,
+        help="Path to the .h5 file to be used as ground truth.",
+    )
 
     add_common_flags(sc)
 
 
 def make_cli() -> argparse.ArgumentParser:
-    cli = argparse.ArgumentParser("Validate the output file(s) produced by NCHG.")
+    cli = argparse.ArgumentParser(
+        "Validate the output file(s) produced by NCHG.",
+    )
     sub_parser = cli.add_subparsers(
         title="subcommands", dest="command", required=True, help="List of available subcommands:"
     )

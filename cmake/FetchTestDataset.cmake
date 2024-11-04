@@ -14,13 +14,14 @@
 #
 # You should have received a copy of the GNU Public License along
 # with this library.  If not, see
-# <https://www.gnu.org/licenses/>.
+# <https://www.gnu.org/licenses/>
 
-add_subdirectory(units)
+# gersemi: off
+file(
+  DOWNLOAD https://zenodo.org/records/14014123/files/nchg_test_data.tar.zst?download=1
+  EXPECTED_HASH SHA256=e0a0cff876fbb49d0daca950f00c2d4985eba94553437d5e3d3147b6cf01f648
+  "${PROJECT_SOURCE_DIR}/test/data/nchg_test_data.tar.zst"
+)
+# gersemi: on
 
-option(NCHG_DOWNLOAD_TEST_DATASET "Download datasets required by unit and integration tests" ON)
-
-if(NCHG_DOWNLOAD_TEST_DATASET)
-  message(STATUS "Downloading test dataset...")
-  include(${PROJECT_SOURCE_DIR}/cmake/FetchTestDataset.cmake)
-endif()
+file(ARCHIVE_EXTRACT INPUT "${PROJECT_SOURCE_DIR}/test/data/nchg_test_data.tar.zst" DESTINATION "${PROJECT_SOURCE_DIR}")

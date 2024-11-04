@@ -24,6 +24,7 @@ on:
     paths:
       - ".github/codecov.yml"
       - ".github/workflows/build-conan-deps.yml"
+      - ".github/workflows/cache-test-dataset.yml"
       - ".github/workflows/codecov.yml"
       - "cmake/**"
       - "src/**"
@@ -36,6 +37,7 @@ on:
     paths:
       - ".github/codecov.yml"
       - ".github/workflows/build-conan-deps.yml"
+      - ".github/workflows/cache-test-dataset.yml"
       - ".github/workflows/codecov.yml"
       - "cmake/**"
       - "src/**"
@@ -54,6 +56,10 @@ defaults:
     shell: bash
 
 jobs:
+  cache-test-dataset:
+    name: Cache test dataset
+    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@main
+
   build-conan-deps:
     name: Build Conan deps
     uses: paulsengroup/nchg/.github/workflows/build-conan-deps.yml@main
@@ -131,6 +137,7 @@ jobs:
                 -DOPT_ENABLE_CPPCHECK=OFF                     \
                 -DOPT_ENABLE_CLANG_TIDY=OFF                   \
                 -DNCHG_ENABLE_TESTING=ON                      \
+                -DNCHG_DOWNLOAD_TEST_DATASET=OFF              \
                 -DCMAKE_C_FLAGS="$cov_flags"                  \
                 -DCMAKE_CXX_FLAGS="$cov_flags"                \
                 -S .                                          \
@@ -234,7 +241,7 @@ jobs:
 
   run-unit-tests:
     name: Run unit tests
-    needs: [build-project]
+    needs: [cache-test-dataset, build-project]
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-clang-19
@@ -244,13 +251,22 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Restore test dataset
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ needs.cache-test-dataset.outputs.cache-key }}
+          path: test/data/nchg_test_data.tar.zst
+          fail-on-cache-miss: true
+
       - name: Download unit tests artifact
         uses: actions/download-artifact@v4
         with:
           name: "build-codecov"
 
-      - name: Extract binaries
-        run: tar -xf build.tar.zst
+      - name: Extract binaries and test dataset
+        run: |
+          tar -xf build.tar.zst
+          tar -xf test/data/nchg_test_data.tar.zst
 
       - name: Add test user
         run: useradd devel
@@ -314,7 +330,7 @@ jobs:
 
   run-integration-tests:
     name: Run integration tests
-    needs: [build-project]
+    needs: [cache-test-dataset, build-project]
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-clang-19
@@ -324,13 +340,22 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Restore test dataset
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ needs.cache-test-dataset.outputs.cache-key }}
+          path: test/data/nchg_test_data.tar.zst
+          fail-on-cache-miss: true
+
       - name: Download binaries artifact
         uses: actions/download-artifact@v4
         with:
           name: "build-codecov"
 
-      - name: Extract binaries
-        run: tar -xf build.tar.zst
+      - name: Extract binaries and test dataset
+        run: |
+          tar -xf build.tar.zst
+          tar -xf test/data/nchg_test_data.tar.zst
 
       - name: Add test user
         run: useradd devel
@@ -347,14 +372,29 @@ jobs:
             sudo \
             tar
 
+          pip install -r test/requirements.txt
+
+      - name: Setup test environment
+        run: |
+          echo "DATA_DIR=$PWD/test/data/integration_tests" | tee -a "$GITHUB_ENV"
+          echo "OUT_PREFIX=ENCFF447ERX.1000000" | tee -a "$GITHUB_ENV"
+
       - name: Test NCHG compute (mt)
         run: |
           LLVM_PROFILE_FILE="$PWD/nchg.compute-mt.%$(nproc)m.profraw"
 
           sudo -u devel                                        \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
-          build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --threads "$(nproc)" out
-          rm out*
+          build/src/nchg/NCHG compute                          \
+            test/data/ENCFF447ERX.1000000.cool                 \
+            "$OUT_PREFIX"                                      \
+            --threads "$(nproc)"
+
+          test/scripts/validate_nchg_output.py compute \
+            "$OUT_PREFIX"                              \
+            "$DATA_DIR/compute/$OUT_PREFIX"
+
+          rm "$OUT_PREFIX"*
 
       - name: Test NCHG compute (st)
         run: |
@@ -362,7 +402,13 @@ jobs:
 
           sudo -u devel                                        \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
-          build/src/nchg/NCHG compute test/data/ENCFF447ERX.1000000.cool --cis-only --threads 1 out
+          build/src/nchg/NCHG compute                          \
+            test/data/ENCFF447ERX.1000000.cool                 \
+            "$OUT_PREFIX"                                      \
+            --cis-only                                         \
+            --threads 1
+
+          rm "$OUT_PREFIX"*
 
       - name: Test NCHG merge
         run: |
@@ -370,38 +416,89 @@ jobs:
 
           sudo -u devel                                        \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
-          build/src/nchg/NCHG merge out out.parquet --threads "$(nproc)"
+          build/src/nchg/NCHG merge                            \
+            "$DATA_DIR/compute/$OUT_PREFIX"                    \
+            "$OUT_PREFIX.parquet"                              \
+            --threads "$(nproc)"
+
+          test/scripts/validate_nchg_output.py merge \
+            "$OUT_PREFIX.parquet"                    \
+            "$DATA_DIR/merge/$OUT_PREFIX.parquet"
+
+          rm "$OUT_PREFIX"*
 
       - name: Test NCHG filter
         run: |
           LLVM_PROFILE_FILE="$PWD/nchg.filter.profraw"
 
-          sudo -u devel                                        \
-          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
-          build/src/nchg/NCHG filter out.parquet out.filtered.parquet --threads "$(nproc)"
+          sudo -u devel                                           \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"           \
+          build/src/nchg/NCHG filter                              \
+            "$DATA_DIR/merge/$OUT_PREFIX.parquet"                 \
+            "$OUT_PREFIX.filtered.parquet"                        \
+            --threads "$(nproc)"
 
-      - name: Test NCHG view
+          test/scripts/validate_nchg_output.py filter \
+            "$OUT_PREFIX.filtered.parquet"            \
+            "$DATA_DIR/filter/$OUT_PREFIX.parquet"
+
+          rm "$OUT_PREFIX"*
+
+      - name: Test NCHG view (compute)
         run: |
-          LLVM_PROFILE_FILE="$PWD/nchg.view-1.profraw"
+          LLVM_PROFILE_FILE="$PWD/nchg.view.compute.profraw"
 
           sudo -u devel                                        \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
-          build/src/nchg/NCHG view out.parquet > /dev/null
+          build/src/nchg/NCHG view                             \
+            "$DATA_DIR/merge/$OUT_PREFIX.parquet" > /dev/null
 
-          LLVM_PROFILE_FILE="$PWD/nchg.view-2.profraw"
-
-          sudo -u devel                                        \
-          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
-          build/src/nchg/NCHG view out.filtered.parquet > /dev/null
-
-      - name: Test NCHG expected
+      - name: Test NCHG view (filter)
         run: |
-          LLVM_PROFILE_FILE="$PWD/nchg.expected.profraw"
+          LLVM_PROFILE_FILE="$PWD/nchg.view.filter.profraw"
+
+          sudo -u devel                                        \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG view                             \
+            "$DATA_DIR/filter/$OUT_PREFIX.parquet"             \
+            > "$OUT_PREFIX.tsv"
+
+          test/scripts/validate_nchg_output.py view  \
+            "$OUT_PREFIX.tsv"                        \
+            "$DATA_DIR/view/$OUT_PREFIX.tsv"
+
+          rm "$OUT_PREFIX"*
+
+      - name: Test NCHG expected (w/ mask)
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.expected.mask.profraw"
 
           printf 'chr1\t0\t248956422' > mask.bed
 
           sudo -u devel \
-          build/src/nchg/NCHG expected test/data/ENCFF447ERX.1000000.cool --output out.h5 --bin-mask mask.bed
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG expected                         \
+            test/data/ENCFF447ERX.1000000.cool                 \
+            --output "$OUT_PREFIX.h5"                          \
+            --bin-mask mask.bed
+
+          rm "$OUT_PREFIX"* mask.bed
+
+      - name: Test NCHG expected (wo/ mask)
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.expected.no-mask.profraw"
+
+          sudo -u devel \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG expected                         \
+            test/data/ENCFF447ERX.1000000.cool                 \
+            --output "$OUT_PREFIX.h5"
+
+          test/scripts/validate_nchg_output.py expected  \
+            "$OUT_PREFIX.h5"                             \
+            "$DATA_DIR/expected/$OUT_PREFIX.h5"
+
+          rm "$OUT_PREFIX"*
 
       - name: Collect coverage data
         run: |

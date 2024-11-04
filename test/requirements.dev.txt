@@ -16,6 +16,8 @@
 # with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
-h5py
-numpy
-pandas[pyarrow]
+-r ./requirements.txt
+bioframe
+cooler
+cooltools
+pysam

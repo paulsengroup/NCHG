@@ -410,6 +410,7 @@ using ChromosomePairs = std::vector<std::pair<hictk::Chromosome, hictk::Chromoso
 [[nodiscard]] static std::size_t worker_fx(const hictk::Chromosome &chrom1,
                                            const hictk::Chromosome &chrom2,
                                            const ComputePvalConfig &config,
+                                           bool trans_expected_values_avail,
                                            std::atomic<bool> &early_return) {
   if (early_return) {
     return 0;
@@ -418,8 +419,6 @@ using ChromosomePairs = std::vector<std::pair<hictk::Chromosome, hictk::Chromoso
   try {
     const auto output_path = fmt::format("{}.{}.{}.parquet", config.output_prefix.string(),
                                          chrom1.name(), chrom2.name());
-
-    const auto trans_expected_values_avail = !config.path_to_expected_values.empty();
 
     auto child_config = config;
     if (!trans_expected_values_avail && chrom1 != chrom2) {
@@ -456,39 +455,47 @@ using ChromosomePairs = std::vector<std::pair<hictk::Chromosome, hictk::Chromoso
   }
 }
 
+[[nodiscard]] static ComputePvalConfig init_base_config(
+    const ComputePvalConfig &c, const std::optional<ExpectedValues> &expected_values) {
+  auto base_config = c;
+  if (c.path_to_expected_values.empty() && expected_values.has_value()) {
+    base_config.path_to_expected_values =
+        fmt::format("{}_expected_values.h5", base_config.output_prefix.string());
+
+    if (!base_config.force && std::filesystem::exists(base_config.path_to_expected_values)) {
+      throw std::runtime_error(
+          fmt::format("Refusing to overwrite file {}. Pass --force to overwrite.",
+                      base_config.path_to_expected_values));
+    }
+
+    std::filesystem::remove(base_config.path_to_expected_values);  // NOLINT
+
+    const auto output_dir = base_config.path_to_expected_values.parent_path();
+    if (!output_dir.empty() && !std::filesystem::exists(output_dir)) {
+      std::filesystem::create_directories(output_dir);
+    }
+
+    expected_values->serialize(base_config.path_to_expected_values);
+  }
+
+  return base_config;
+}
+
 static std::size_t process_queries_mt(
     BS::thread_pool &tpool,
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
     const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
   std::atomic<bool> early_return{false};
 
-  auto config = c;
-  if (c.path_to_expected_values.empty() && expected_values.has_value()) {
-    config.path_to_expected_values =
-        fmt::format("{}_expected_values.h5", config.output_prefix.string());
-
-    if (!config.force && std::filesystem::exists(config.path_to_expected_values)) {
-      throw std::runtime_error(
-          fmt::format("Refusing to overwrite file {}. Pass --force to overwrite.",
-                      config.path_to_expected_values));
-    }
-
-    std::filesystem::remove(config.path_to_expected_values);  // NOLINT
-
-    const auto output_dir = config.path_to_expected_values.parent_path();
-    if (!output_dir.empty() && !std::filesystem::exists(output_dir)) {
-      std::filesystem::create_directories(output_dir);
-    }
-
-    expected_values->serialize(config.path_to_expected_values);
-  }
+  const auto user_provided_expected_values = !c.path_to_expected_values.empty();
+  const auto base_config = init_base_config(c, expected_values);
 
   BS::multi_future<std::size_t> workers(chrom_pairs.size());
   for (std::size_t i = 0; i < workers.size(); ++i) {
     workers[i] = tpool.submit_task([&, i] {
       SPDLOG_DEBUG("submitting task {}/{}...", i + 1, workers.size());
       const auto &[chrom1, chrom2] = chrom_pairs[i];
-      return worker_fx(chrom1, chrom2, config, early_return);
+      return worker_fx(chrom1, chrom2, base_config, user_provided_expected_values, early_return);
     });
   }
 

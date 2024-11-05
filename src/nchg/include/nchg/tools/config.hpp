@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <limits>
+#include <optional>
 #include <string>
 #include <variant>
 
@@ -32,13 +33,13 @@ struct ComputePvalConfig {
   bool force{false};
 
   std::uint32_t resolution{};
-  std::string chrom1{"all"};
-  std::string chrom2{"all"};
+  std::optional<std::string> chrom1{};
+  std::optional<std::string> chrom2{};
   std::filesystem::path path_to_expected_values{};
   std::filesystem::path path_to_domains{};
 
-  bool cis_only{false};
-  bool trans_only{false};
+  bool compute_cis{true};
+  bool compute_trans{true};
 
   double mad_max{5.0};
   std::uint64_t min_delta{40'000};

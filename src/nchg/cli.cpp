@@ -185,14 +185,14 @@ void Cli::make_compute_subcommand() {
     "Path to a BED file with a list of domains whose pair-wise interactions should\n"
     "be assessed for significance.")
     ->check(CLI::ExistingFile);
-  sc.add_flag(
+  sc.add_flag_function(
     "--cis-only",
-    c.cis_only,
+    [&c](auto n) { if (n != 0) {c.compute_trans = false;} },
     "Process interactions from intra-chromosomal matrices only.")
     ->capture_default_str();
-  sc.add_flag(
+  sc.add_flag_function(
     "--trans-only",
-    c.trans_only,
+    [&c](auto n) { if (n != 0) {c.compute_cis = false; }},
     "Process interactions from inter-chromosomal matrices only.")
     ->capture_default_str();
   sc.add_option(

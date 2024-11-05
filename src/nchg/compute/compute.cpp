@@ -36,6 +36,7 @@ NCHG_DISABLE_WARNING_POP
 
 #include <BS_thread_pool.hpp>
 #include <algorithm>
+#include <cassert>
 #include <cstdint>
 #include <fstream>
 #include <hictk/fmt/pixel.hpp>
@@ -117,13 +118,13 @@ namespace nchg {
 [[nodiscard]] static NCHG init_nchg(const std::shared_ptr<const hictk::File> &f,
                                     const std::optional<ExpectedValues> &expected_values,
                                     const ComputePvalConfig &c) {
-  assert(c.chrom1 != "all");
-  assert(c.chrom2 != "all");
-  assert(!c.cis_only);
-  assert(!c.trans_only);
+  assert(c.chrom1.has_value());
+  assert(c.chrom2.has_value());
+  assert(c.compute_cis);
+  assert(c.compute_trans);
 
-  const auto &chrom1 = f->chromosomes().at(c.chrom1);
-  const auto &chrom2 = f->chromosomes().at(c.chrom2);
+  const auto &chrom1 = f->chromosomes().at(*c.chrom1);
+  const auto &chrom2 = f->chromosomes().at(*c.chrom2);
 
   if (expected_values.has_value()) {
     return {f, chrom1, chrom2, *expected_values};
@@ -180,14 +181,17 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
     const std::shared_ptr<const hictk::File> &f,
     const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
   assert(std::filesystem::exists(c.path_to_domains));
+  assert(c.chrom1.has_value());
+  assert(c.chrom2.has_value());
 
-  SPDLOG_INFO("[{}:{}] begin processing domains from {}...", c.chrom1, c.chrom2, c.path_to_domains);
+  SPDLOG_INFO("[{}:{}] begin processing domains from {}...", *c.chrom1, *c.chrom2,
+              c.path_to_domains);
 
   const auto writer =
       init_parquet_file_writer<NCHGResult>(f->chromosomes(), c.output_prefix, c.force,
                                            c.compression_method, c.compression_lvl, c.threads);
 
-  const auto domains = parse_domains(f->chromosomes(), c.path_to_domains, c.chrom1, c.chrom2);
+  const auto domains = parse_domains(f->chromosomes(), c.path_to_domains, *c.chrom1, *c.chrom2);
 
   if (domains.empty()) {
     return 0;
@@ -204,7 +208,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
       const auto &d1 = domains[i];
       const auto &d2 = domains[j];
 
-      if (c.chrom1 != "all" && (d1.chrom() != c.chrom1 || d2.chrom() != c.chrom2)) {
+      if (c.chrom1.has_value() && (d1.chrom() != *c.chrom1 || d2.chrom() != *c.chrom2)) {
         continue;
       }
 
@@ -231,10 +235,13 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 [[nodiscard]] static std::size_t process_one_chromosome_pair(
     const std::shared_ptr<const hictk::File> &f,
     const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
-  SPDLOG_INFO("[{}:{}] begin processing interactions...", c.chrom1, c.chrom2);
+  assert(c.chrom1.has_value());
+  assert(c.chrom2.has_value());
 
-  const auto &chrom1 = f->chromosomes().at(c.chrom1);
-  const auto &chrom2 = f->chromosomes().at(c.chrom2);
+  SPDLOG_INFO("[{}:{}] begin processing interactions...", *c.chrom1, *c.chrom2);
+
+  const auto &chrom1 = f->chromosomes().at(*c.chrom1);
+  const auto &chrom2 = f->chromosomes().at(*c.chrom2);
   const auto nchg = init_nchg(f, expected_values, c);
 
   const auto writer =
@@ -273,7 +280,8 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 
 [[nodiscard]] static std::size_t run_nchg_compute_worker(
     const ComputePvalConfig &c, const std::optional<ExpectedValues> &expected_values = {}) {
-  assert(c.chrom1 != "all");
+  assert(c.chrom1.has_value());
+  assert(c.chrom2.has_value());
 
   const auto f = std::make_shared<const hictk::File>(c.path_to_hic.string(), c.resolution);
 
@@ -491,8 +499,8 @@ static std::size_t process_queries_st(
       auto config = c;
       config.chrom1 = chrom1.name();
       config.chrom2 = chrom2.name();
-      config.cis_only = false;
-      config.trans_only = false;
+      config.compute_cis = true;
+      config.compute_trans = true;
 
       config.output_prefix =
           fmt::format("{}.{}.{}.parquet", c.output_prefix.string(), chrom1.name(), chrom2.name());
@@ -523,32 +531,31 @@ static std::size_t process_queries_st(
 }
 
 static std::optional<ExpectedValues> init_cis_expected_values(const ComputePvalConfig &c) {
-  if (c.cis_only || (c.chrom1 == c.chrom2)) {
-    SPDLOG_INFO("initializing expected values for cis matrices...");
-    const auto f = std::make_shared<hictk::File>(c.path_to_hic.string(), c.resolution);
+  assert(c.compute_cis || c.chrom1 == c.chrom2);
 
-    const auto bin_mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
+  SPDLOG_INFO("initializing expected values for cis matrices...");
+  const auto f = std::make_shared<hictk::File>(c.path_to_hic.string(), c.resolution);
 
-    return {ExpectedValues::cis_only(
-        f,
-        {.mad_max = c.mad_max,
-         .min_delta = c.min_delta,
-         .max_delta = c.max_delta,
-         .bin_aggregation_possible_distances_cutoff = c.bin_aggregation_possible_distances_cutoff,
-         .bin_aggregation_observed_distances_cutoff = c.bin_aggregation_observed_distances_cutoff,
-         .interpolate = c.interpolate_expected_values,
-         .interpolation_qtile = c.interpolation_qtile,
-         .interpolation_window_size = c.interpolation_window_size},
-        bin_mask)};
-  }
+  const auto bin_mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
-  return {};
+  return {ExpectedValues::cis_only(
+      f,
+      {.mad_max = c.mad_max,
+       .min_delta = c.min_delta,
+       .max_delta = c.max_delta,
+       .bin_aggregation_possible_distances_cutoff = c.bin_aggregation_possible_distances_cutoff,
+       .bin_aggregation_observed_distances_cutoff = c.bin_aggregation_observed_distances_cutoff,
+       .interpolate = c.interpolate_expected_values,
+       .interpolation_qtile = c.interpolation_qtile,
+       .interpolation_window_size = c.interpolation_window_size},
+      bin_mask)};
 }
 
 static std::size_t process_queries(
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
     const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
-  if (expected_values.has_value()) {
+  if (!c.path_to_expected_values.empty()) {
+    assert(expected_values.has_value());
     for (const auto &[chrom1, chrom2] : chrom_pairs) {
       try {
         if (chrom1 == chrom2) {
@@ -561,6 +568,19 @@ static std::size_t process_queries(
             fmt::format("user-specified expected value file does not contain "
                         "information for chromosome pair {}:{}",
                         chrom1.name(), chrom2.name()));
+      }
+    }
+  }
+
+  if constexpr (ndebug_not_defined()) {
+    // If we need to process cis values, the expected value map should have been populated by the
+    // callee accordingly
+    if (c.compute_cis) {
+      assert(expected_values.has_value());
+      for (const auto &[chrom1, chrom2] : chrom_pairs) {
+        if (chrom1 == chrom2) {
+          std::ignore = expected_values->expected_values(chrom1);
+        }
       }
     }
   }
@@ -580,46 +600,56 @@ static std::size_t process_queries(
   return process_queries_st(chrom_pairs, expected_values, c);
 }
 
+[[nodiscard]] static auto generate_execution_plan(const ComputePvalConfig &c) {
+  struct Plan {
+    std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> chrom_pairs{};
+    std::optional<ExpectedValues> expected_values{};
+  };
+
+  Plan plan{};
+
+  const hictk::File f(c.path_to_hic.string(), c.resolution);
+
+  if (c.compute_cis) {
+    plan.chrom_pairs = init_cis_chromosomes(f.chromosomes());
+    plan.expected_values = c.path_to_expected_values.empty()
+                               ? init_cis_expected_values(c)
+                               : ExpectedValues::deserialize(c.path_to_expected_values);
+  }
+
+  if (c.compute_trans) {
+    std::ranges::copy(init_trans_chromosomes(f.chromosomes()),
+                      std::back_inserter(plan.chrom_pairs));
+  }
+
+  if (!c.path_to_expected_values.empty()) {
+    assert(!plan.expected_values.has_value());
+    plan.expected_values = ExpectedValues::deserialize(c.path_to_expected_values);
+  }
+
+  if (plan.expected_values.has_value() && plan.expected_values->resolution() != f.resolution()) {
+    throw std::runtime_error(
+        fmt::format("mismatch in file resolution: expected values have been computed "
+                    "for {}bp resolution but given Hi-C matrix has {}bp resolution",
+                    plan.expected_values->resolution(), f.resolution()));
+  }
+
+  return plan;
+}
+
 int run_nchg_compute(const ComputePvalConfig &c) {
   const auto t0 = std::chrono::steady_clock::now();
 
-  if (c.chrom1 != "all") {
-    assert(c.chrom2 != "all");
+  if (c.chrom1.has_value()) {
+    assert(c.chrom2.has_value());
     const auto interactions_processed = run_nchg_compute_worker(c);
     const auto t1 = std::chrono::steady_clock::now();
-    SPDLOG_INFO("[{}:{}] processed {} records in {}!", c.chrom1, c.chrom2, interactions_processed,
+    SPDLOG_INFO("[{}:{}] processed {} records in {}!", *c.chrom1, *c.chrom2, interactions_processed,
                 format_duration(t1 - t0));
     return 0;
   }
 
-  const hictk::File f(c.path_to_hic.string(), c.resolution);
-  std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> chrom_pairs{};
-  std::optional<ExpectedValues> expected_values{};
-  if (c.cis_only) {
-    chrom_pairs = init_cis_chromosomes(f.chromosomes());
-    expected_values = c.path_to_expected_values.empty()
-                          ? init_cis_expected_values(c)
-                          : ExpectedValues::deserialize(c.path_to_expected_values);
-  }
-  if (c.trans_only) {
-    chrom_pairs = init_trans_chromosomes(f.chromosomes());
-  }
-
-  if (c.chrom1 == "all" && !c.cis_only && !c.trans_only) {
-    chrom_pairs = init_cis_chromosomes(f.chromosomes());
-    std::ranges::copy(init_trans_chromosomes(f.chromosomes()), std::back_inserter(chrom_pairs));
-  }
-
-  if (!expected_values.has_value() && !c.path_to_expected_values.empty()) {
-    expected_values = ExpectedValues::deserialize(c.path_to_expected_values);
-  }
-
-  if (expected_values.has_value() && expected_values->resolution() != f.resolution()) {
-    throw std::runtime_error(
-        fmt::format("mismatch in file resolution: expected values have been computed "
-                    "for {}bp resolution but given Hi-C matrix has {}bp resolution",
-                    expected_values->resolution(), f.resolution()));
-  }
+  const auto &[chrom_pairs, expected_values] = generate_execution_plan(c);
 
   const auto interactions_processed = process_queries(chrom_pairs, expected_values, c);
 

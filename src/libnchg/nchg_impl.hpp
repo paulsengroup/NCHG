@@ -46,7 +46,7 @@ namespace internal {
   assert(sum2 <= total_sum);
   assert(sum1 + sum2 <= total_sum);
 
-  const auto num = (n * (total_sum - sum1 - sum2 + n));
+  const auto num = n * (total_sum - sum1 - sum2 + n);
   const auto denom = (sum1 - n) * (sum2 - n);
 
   return num / denom;
@@ -72,8 +72,8 @@ constexpr auto NCHG::aggregate_marginals(const hictk::GenomicInterval &range,
     return Result{};
   }
 
-  assert(i2 < marginals.size());
-  assert(i2 < bin_mask.size());
+  assert(i2 <= marginals.size());
+  assert(i2 <= bin_mask.size());
 
   std::size_t bin_masked = 0;
   double sum = 0.0;
@@ -195,7 +195,8 @@ inline auto NCHG::aggregate_pixels(const hictk::GenomicInterval &range1,
 inline NCHGResult NCHG::compute_stats(hictk::Pixel<std::uint64_t> pixel, double exp,
                                       std::uint64_t obs_sum, double N1, double N2, double exp_sum,
                                       double L1, double L2, std::vector<double> &buffer) {
-  if (pixel.count == 0) [[unlikely]] {
+  // N1 and N2 can be NaN when a pixel/domain is masked
+  if (pixel.count == 0 || std::isnan(N1) || std::isnan(N2)) [[unlikely]] {
     return {.pixel = std::move(pixel),
             .expected = exp,
             .pval = 1.0,
@@ -203,6 +204,11 @@ inline NCHGResult NCHG::compute_stats(hictk::Pixel<std::uint64_t> pixel, double 
             .odds_ratio = 0.0,
             .omega = 0.0};
   }
+
+  assert(std::isfinite(exp));
+  assert(std::isfinite(L1));
+  assert(std::isfinite(L2));
+  assert(std::isfinite(exp_sum));
 
   const auto intra_matrix = pixel.coords.bin1.chrom() == pixel.coords.bin2.chrom();
 

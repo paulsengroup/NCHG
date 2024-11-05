@@ -52,6 +52,10 @@ inline ObservedMatrix::ObservedMatrix(const Pixels &pixels, hictk::Chromosome ch
   _marginals2 = std::move(stats.marginals2);
   _nnz = stats.nnz;
   _sum = stats.sum;
+
+  assert(_nnz <= _sum);
+  assert(_sum == std::accumulate(_marginals1->begin(), _marginals1->end(), std::uint64_t{}));
+  assert(_sum == std::accumulate(_marginals2->begin(), _marginals2->end(), std::uint64_t{}));
 }
 
 }  // namespace nchg

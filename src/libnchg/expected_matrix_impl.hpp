@@ -28,6 +28,7 @@
 #include <hictk/expected_values_aggregator.hpp>
 #include <limits>
 #include <memory>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -36,6 +37,27 @@
 #include "nchg/matrix_stats.hpp"
 
 namespace nchg {
+
+namespace internal {
+template <typename N>
+constexpr bool is_close(N n1, N n2, double rtol = 1.0e-6, double atol = 0) noexcept {
+  assert(rtol >= 0 && rtol <= 1);
+  if constexpr (std::is_integral_v<N>) {
+    return n1 == n2;
+  } else {
+    if (n1 == n2) {
+      return true;
+    }
+    if (std::isnan(n1)) {
+      return std::isnan(n2);
+    }
+
+    // https://peps.python.org/pep-0485/
+    const auto diff = std::abs(n1 - n2);
+    return (diff <= abs(rtol * n2)) || (diff <= atol);
+  }
+}
+}  // namespace internal
 
 template <typename Pixels>
   requires PixelRange<Pixels>
@@ -64,6 +86,10 @@ inline ExpectedMatrixStats::ExpectedMatrixStats(const Pixels &pixels, hictk::Chr
   _marginals2 = std::move(stats.marginals2);
   _nnz = stats.nnz;
   _sum = stats.sum;
+
+  assert(static_cast<double>(_nnz) <= _sum);
+  assert(internal::is_close(_sum, std::accumulate(_marginals1->begin(), _marginals1->end(), 0.0)));
+  assert(internal::is_close(_sum, std::accumulate(_marginals2->begin(), _marginals2->end(), 0.0)));
 }
 
 template <typename Pixels, typename PixelsGW>

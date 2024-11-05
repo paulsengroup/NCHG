@@ -52,8 +52,7 @@ ExpectedValuesAggregator::ExpectedValuesAggregator(std::shared_ptr<const hictk::
   }
 
   const auto bin_size = _bins->resolution();
-  // round down to mimic HiCTools' behavior
-  const auto max_n_bins = max_length / bin_size;
+  const auto max_n_bins = (max_length + bin_size - 1) / bin_size;
   _possible_distances.resize(max_n_bins, 0.0);
   _observed_distances.resize(max_n_bins, 0.0);
   _weights.resize(max_n_bins, 0.0);
@@ -75,7 +74,8 @@ const std::vector<double> &ExpectedValuesAggregator::weights() const noexcept { 
 
 std::vector<double> ExpectedValuesAggregator::weights(const hictk::Chromosome &chrom,
                                                       bool rescale) const {
-  const auto num_bins = chrom.size() / _bins->resolution();
+  const auto bin_size = _bins->resolution();
+  const auto num_bins = (chrom.size() + bin_size - 1) / bin_size;
 
   std::vector<double> w{_weights.begin(), _weights.begin() + static_cast<std::ptrdiff_t>(num_bins)};
   if (!rescale) {
@@ -104,6 +104,8 @@ void ExpectedValuesAggregator::init_possible_distances() {
     if (chrom.is_all()) [[unlikely]] {
       continue;
     }
+
+    // Rounding down is intended: we do not want to count partial bins
     const auto n_bins = chrom.size() / bin_size;
     for (std::uint32_t i = 0; i < n_bins; ++i) {
       _possible_distances[i] += n_bins - i;
@@ -192,6 +194,7 @@ phmap::btree_map<hictk::Chromosome, double> ExpectedValuesAggregator::compute_sc
       continue;
     }
 
+    // Rounding down is intended: we do not want to process partial bins
     const auto num_chrom_bins =
         std::min(_weights.size(), chrom.size() / static_cast<std::size_t>(_bins->resolution()));
     auto expected_count = 0.0;
@@ -209,15 +212,11 @@ phmap::btree_map<hictk::Chromosome, double> ExpectedValuesAggregator::compute_sc
   return scaling_factors;
 }
 
-namespace internal {
-
-[[nodiscard]] double approx_quantile(std::vector<double> &v, double quantile) {
+[[nodiscard]] static double approx_quantile(std::vector<double> &v, double quantile) {
   auto nth = v.begin() + static_cast<std::ptrdiff_t>(quantile * static_cast<double>(v.size() - 1));
   std::ranges::nth_element(v, nth);
   return *nth;
 };
-
-}  // namespace internal
 
 void ExpectedValuesAggregator::correct_outliers(double quantile, std::uint32_t window_size) {
   assert(quantile >= 0);
@@ -240,7 +239,7 @@ void ExpectedValuesAggregator::correct_outliers(double quantile, std::uint32_t w
     buffer.clear();
     std::copy(_weights.begin() + static_cast<std::ptrdiff_t>(i0),
               _weights.begin() + static_cast<std::ptrdiff_t>(i1), std::back_inserter(buffer));
-    const auto thresh = internal::approx_quantile(buffer, quantile);
+    const auto thresh = approx_quantile(buffer, quantile);
     if (_weights[i] > thresh) {
       const auto n = median(buffer);
       if (std::isfinite(n)) [[likely]] {
@@ -252,7 +251,7 @@ void ExpectedValuesAggregator::correct_outliers(double quantile, std::uint32_t w
 
 void ExpectedValuesAggregator::compute_density_trans() {
   for (auto &[k, v] : _trans_sum) {
-    // We round-down to match HiCTools behavior
+    // Rounding down is intended: we do not want to include partial bins
     const auto num_bins1 = k.first.size() / _bins->resolution();
     const auto num_bins2 = k.second.size() / _bins->resolution();
     const auto num_pixels = num_bins1 * num_bins2;

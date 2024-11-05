@@ -106,7 +106,7 @@ auto NCHG::compute(const hictk::GenomicInterval &range1, const hictk::GenomicInt
   if (!range1_masked && !range2_masked) [[likely]] {
     const auto &result = aggregate_pixels(range1, range2);
     obs = result.obs;
-    exp = std::max(result.exp, _double_lb);  // TODO double check
+    exp = std::max(0.0, result.exp);
   }
 
   // clang-format off

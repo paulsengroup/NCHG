@@ -77,7 +77,6 @@ class NCHG {
   ExpectedValues _expected_values{};
 
   mutable std::vector<double> _nchg_pval_buffer{};
-  static constexpr double _double_lb{1.0e-20};
 
  public:
   using IteratorVariant =

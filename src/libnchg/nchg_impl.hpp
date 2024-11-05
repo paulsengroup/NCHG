@@ -218,7 +218,7 @@ inline NCHGResult NCHG::compute_stats(hictk::Pixel<std::uint64_t> pixel, double 
 
   const auto log_ratio = std::log2(obs) - std::log2(exp);
 
-  if ((L1 - exp) * (L2 - exp) <= _double_lb) [[unlikely]] {
+  if (!std::isfinite(odds_ratio) || !std::isfinite(omega)) [[unlikely]] {
     return {.pixel = std::move(pixel),
             .expected = exp,
             .pval = 1.0,

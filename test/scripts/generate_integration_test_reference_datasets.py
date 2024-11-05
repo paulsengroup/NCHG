@@ -97,64 +97,120 @@ def add_common_flags(parser):
         help="Subprocess timeout (seconds).",
     )
 
-    parser.add_argument("--force", action="store_true", default=False, help="Overwrite existing file(s).")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help="Overwrite existing file(s).",
+    )
 
 
 def make_compute_sc(main_parser):
     sc: argparse.ArgumentParser = main_parser.add_parser(
-        "compute", help="Generate the reference dataset for NCHG compute."
+        "compute",
+        help="Generate the reference dataset for NCHG compute.",
     )
 
-    sc.add_argument("cool-uri", type=str, help="Path or URI to an existing .cool file.")
-
-    sc.add_argument("out-prefix", type=pathlib.Path, help="Output path to pass to NCHG compute.")
+    sc.add_argument(
+        "cool-uri",
+        type=str,
+        help="Path or URI to an existing .cool file.",
+    )
+    sc.add_argument(
+        "domains",
+        type=existing_file,
+        help="Path to a BED3+ file with the list of domains to be processed.",
+    )
+    sc.add_argument(
+        "out-prefix",
+        type=pathlib.Path,
+        help="Output path to pass to NCHG compute.",
+    )
 
     add_common_flags(sc)
 
 
 def make_merge_sc(main_parser):
-    sc: argparse.ArgumentParser = main_parser.add_parser("merge", help="Generate the reference dataset for NCHG merge.")
+    sc: argparse.ArgumentParser = main_parser.add_parser(
+        "merge",
+        help="Generate the reference dataset for NCHG merge.",
+    )
 
-    sc.add_argument("input-prefix", type=pathlib.Path, help="Path prefix to pass to NCHG merge.")
-
-    sc.add_argument("output-parquet", type=pathlib.Path, help="Path where to store NCHG merge's output.")
+    sc.add_argument(
+        "input-prefix",
+        type=pathlib.Path,
+        help="Path prefix to pass to NCHG merge.",
+    )
+    sc.add_argument(
+        "output-parquet",
+        type=pathlib.Path,
+        help="Path where to store NCHG merge's output.",
+    )
 
     add_common_flags(sc)
 
 
 def make_filter_sc(main_parser):
     sc: argparse.ArgumentParser = main_parser.add_parser(
-        "filter", help="Generate the reference dataset for NCHG filter."
+        "filter",
+        help="Generate the reference dataset for NCHG filter.",
     )
 
-    sc.add_argument("input-parquet", type=existing_file, help="Path to the .parquet file to be passed to NCHG filter.")
-
-    sc.add_argument("output-parquet", type=pathlib.Path, help="Path where to store NCHG filter's output.")
+    sc.add_argument(
+        "input-parquet",
+        type=existing_file,
+        help="Path to the .parquet file to be passed to NCHG filter.",
+    )
+    sc.add_argument(
+        "output-parquet",
+        type=pathlib.Path,
+        help="Path where to store NCHG filter's output.",
+    )
 
     add_common_flags(sc)
 
 
 def make_view_sc(main_parser):
-    sc: argparse.ArgumentParser = main_parser.add_parser("view", help="Generate the reference dataset for NCHG view.")
+    sc: argparse.ArgumentParser = main_parser.add_parser(
+        "view",
+        help="Generate the reference dataset for NCHG view.",
+    )
 
-    sc.add_argument("input-parquet", type=existing_file, help="Path to the .parquet file to be passed to NCHG view.")
-
-    sc.add_argument("output-tsv", type=pathlib.Path, help="Path where to store NCHG view's output.")
+    sc.add_argument(
+        "input-parquet",
+        type=existing_file,
+        help="Path to the .parquet file to be passed to NCHG view.",
+    )
+    sc.add_argument(
+        "output-tsv",
+        type=pathlib.Path,
+        help="Path where to store NCHG view's output.",
+    )
 
     add_common_flags(sc)
 
 
 def make_expected_sc(main_parser):
     sc: argparse.ArgumentParser = main_parser.add_parser(
-        "expected", help="Generate the reference dataset for NCHG expected."
+        "expected",
+        help="Generate the reference dataset for NCHG expected.",
     )
 
-    sc.add_argument("cool-uri", type=str, help="Path or URI to an existing .cool file.")
-
-    sc.add_argument("output-h5", type=pathlib.Path, help="Path where to store NCHG expect's output.")
-
     sc.add_argument(
-        "--masked-intervals", nargs="+", type=str, help="One or more intervals to be masked out (UCSC format)."
+        "cool-uri",
+        type=str,
+        help="Path or URI to an existing .cool file.",
+    )
+    sc.add_argument(
+        "output-h5",
+        type=pathlib.Path,
+        help="Path where to store NCHG expect's output.",
+    )
+    sc.add_argument(
+        "--masked-intervals",
+        nargs="+",
+        type=str,
+        help="One or more intervals to be masked out (UCSC format).",
     )
 
     add_common_flags(sc)
@@ -163,11 +219,28 @@ def make_expected_sc(main_parser):
 def make_cli() -> argparse.ArgumentParser:
     cli = argparse.ArgumentParser("Generate the reference datasets for NCHG integration tests.")
 
-    cli.add_argument("cool-uri", type=str, help="Path or URI to an existing .cool file.")
-    cli.add_argument("output-dir", type=pathlib.Path, help="Output folder where to store the output produced by NCHG.")
+    cli.add_argument(
+        "cool-uri",
+        type=str,
+        help="Path or URI to an existing .cool file.",
+    )
+    cli.add_argument(
+        "output-dir",
+        type=pathlib.Path,
+        help="Output folder where to store the output produced by NCHG.",
+    )
+    cli.add_argument(
+        "--domains",
+        type=existing_file,
+        help="Path to a BED3+ file with the list of domains to be processed.",
+    )
     add_common_flags(cli)
 
-    sub_parser = cli.add_subparsers(title="subcommands", dest="command", help="List of available subcommands:")
+    sub_parser = cli.add_subparsers(
+        title="subcommands",
+        dest="command",
+        help="List of available subcommands:",
+    )
 
     make_compute_sc(sub_parser)
     make_merge_sc(sub_parser)
@@ -195,7 +268,14 @@ def run_nchg_command(nchg_bin: pathlib.Path, subcmd: str, *args, **kwargs):
 
     logging.debug("launching %s...", [str(x) for x in cmd])
 
-    res = sp.run(cmd, stdin=sp.DEVNULL, stdout=sp.PIPE, stderr=sp.PIPE, timeout=kwargs["timeout"], encoding="utf-8")
+    res = sp.run(
+        cmd,
+        stdin=sp.DEVNULL,
+        stdout=sp.PIPE,
+        stderr=sp.PIPE,
+        timeout=kwargs["timeout"],
+        encoding="utf-8",
+    )
 
     for line in res.stdout.strip().split("\n"):
         logging.info("NCHG %s [stdout]: %s", subcmd, line)
@@ -207,16 +287,39 @@ def run_nchg_command(nchg_bin: pathlib.Path, subcmd: str, *args, **kwargs):
 
 
 def run_nchg_compute(
-    nchg_bin: pathlib.Path, uri: str, out_prefix: pathlib.Path, nproc: int, force: bool, timeout: float
+    nchg_bin: pathlib.Path,
+    uri: str,
+    out_prefix: pathlib.Path,
+    domains: pathlib.Path | None,
+    nproc: int,
+    force: bool,
+    timeout: float,
 ) -> pathlib.Path:
-    run_nchg_command(nchg_bin, "compute", uri, out_prefix, "--threads", nproc, force=force, timeout=timeout)
+    args = [uri, out_prefix, "--threads", nproc]
+    if domains is not None:
+        args.extend(("--domains", domains))
+
+    run_nchg_command(
+        nchg_bin,
+        "compute",
+        *args,
+        force=force,
+        timeout=timeout,
+    )
     return out_prefix
 
 
 def run_nchg_merge(
     nchg_bin: pathlib.Path, input_prefix: pathlib.Path, output_path: pathlib.Path, force: bool, timeout: float
 ) -> pathlib.Path:
-    run_nchg_command(nchg_bin, "merge", input_prefix, output_path, force=force, timeout=timeout)
+    run_nchg_command(
+        nchg_bin,
+        "merge",
+        input_prefix,
+        output_path,
+        force=force,
+        timeout=timeout,
+    )
     assert output_path.is_file()
     return output_path
 
@@ -224,7 +327,14 @@ def run_nchg_merge(
 def run_nchg_filter(
     nchg_bin: pathlib.Path, input_parquet: pathlib.Path, output_parquet: pathlib.Path, force: bool, timeout: float
 ) -> pathlib.Path:
-    run_nchg_command(nchg_bin, "filter", input_parquet, output_parquet, force=force, timeout=timeout)
+    run_nchg_command(
+        nchg_bin,
+        "filter",
+        input_parquet,
+        output_parquet,
+        force=force,
+        timeout=timeout,
+    )
     assert output_parquet.is_file()
     return output_parquet
 
@@ -241,7 +351,13 @@ def run_nchg_view(
         raise RuntimeError(f'refusing to overwrite file "{output_tsv}": pass --force to overwrite.')
 
     with output_tsv.open("w") as f:
-        res = sp.run(cmd, stdin=sp.DEVNULL, stdout=f, stderr=sp.PIPE, timeout=timeout)
+        res = sp.run(
+            cmd,
+            stdin=sp.DEVNULL,
+            stdout=f,
+            stderr=sp.PIPE,
+            timeout=timeout,
+        )
         for line in res.stderr:
             logging.info("NCHG view [stderr]: %s", line)
 
@@ -269,7 +385,11 @@ def run_nchg_expected(
             tmpfile.flush()
             args.extend(("--bin-mask", tmpfile.name))
 
-        run_nchg_command(*args, force=force, timeout=timeout)
+        run_nchg_command(
+            *args,
+            force=force,
+            timeout=timeout,
+        )
 
     assert output_h5.exists()
     return output_h5
@@ -302,37 +422,114 @@ def main():
     cmd = args["command"]
 
     if cmd == "compute":
-        run_nchg_compute(nchg_bin, args["cool-uri"], args["out-prefix"], args["nproc"], force, timeout)
+        run_nchg_compute(
+            nchg_bin,
+            args["cool-uri"],
+            args["out-prefix"],
+            args["domains"],
+            args["nproc"],
+            force,
+            timeout,
+        )
     elif cmd == "merge":
-        run_nchg_merge(nchg_bin, args["input-prefix"], args["output-parquet"], force, timeout)
+        run_nchg_merge(
+            nchg_bin,
+            args["input-prefix"],
+            args["output-parquet"],
+            force,
+            timeout,
+        )
     elif cmd == "filter":
-        run_nchg_filter(nchg_bin, args["input-parquet"], args["output-parquet"], force, timeout)
+        run_nchg_filter(
+            nchg_bin,
+            args["input-parquet"],
+            args["output-parquet"],
+            force,
+            timeout,
+        )
     elif cmd == "view":
-        run_nchg_view(nchg_bin, args["input-parquet"], args["output-tsv"], force, timeout)
+        run_nchg_view(
+            nchg_bin,
+            args["input-parquet"],
+            args["output-tsv"],
+            force,
+            timeout,
+        )
     elif cmd == "expected":
-        run_nchg_expected(nchg_bin, args["cool-uri"], args["output-h5"], args["masked_intervals"], force, timeout)
+        run_nchg_expected(
+            nchg_bin,
+            args["cool-uri"],
+            args["output-h5"],
+            args["masked_intervals"],
+            force,
+            timeout,
+        )
     elif not cmd:
         suffix = pathlib.Path(args["cool-uri"].partition("::")[0]).stem
+        outprefix = args["output-dir"] / "compute_with_domains" / suffix
+        run_nchg_compute(
+            nchg_bin,
+            args["cool-uri"],
+            outprefix,
+            args["domains"],
+            args["nproc"],
+            force,
+            timeout,
+        )
+
         outprefix = args["output-dir"] / "compute" / suffix
-        run_nchg_compute(nchg_bin, args["cool-uri"], outprefix, args["nproc"], force, timeout)
+        run_nchg_compute(
+            nchg_bin,
+            args["cool-uri"],
+            outprefix,
+            None,
+            args["nproc"],
+            force,
+            timeout,
+        )
 
         output = args["output-dir"] / "merge" / f"{suffix}.parquet"
         output.parent.mkdir(parents=True, exist_ok=True)
-        run_nchg_merge(nchg_bin, outprefix, output, force, timeout)
+        run_nchg_merge(
+            nchg_bin,
+            outprefix,
+            output,
+            force,
+            timeout,
+        )
 
         input = output
         output = args["output-dir"] / "filter" / f"{suffix}.parquet"
         output.parent.mkdir(parents=True, exist_ok=True)
-        run_nchg_filter(nchg_bin, input, output, force, timeout)
+        run_nchg_filter(
+            nchg_bin,
+            input,
+            output,
+            force,
+            timeout,
+        )
 
         input = output
         output = args["output-dir"] / "view" / f"{suffix}.tsv"
         output.parent.mkdir(parents=True, exist_ok=True)
-        run_nchg_view(nchg_bin, input, output, force, timeout)
+        run_nchg_view(
+            nchg_bin,
+            input,
+            output,
+            force,
+            timeout,
+        )
 
         output = args["output-dir"] / "expected" / f"{suffix}.h5"
         output.parent.mkdir(parents=True, exist_ok=True)
-        run_nchg_expected(nchg_bin, args["cool-uri"], output, [], force, timeout)
+        run_nchg_expected(
+            nchg_bin,
+            args["cool-uri"],
+            output,
+            [],
+            force,
+            timeout,
+        )
     else:
         raise NotImplementedError
 

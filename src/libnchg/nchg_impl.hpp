@@ -229,7 +229,7 @@ inline auto NCHG<File>::iterator::operator*() const -> const_reference {
   const auto odds_ratio = compute_odds_ratio(obs, static_cast<double>(obs_sum), N1, N2);
   const auto omega = intra_matrix ? compute_odds_ratio(exp, exp_sum, L1, L2) : 1;
 
-  const auto log_ratio = std::log2(odds_ratio) - std::log2(omega);
+  const auto log_ratio = std::log2(obs) - std::log2(exp);
 
   if ((L1 - exp) * (L2 - exp) <= cutoff) {
     _value = {p, exp, 1.0, log_ratio, odds_ratio, omega};

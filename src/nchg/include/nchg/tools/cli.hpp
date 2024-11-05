@@ -132,6 +132,7 @@ class Cli {
   [[nodiscard]] int exit(const CLI::ParseError& e) const;
   [[nodiscard]] int exit() const noexcept;
   [[nodiscard]] static std::string_view subcommand_to_str(subcommand s) noexcept;
+  void log_warnings() const noexcept;
 
  private:
   int _argc;
@@ -141,6 +142,7 @@ class Cli {
   Config _config{};
   CLI::App _cli{};
   subcommand _subcommand{subcommand::help};
+  mutable std::vector<std::string> _warnings{};
 
   void make_compute_subcommand();
   void make_expected_subcommand();

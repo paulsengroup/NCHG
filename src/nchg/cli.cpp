@@ -118,6 +118,13 @@ std::string_view Cli::subcommand_to_str(subcommand s) noexcept {
   }
 }
 
+void Cli::log_warnings() const noexcept {
+  for (const auto &w : _warnings) {
+    SPDLOG_WARN("{}", w);
+  }
+  _warnings.clear();
+}
+
 void Cli::make_cli() {
   _cli.name(_exec_name);
   _cli.description("NCHG.");
@@ -644,7 +651,6 @@ void Cli::validate_compute_subcommand() const {
   const auto &c = std::get<ComputePvalConfig>(_config);
   const auto &sc = *_cli.get_subcommand("compute");
 
-  std::vector<std::string> warnings;
   std::vector<std::string> errors;
 
   const auto is_mcool = hictk::cooler::utils::is_multires_file(c.path_to_hic.string());
@@ -665,21 +671,17 @@ void Cli::validate_compute_subcommand() const {
   const auto trans_only_parsed = !sc.get_option("--trans-only")->empty();
 
   if (trans_only_parsed && (min_delta_parsed || max_delta_parsed)) {
-    warnings.emplace_back("--min-delta and --max-delta are ignored when --trans-only=true");
+    _warnings.emplace_back("--min-delta and --max-delta are ignored when --trans-only=true");
   }
 
   if (c.compression_method == "lz4" && c.compression_lvl > 9) {
-    warnings.emplace_back("compression method lz4 supports compression levels up to 9");
+    _warnings.emplace_back("compression method lz4 supports compression levels up to 9");
   }
 
   if (c.threads > 1 && c.chrom1.has_value()) {
-    warnings.emplace_back(
+    _warnings.emplace_back(
         "number of threads set with --threads is ignored because --chrom1 has been specified: "
         "concurrency will be limited to a single thread");
-  }
-
-  for (const auto &w : warnings) {
-    SPDLOG_WARN("{}", w);
   }
 
   if (!errors.empty()) {
@@ -693,16 +695,11 @@ void Cli::validate_compute_subcommand() const {
 void Cli::validate_expected_subcommand() const {
   const auto &c = std::get<ExpectedConfig>(_config);
 
-  [[maybe_unused]] std::vector<std::string> warnings;
   std::vector<std::string> errors;
 
   if (!c.force && std::filesystem::exists(c.output_path)) {
     errors.emplace_back(
         fmt::format("Refusing to overwrite file {}. Pass --force to overwrite.", c.output_path));
-  }
-
-  for (const auto &w : warnings) {
-    SPDLOG_WARN("{}", w);
   }
 
   if (!errors.empty()) {
@@ -731,16 +728,10 @@ void Cli::validate_filter_subcommand() const {
 }
 
 void Cli::validate_merge_subcommand() const {
-  auto &c = std::get<MergeConfig>(_config);
-
-  std::vector<std::string> warnings;
+  const auto &c = std::get<MergeConfig>(_config);
 
   if (c.compression_method == "lz4" && c.compression_lvl > 9) {
-    warnings.emplace_back("compression method lz4 supports compression levels up to 9");
-  }
-
-  for (const auto &w : warnings) {
-    SPDLOG_WARN("{}", w);
+    _warnings.emplace_back("compression method lz4 supports compression levels up to 9");
   }
 }
 

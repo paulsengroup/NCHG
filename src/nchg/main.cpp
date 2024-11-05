@@ -99,6 +99,8 @@ int main(int argc, char **argv) noexcept {
       return ec;
     }
 
+    cli->log_warnings();
+
     using sc = Cli::subcommand;
     switch (subcmd) {
       case sc::compute: {

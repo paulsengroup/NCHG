@@ -222,7 +222,12 @@ inline std::unique_ptr<parquet::arrow::FileWriter> init_parquet_file_writer(
                               ->build();
 
   if (force) {
-    std::filesystem::remove(path);
+    std::filesystem::remove(path);  // NOLINT
+  }
+
+  const auto output_dir = path.parent_path();
+  if (!output_dir.empty() && !std::filesystem::exists(output_dir)) {
+    std::filesystem::create_directories(output_dir);
   }
 
   std::shared_ptr<arrow::io::FileOutputStream> f{};

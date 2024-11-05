@@ -164,6 +164,11 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
           fmt::format("Refusing to overwrite file {}. Pass --force to overwrite.", path));
     }
 
+    const auto output_dir = path.parent_path();
+    if (!output_dir.empty() && !std::filesystem::exists(output_dir)) {
+      std::filesystem::create_directories(output_dir);
+    }
+
     std::ofstream fs{};
     fs.exceptions(fs.exceptions() | std::ios::badbit | std::ios::failbit);
     fs.open(path);
@@ -470,6 +475,11 @@ static std::size_t process_queries_mt(
 
     std::filesystem::remove(config.path_to_expected_values);  // NOLINT
 
+    const auto output_dir = config.path_to_expected_values.parent_path();
+    if (!output_dir.empty() && !std::filesystem::exists(output_dir)) {
+      std::filesystem::create_directories(output_dir);
+    }
+
     expected_values->serialize(config.path_to_expected_values);
   }
 
@@ -583,11 +593,6 @@ static std::size_t process_queries(
         }
       }
     }
-  }
-
-  const auto output_dir = c.output_prefix.parent_path();
-  if (!output_dir.empty() && output_dir != ".") {
-    std::filesystem::create_directories(output_dir);
   }
 
   write_chrom_sizes_to_file(hictk::File(c.path_to_hic, c.resolution).chromosomes(),

@@ -121,7 +121,7 @@ std::string_view Cli::subcommand_to_str(subcommand s) noexcept {
 void Cli::make_cli() {
   _cli.name(_exec_name);
   _cli.description("NCHG.");
-  _cli.set_version_flag("-V,--version", "0.0.1");
+  _cli.set_version_flag("-V,--version", "0.0.2");
   _cli.require_subcommand(1);
 
   make_compute_subcommand();
@@ -156,7 +156,8 @@ void Cli::make_compute_subcommand() {
     c.output_prefix,
     "Path prefix to use for output.\n"
     "Depending on the parameters used to invoke NCHG, this will result in one or more\n"
-    "files named myprefix.chrA.chrB.parquet.")
+    "files named like myprefix.chrA.chrB.parquet plus a file named myprefix.chrom.sizes.\n"
+    "When --chrom1 and/or --chrom2 have been specified a single file named myprefix.parquet will be created.")
     ->required();
   sc.add_option(
     "--resolution",
@@ -671,6 +672,12 @@ void Cli::validate_compute_subcommand() const {
     warnings.emplace_back("compression method lz4 supports compression levels up to 9");
   }
 
+  if (c.threads > 1 && c.chrom1.has_value()) {
+    warnings.emplace_back(
+        "number of threads set with --threads is ignored because --chrom1 has been specified: "
+        "concurrency will be limited to a single thread");
+  }
+
   for (const auto &w : warnings) {
     SPDLOG_WARN("{}", w);
   }
@@ -793,14 +800,27 @@ static std::string get_path_to_executable() {
 
 void Cli::transform_args_compute_subcommand() {
   auto &c = std::get<ComputePvalConfig>(_config);
-  if (c.chrom1 != "all" && c.chrom2 == "all") {
-    c.chrom2 = c.chrom1;
+  if (c.chrom1.has_value()) {
+    if (!c.chrom2.has_value()) {
+      c.chrom2 = c.chrom1;
+    }
+    c.output_path = c.output_prefix;
+    c.output_path.replace_extension(".parquet");
+    c.output_prefix.clear();
   }
 
   c.exec = get_path_to_executable();
 
+  if (!c.output_prefix.empty()) {
+    c.tmpdir = c.output_prefix.parent_path() / "tmp/";
+  }
+
   if (c.compression_method == "lz4") {
     c.compression_lvl = std::min(c.compression_lvl, std::uint8_t{9});
+  }
+
+  if (c.chrom1.has_value()) {
+    c.threads = 1;
   }
 
   // in spdlog, high numbers correspond to low log levels

@@ -188,13 +188,13 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   assert(std::filesystem::exists(c.path_to_domains));
   assert(c.chrom1.has_value());
   assert(c.chrom2.has_value());
+  assert(!c.output_path.empty());
 
   SPDLOG_INFO("[{}:{}] begin processing domains from {}...", *c.chrom1, *c.chrom2,
               c.path_to_domains);
 
-  const auto writer =
-      init_parquet_file_writer<NCHGResult>(f->chromosomes(), c.output_prefix, c.force,
-                                           c.compression_method, c.compression_lvl, c.threads);
+  const auto writer = init_parquet_file_writer<NCHGResult>(
+      f->chromosomes(), c.output_path, c.force, c.compression_method, c.compression_lvl, c.threads);
 
   const auto domains = parse_domains(f->chromosomes(), c.path_to_domains, *c.chrom1, *c.chrom2);
 
@@ -242,6 +242,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
     const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
   assert(c.chrom1.has_value());
   assert(c.chrom2.has_value());
+  assert(!c.output_path.empty());
 
   SPDLOG_INFO("[{}:{}] begin processing interactions...", *c.chrom1, *c.chrom2);
 
@@ -249,9 +250,8 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   const auto &chrom2 = f->chromosomes().at(*c.chrom2);
   const auto nchg = init_nchg(f, expected_values, c);
 
-  const auto writer =
-      init_parquet_file_writer<NCHGResult>(f->chromosomes(), c.output_prefix, c.force,
-                                           c.compression_method, c.compression_lvl, c.threads);
+  const auto writer = init_parquet_file_writer<NCHGResult>(
+      f->chromosomes(), c.output_path, c.force, c.compression_method, c.compression_lvl, c.threads);
 
   constexpr std::size_t batch_size = 1'000'000;
   RecordBatchBuilder builder{f->chromosomes()};
@@ -326,9 +326,12 @@ using ChromosomePairs = std::vector<std::pair<hictk::Chromosome, hictk::Chromoso
   return buffer;
 }
 
-[[nodiscard]] static boost::process::child spawn_compute_process(
-    const ComputePvalConfig &c, const std::filesystem::path &output_path,
-    const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2) {
+[[nodiscard]] static boost::process::child spawn_compute_process(const ComputePvalConfig &c,
+                                                                 const hictk::Chromosome &chrom1,
+                                                                 const hictk::Chromosome &chrom2) {
+  assert(c.output_prefix.empty());
+  assert(!c.output_path.empty());
+
   SPDLOG_INFO("begin processing {}:{}", chrom1.name(), chrom2.name());
 
   std::vector<std::string> args{
@@ -350,7 +353,7 @@ using ChromosomePairs = std::vector<std::pair<hictk::Chromosome, hictk::Chromoso
       "--verbosity",
       "2",
       c.path_to_hic.string(),
-      output_path.string(),
+      c.output_path.string(),
   };
 
   if (!c.path_to_domains.empty()) {
@@ -407,6 +410,18 @@ using ChromosomePairs = std::vector<std::pair<hictk::Chromosome, hictk::Chromoso
       fmt::format("failed to spawn worker process: {} {}", c.exec.string(), fmt::join(args, " ")));
 }
 
+[[nodiscard]] static std::filesystem::path generate_chrom_sizes_file_name(
+    const std::filesystem::path &output_prefix) {
+  assert(!output_prefix.empty());
+  return fmt::format("{}.chrom.sizes", output_prefix);
+}
+
+[[nodiscard]] static std::filesystem::path generate_output_file_name(
+    const std::filesystem::path &output_prefix, const hictk::Chromosome &chrom1,
+    const hictk::Chromosome &chrom2) {
+  return fmt::format("{}.{}.{}.parquet", output_prefix.string(), chrom1.name(), chrom2.name());
+}
+
 [[nodiscard]] static std::size_t worker_fx(const hictk::Chromosome &chrom1,
                                            const hictk::Chromosome &chrom2,
                                            const ComputePvalConfig &config,
@@ -417,15 +432,17 @@ using ChromosomePairs = std::vector<std::pair<hictk::Chromosome, hictk::Chromoso
   }
 
   try {
-    const auto output_path = fmt::format("{}.{}.{}.parquet", config.output_prefix.string(),
-                                         chrom1.name(), chrom2.name());
-
     auto child_config = config;
+
+    child_config.output_path =
+        generate_output_file_name(config.output_prefix.string(), chrom1, chrom2);
+    child_config.output_prefix.clear();
+
     if (!trans_expected_values_avail && chrom1 != chrom2) {
       child_config.path_to_expected_values.clear();
     }
 
-    auto proc = spawn_compute_process(child_config, output_path, chrom1, chrom2);
+    auto proc = spawn_compute_process(child_config, chrom1, chrom2);
     proc.wait();
 
     if (proc.exit_code() != 0) {
@@ -435,7 +452,7 @@ using ChromosomePairs = std::vector<std::pair<hictk::Chromosome, hictk::Chromoso
     }
 
     std::shared_ptr<arrow::io::ReadableFile> fp;
-    PARQUET_ASSIGN_OR_THROW(fp, arrow::io::ReadableFile::Open(output_path));
+    PARQUET_ASSIGN_OR_THROW(fp, arrow::io::ReadableFile::Open(child_config.output_path));
     const auto records_processed =
         parquet::StreamReader{parquet::ParquetFileReader::Open(fp)}.num_rows();
 
@@ -459,8 +476,17 @@ using ChromosomePairs = std::vector<std::pair<hictk::Chromosome, hictk::Chromoso
     const ComputePvalConfig &c, const std::optional<ExpectedValues> &expected_values) {
   auto base_config = c;
   if (c.path_to_expected_values.empty() && expected_values.has_value()) {
+    assert(!base_config.output_prefix.empty());
+    const auto tmpdir = base_config.output_prefix.parent_path() / "tmp/";
+    if (std::filesystem::exists(tmpdir) && !c.force) {
+      throw std::runtime_error(
+          fmt::format("refusing to overwrite existing temporary folder: \"{}\". "
+                      "Pass --force to overwrite.",
+                      tmpdir));
+    }
+
     base_config.path_to_expected_values =
-        fmt::format("{}_expected_values.h5", base_config.output_prefix.string());
+        tmpdir / fmt::format("{}_expected_values.h5", base_config.output_prefix.stem().string());
 
     if (!base_config.force && std::filesystem::exists(base_config.path_to_expected_values)) {
       throw std::runtime_error(
@@ -468,13 +494,8 @@ using ChromosomePairs = std::vector<std::pair<hictk::Chromosome, hictk::Chromoso
                       base_config.path_to_expected_values));
     }
 
+    std::filesystem::create_directories(tmpdir);
     std::filesystem::remove(base_config.path_to_expected_values);  // NOLINT
-
-    const auto output_dir = base_config.path_to_expected_values.parent_path();
-    if (!output_dir.empty() && !std::filesystem::exists(output_dir)) {
-      std::filesystem::create_directories(output_dir);
-    }
-
     expected_values->serialize(base_config.path_to_expected_values);
   }
 
@@ -510,6 +531,7 @@ static std::size_t process_queries_mt(
 static std::size_t process_queries_st(
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
     const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
+  assert(!c.output_prefix.empty());
   std::size_t tot_num_records = 0;
   for (const auto &[chrom1, chrom2] : chrom_pairs) {
     try {
@@ -519,8 +541,9 @@ static std::size_t process_queries_st(
       config.compute_cis = true;
       config.compute_trans = true;
 
-      config.output_prefix =
+      config.output_path =
           fmt::format("{}.{}.{}.parquet", c.output_prefix.string(), chrom1.name(), chrom2.name());
+      config.output_prefix.clear();
 
       const auto t0 = std::chrono::steady_clock::now();
       if (config.chrom1 == config.chrom2) {
@@ -534,6 +557,8 @@ static std::size_t process_queries_st(
       const auto t1 = std::chrono::steady_clock::now();
       SPDLOG_INFO("[{}:{}] processed {} records in {}!", chrom1.name(), chrom2.name(), num_records,
                   format_duration(t1 - t0));
+      SPDLOG_INFO("[{}:{}] {} records have been written to file \"{}\"", chrom1.name(),
+                  chrom2.name(), num_records, config.output_path.string());
 
     } catch (const std::exception &e) {
       throw std::runtime_error(fmt::format("error in while processing {}:{}: {}", chrom1.name(),
@@ -571,45 +596,120 @@ static std::optional<ExpectedValues> init_cis_expected_values(const ComputePvalC
 static std::size_t process_queries(
     const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
     const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
-  if (!c.path_to_expected_values.empty()) {
-    assert(expected_values.has_value());
-    for (const auto &[chrom1, chrom2] : chrom_pairs) {
-      try {
-        if (chrom1 == chrom2) {
-          std::ignore = expected_values->expected_values(chrom1);
-        } else {
-          std::ignore = expected_values->expected_value(chrom1, chrom2);
-        }
-      } catch (const std::out_of_range &) {
-        throw std::runtime_error(
-            fmt::format("user-specified expected value file does not contain "
-                        "information for chromosome pair {}:{}",
-                        chrom1.name(), chrom2.name()));
-      }
-    }
-  }
-
-  if constexpr (ndebug_not_defined()) {
-    // If we need to process cis values, the expected value map should have been populated by the
-    // callee accordingly
-    if (c.compute_cis) {
-      assert(expected_values.has_value());
-      for (const auto &[chrom1, chrom2] : chrom_pairs) {
-        if (chrom1 == chrom2) {
-          std::ignore = expected_values->expected_values(chrom1);
-        }
-      }
-    }
-  }
-
   write_chrom_sizes_to_file(hictk::File(c.path_to_hic, c.resolution).chromosomes(),
-                            fmt::format("{}.chrom.sizes", c.output_prefix), c.force);
+                            generate_chrom_sizes_file_name(c.output_prefix), c.force);
 
   if (c.threads > 1) {
-    BS::thread_pool tpool(conditional_static_cast<BS::concurrency_t>(c.threads));
+    auto num_threads = conditional_static_cast<BS::concurrency_t>(c.threads);
+    if (c.threads > chrom_pairs.size()) {
+      num_threads = conditional_static_cast<BS::concurrency_t>(chrom_pairs.size());
+      SPDLOG_WARN(
+          "number of threads specified through --threads exceeds the number of chromosome pairs to "
+          "be processed: limiting concurrency to {} thread(s)",
+          num_threads);
+    }
+    BS::thread_pool tpool(num_threads);
     return process_queries_mt(tpool, chrom_pairs, expected_values, c);
   }
   return process_queries_st(chrom_pairs, expected_values, c);
+}
+
+static void process_file_collisions(
+    const std::filesystem::path &output_prefix,
+    const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs, bool force) {
+  std::vector<std::string> collisions{};
+  std::size_t num_collisions = 0;
+
+  constexpr std::size_t max_collisions_reported = 10;
+
+  if (const auto chrom_sizes = generate_chrom_sizes_file_name(output_prefix); force) {
+    const auto removed = std::filesystem::remove(chrom_sizes);  // NOLINT
+    if (removed) {
+      SPDLOG_DEBUG("file \"{}\" has been deleted", chrom_sizes.string());
+    }
+  } else if (std::filesystem::exists(chrom_sizes)) {
+    collisions.emplace_back(chrom_sizes.string());
+    ++num_collisions;
+  }
+
+  for (const auto &[chrom1, chrom2] : chrom_pairs) {
+    const auto output_file_name = generate_output_file_name(output_prefix, chrom1, chrom2);
+
+    if (force) {
+      // We are removing files eagerly to avoid scenarios where:
+      // - the user is running NCHG compute on a dirty folder using --force
+      // - NCHG crashes or exits with an error message
+      // - the user does not notice the error, but observes that all output files are there and
+      //   assumes that all is good
+
+      const auto removed = std::filesystem::remove(output_file_name);  // NOLINT
+      if (removed) {
+        SPDLOG_DEBUG("file \"{}\" has been deleted", output_file_name.string());
+      }
+    } else if (std::filesystem::exists(output_file_name)) {
+      ++num_collisions;
+      if (collisions.size() < max_collisions_reported) {
+        collisions.emplace_back(output_file_name.string());
+      }
+    }
+  }
+
+  if (num_collisions != 0) {
+    assert(!collisions.empty());
+    const std::string suffix =
+        num_collisions > collisions.size()
+            ? fmt::format("\n - and {} more", num_collisions - collisions.size())
+            : "";
+
+    throw std::runtime_error(fmt::format(
+        "refusing to overwrite the following file(s). Pass --force to overwrite.\n - {}{}",
+        fmt::join(collisions, "\n - "), suffix));
+  }
+}
+
+static void validate_expected_values(
+    const ExpectedValues &expected_values, const std::filesystem::path &path_to_expected_values,
+    const std::vector<std::pair<hictk::Chromosome, hictk::Chromosome>> &chrom_pairs,
+    std::uint32_t resolution) {
+  if (expected_values.resolution() != resolution) {
+    throw std::runtime_error(
+        fmt::format("mismatch in file resolution: expected values have been computed "
+                    "for {}bp resolution but given Hi-C matrix has {}bp resolution",
+                    expected_values.resolution(), resolution));
+  }
+
+  std::vector<std::string> missing_values{};
+  std::size_t num_missing_values = 0;
+
+  constexpr std::size_t max_missing_values_reported = 10;
+
+  for (const auto &[chrom1, chrom2] : chrom_pairs) {
+    try {
+      if (chrom1 == chrom2) {
+        std::ignore = expected_values.expected_values(chrom1);
+      } else if (!path_to_expected_values.empty()) {
+        std::ignore = expected_values.expected_value(chrom1, chrom2);
+      }
+    } catch (const std::out_of_range &) {
+      ++num_missing_values;
+      if (missing_values.size() < max_missing_values_reported) {
+        missing_values.emplace_back(fmt::format("{}:{}", chrom1.name(), chrom2.name()));
+      }
+    }
+  }
+
+  if (num_missing_values != 0) {
+    assert(!missing_values.empty());
+    const std::string suffix =
+        num_missing_values > missing_values.size()
+            ? fmt::format("\n - and {} more", num_missing_values - missing_values.size())
+            : "";
+
+    throw std::runtime_error(
+        fmt::format("user-specified expected value file (\"{}\") does not contain information for "
+                    "the following chromosome pair(s):\n - {}{}",
+                    path_to_expected_values, fmt::join(missing_values, "\n - "), suffix));
+  }
 }
 
 [[nodiscard]] static auto generate_execution_plan(const ComputePvalConfig &c) {
@@ -624,9 +724,6 @@ static std::size_t process_queries(
 
   if (c.compute_cis) {
     plan.chrom_pairs = init_cis_chromosomes(f.chromosomes());
-    plan.expected_values = c.path_to_expected_values.empty()
-                               ? init_cis_expected_values(c)
-                               : ExpectedValues::deserialize(c.path_to_expected_values);
   }
 
   if (c.compute_trans) {
@@ -634,45 +731,60 @@ static std::size_t process_queries(
                       std::back_inserter(plan.chrom_pairs));
   }
 
+  process_file_collisions(c.output_prefix, plan.chrom_pairs, c.force);
+
   if (!c.path_to_expected_values.empty()) {
     assert(!plan.expected_values.has_value());
     plan.expected_values = ExpectedValues::deserialize(c.path_to_expected_values);
+  } else if (c.compute_cis) {
+    plan.expected_values = init_cis_expected_values(c);
   }
 
-  if (plan.expected_values.has_value() && plan.expected_values->resolution() != f.resolution()) {
-    throw std::runtime_error(
-        fmt::format("mismatch in file resolution: expected values have been computed "
-                    "for {}bp resolution but given Hi-C matrix has {}bp resolution",
-                    plan.expected_values->resolution(), f.resolution()));
+  if (plan.expected_values.has_value()) {
+    validate_expected_values(*plan.expected_values, c.path_to_expected_values, plan.chrom_pairs,
+                             f.resolution());
   }
 
   return plan;
 }
 
 int run_nchg_compute(const ComputePvalConfig &c) {
-  const auto t0 = std::chrono::steady_clock::now();
+  try {
+    const auto t0 = std::chrono::steady_clock::now();
 
-  if (c.chrom1.has_value()) {
-    assert(c.chrom2.has_value());
-    const auto interactions_processed = run_nchg_compute_worker(c);
+    if (c.chrom1.has_value()) {
+      assert(c.chrom2.has_value());
+      assert(!c.output_path.empty());
+      const auto interactions_processed = run_nchg_compute_worker(c);
+      const auto t1 = std::chrono::steady_clock::now();
+      SPDLOG_INFO("[{}:{}] processed {} records in {}!", *c.chrom1, *c.chrom2,
+                  interactions_processed, format_duration(t1 - t0));
+
+      SPDLOG_INFO("records for {}:{} have been written to file \"{}\"", *c.chrom1, *c.chrom2,
+                  c.output_path.string());
+      return 0;
+    }
+
+    const auto &[chrom_pairs, expected_values] = generate_execution_plan(c);
+
+    const auto interactions_processed = process_queries(chrom_pairs, expected_values, c);
+    std::filesystem::remove_all(c.tmpdir);  // NOLINT
+
     const auto t1 = std::chrono::steady_clock::now();
-    SPDLOG_INFO("[{}:{}] processed {} records in {}!", *c.chrom1, *c.chrom2, interactions_processed,
-                format_duration(t1 - t0));
+    if (interactions_processed == 0) {
+      SPDLOG_WARN("no records have been processed. Is this intended?");
+    } else {
+      SPDLOG_INFO("processed {} records in {}!", interactions_processed, format_duration(t1 - t0));
+    }
+
+    SPDLOG_INFO("{} file(s) have been created under prefix \"{}\"", chrom_pairs.size() + 1,
+                c.output_prefix);
+
     return 0;
+  } catch (...) {
+    std::filesystem::remove_all(c.tmpdir);  // NOLINT
+    throw;
   }
-
-  const auto &[chrom_pairs, expected_values] = generate_execution_plan(c);
-
-  const auto interactions_processed = process_queries(chrom_pairs, expected_values, c);
-
-  const auto t1 = std::chrono::steady_clock::now();
-  if (interactions_processed == 0) {
-    SPDLOG_WARN("no records have been processed. Is this intended?");
-  } else {
-    SPDLOG_INFO("processed {} records in {}!", interactions_processed, format_duration(t1 - t0));
-  }
-
-  return 0;
 }
 
 }  // namespace nchg

@@ -221,14 +221,19 @@ inline std::unique_ptr<parquet::arrow::FileWriter> init_parquet_file_writer(
                               ->store_schema()
                               ->build();
 
-  if (force) {
-    std::filesystem::remove(path);  // NOLINT
-  }
-
   const auto output_dir = path.parent_path();
   if (!output_dir.empty() && !std::filesystem::exists(output_dir)) {
     std::filesystem::create_directories(output_dir);
   }
+
+  if (force) {
+    std::filesystem::remove(path);  // NOLINT
+  } else if (std::filesystem::exists(path)) {
+    throw std::runtime_error(
+        fmt::format("refusing to overwrite output file \"{}\". Pass --force to overwrite.", path));
+  }
+
+  SPDLOG_DEBUG("initializing file \"{}\"...", path);
 
   std::shared_ptr<arrow::io::FileOutputStream> f{};
   PARQUET_ASSIGN_OR_THROW(f, arrow::io::FileOutputStream::Open(path));

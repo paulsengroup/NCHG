@@ -722,6 +722,10 @@ static void validate_expected_values(
 
   const hictk::File f(c.path_to_hic.string(), c.resolution);
 
+  if (f.bins().type() != hictk::BinTable::Type::fixed) {
+    throw std::runtime_error("only file with uniform bin sizes are supported.");
+  }
+
   if (c.compute_cis) {
     plan.chrom_pairs = init_cis_chromosomes(f.chromosomes());
   }

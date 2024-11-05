@@ -136,7 +136,7 @@ class RecordBatchBuilder {
 
   arrow::DoubleBuilder _pvalue{};
   arrow::DoubleBuilder _pvalue_corrected{};
-  arrow::UInt32Builder _observed{};
+  arrow::UInt64Builder _observed{};
   arrow::DoubleBuilder _expected{};
   arrow::DoubleBuilder _log_ratio{};
   arrow::DoubleBuilder _odds{};

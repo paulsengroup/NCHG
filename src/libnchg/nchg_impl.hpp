@@ -44,10 +44,13 @@ namespace internal {
   assert(n <= sum2);
   assert(sum1 <= total_sum);
   assert(sum2 <= total_sum);
-  assert(sum1 + sum2 <= total_sum);
+  assert(sum1 + sum2 <= 2 * total_sum);
 
-  const auto num = n * (total_sum - sum1 - sum2 + n);
+  const auto num = n * ((2 * total_sum) - sum1 - sum2 + n);
   const auto denom = (sum1 - n) * (sum2 - n);
+
+  assert(num >= 0);
+  assert(denom >= 0);
 
   return num / denom;
 }

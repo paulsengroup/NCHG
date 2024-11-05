@@ -79,7 +79,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           key: ${{ needs.cache-test-dataset.outputs.cache-key }}
-          path: test/data/hictk_test_data.tar.zst
+          path: test/data/nchg_test_data.tar.zst
           fail-on-cache-miss: true
 
       - name: Generate build args
@@ -198,6 +198,9 @@ jobs:
             GIT_TAG=${{ steps.build-args.outputs.GIT_TAG }}
             GIT_IS_DIRTY=false
             VERSION=${{ steps.build-args.outputs.VERSION }}
+
+      - name: Extract the test dataset
+        run: tar -xf test/data/nchg_test_data.tar.zst test/data/ENCFF447ERX.1000000.cool
 
       - name: Test Docker image (x86)
         run: utils/devel/test_docker_image.sh nchg:x86

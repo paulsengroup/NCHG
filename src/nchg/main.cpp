@@ -22,12 +22,15 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
+#include <atomic>
 #include <cassert>
+#include <cstddef>
 #include <cstdio>
 #include <deque>
+#include <memory>
 #include <mutex>
 #include <tuple>
-#include <vector>
+#include <utility>
 
 #include "nchg/common.hpp"
 #include "nchg/tools/cli.hpp"
@@ -36,50 +39,149 @@
 
 using namespace nchg;
 
-static constexpr auto *nchg_log_msg_pattern{"[%Y-%m-%d %T.%e] %^[%l]%$: %v"};
-static std::mutex nchg_global_mtx;
-static constexpr std::size_t nchg_warning_message_buffer_capacity = 256;
-using NCHGLogMsg = std::pair<spdlog::level::level_enum, std::string>;
-static std::deque<NCHGLogMsg> nchg_warning_message_buffer{};
+template <std::size_t CAPACITY>
+class GlobalLogger {
+  //                                                 [2021-08-12 17:49:34.581] [info]: my log msg
+  static constexpr auto *_msg_pattern{"[%Y-%m-%d %T.%e] %^[%l]%$: %v"};
+  using NCHGLogMsg = std::pair<spdlog::level::level_enum, std::string>;
+  std::deque<NCHGLogMsg> _msg_buffer{};
 
-static void setup_logger_console() {
-  //                   [2021-08-12 17:49:34.581] [info]: my log msg
+  std::mutex _mtx;
+  std::atomic<std::size_t> _num_msg_enqueued{};
+  std::atomic<bool> _ok{false};
 
-  auto stderr_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
-  auto callback_sink = std::make_shared<spdlog::sinks::callback_sink_mt>(
-      [](const spdlog::details::log_msg &msg) mutable {
-        if (msg.level == spdlog::level::warn) [[unlikely]] {
-          [[maybe_unused]] const std::scoped_lock lck(nchg_global_mtx);
-          if (nchg_warning_message_buffer.size() == nchg_warning_message_buffer_capacity)
-              [[unlikely]] {
-            nchg_warning_message_buffer.pop_front();
-          }
-          nchg_warning_message_buffer.emplace_back(
-              msg.level, std::string{msg.payload.begin(), msg.payload.end()});
-        }
-      });
+  [[nodiscard]] static std::shared_ptr<spdlog::sinks::stderr_color_sink_mt> init_stderr_sink() {
+    auto stderr_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
+    stderr_sink->set_pattern(_msg_pattern);
+    stderr_sink->set_level(spdlog::level::debug);
 
-  stderr_sink->set_pattern(nchg_log_msg_pattern);
-  callback_sink->set_pattern(nchg_log_msg_pattern);
-  stderr_sink->set_level(spdlog::level::debug);
-  callback_sink->set_level(spdlog::level::warn);
-
-  auto main_logger = std::make_shared<spdlog::logger>(
-      "main_logger", spdlog::sinks_init_list{std::move(stderr_sink), std::move(callback_sink)});
-
-  spdlog::set_default_logger(std::move(main_logger));
-}
-
-static void setup_logger_console(int verbosity_lvl, bool print_version) {
-  for (auto &sink : spdlog::default_logger()->sinks()) {
-    sink->set_level(std::max(sink->level(), spdlog::level::level_enum{verbosity_lvl}));
+    return stderr_sink;
   }
-  spdlog::set_level(spdlog::level::level_enum{verbosity_lvl});
 
-  if (print_version) {
-    SPDLOG_INFO("Running NCHG v{}", "0.0.2");
+  [[nodiscard]] std::shared_ptr<spdlog::sinks::callback_sink_mt> init_callback_sink() {
+    if constexpr (CAPACITY != 0 && SPDLOG_ACTIVE_LEVEL <= SPDLOG_LEVEL_WARN) {
+      auto callback_sink = std::make_shared<spdlog::sinks::callback_sink_mt>(
+          [this](const spdlog::details::log_msg &msg) noexcept { enqueue_msg(msg); });
+      callback_sink->set_pattern(_msg_pattern);
+      callback_sink->set_level(spdlog::level::warn);
+
+      return callback_sink;
+    }
+
+    return {};
   }
-}
+
+  template <typename... T>
+  void print_noexcept(fmt::format_string<T...> fmt, T &&...args) noexcept {
+    try {
+      fmt::print(stderr, fmt, std::forward<T>(args)...);
+    } catch (...) {  // NOLINT
+      _ok = false;
+    }
+  }
+
+  void enqueue_msg(const spdlog::details::log_msg &msg) noexcept {
+    if (msg.level < spdlog::level::warn) [[likely]] {
+      return;
+    }
+
+    ++_num_msg_enqueued;
+
+    try {
+      [[maybe_unused]] const std::scoped_lock lck(_mtx);
+      if (_msg_buffer.size() == CAPACITY) [[unlikely]] {
+        _msg_buffer.pop_front();
+      }
+      _msg_buffer.emplace_back(msg.level, std::string{msg.payload.begin(), msg.payload.end()});
+    } catch (...) {  // NOLINT
+    }
+  }
+
+  void replay_warnings() {
+    [[maybe_unused]] const std::scoped_lock lck(_mtx);
+    if (_msg_buffer.empty()) {
+      return;
+    }
+    auto stderr_sink = init_stderr_sink();
+    stderr_sink->set_level(spdlog::level::warn);
+
+    auto logger = std::make_shared<spdlog::logger>("tmp_logger", std::move(stderr_sink));
+    logger->set_level(spdlog::level::warn);
+
+    if (_num_msg_enqueued <= _msg_buffer.size()) {
+      logger->warn("replaying the last {} warning message(s)", _num_msg_enqueued.load());
+    } else {
+      logger->warn("replaying the last {}/{} warning messages", _msg_buffer.size(),
+                   _num_msg_enqueued.load());
+    }
+    for (const auto &msg : _msg_buffer) {
+      logger->log(msg.first, msg.second);
+    }
+    _msg_buffer.clear();
+  }
+
+ public:
+  GlobalLogger() noexcept {
+    try {
+      spdlog::set_default_logger(std::make_shared<spdlog::logger>(
+          "main_logger", spdlog::sinks_init_list{init_stderr_sink(), init_callback_sink()}));
+      _ok = true;
+    } catch (const std::exception &e) {
+      print_noexcept("FAILURE! Failed to setup NCHG's logger: {}", e.what());
+    } catch (...) {
+      print_noexcept("FAILURE! Failed to setup NCHG's logger: unknown error");
+    }
+  }
+
+  GlobalLogger(const GlobalLogger &other) = delete;
+  GlobalLogger(GlobalLogger &&other) noexcept = default;
+
+  GlobalLogger &operator=(const GlobalLogger &other) = delete;
+  GlobalLogger &operator=(GlobalLogger &&other) noexcept = default;
+
+  ~GlobalLogger() noexcept {
+    if (!_ok) {
+      return;
+    }
+
+    try {
+      replay_warnings();
+    } catch (const std::exception &e) {
+      print_noexcept("FAILURE! Failed to replay NCHG warnings: {}", e.what());
+    } catch (...) {
+      print_noexcept("FAILURE! Failed to replay NCHG warnings: unknown error");
+    }
+  }
+
+  static void set_level(int lvl) {
+    if (auto logger = spdlog::default_logger(); logger) {
+      for (auto &sink : logger->sinks()) {
+        sink->set_level(std::max(sink->level(), spdlog::level::level_enum{lvl}));
+      }
+      logger->set_level(spdlog::level::level_enum{lvl});
+    }
+  }
+
+  void print_welcome_msg() {
+    if (_ok) {
+      SPDLOG_INFO("Running NCHG v{}", "0.0.2");
+    }
+  }
+
+  [[nodiscard]] constexpr bool ok() const noexcept { return _ok; }
+
+  void clear() noexcept {
+    if (_ok) {
+      _msg_buffer.clear();
+      _num_msg_enqueued = 0;
+    }
+  }
+};
+
+// NOLINTNEXTLINE(*-err58-cpp, *-avoid-non-const-global-variables)
+static auto global_logger = std::make_unique<GlobalLogger<256>>();
+
+static auto acquire_global_logger() noexcept { return std::move(global_logger); }
 
 static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &cli) {
   try {
@@ -88,9 +190,13 @@ static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &
     const auto ec = cli.exit();
     std::visit(
         [&]<typename T>(const T &config_) {
-          constexpr auto is_monostate = std::is_same_v<T, std::monostate>;
-          if constexpr (!is_monostate) {
-            setup_logger_console(config_.verbosity, subcmd != Cli::subcommand::help);
+          if constexpr (!std::is_same_v<T, std::monostate>) {
+            if (global_logger && global_logger->ok()) {
+              global_logger->set_level(config_.verbosity);  // NOLINT
+              if (subcmd != Cli::subcommand::help) {
+                global_logger->print_welcome_msg();
+              }
+            }
           }
         },
         config);
@@ -98,7 +204,7 @@ static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &
     return std::make_tuple(ec, subcmd, config);
   } catch (const CLI::ParseError &e) {
     //  This takes care of formatting and printing error messages (if any)
-    return std::make_tuple(cli.exit(e), Cli::subcommand::help, Config());
+    return std::make_tuple(cli.exit(e), Cli::subcommand::help, Config{});
   } catch (const std::filesystem::filesystem_error &e) {
     SPDLOG_ERROR("FAILURE! {}", e.what());
     return std::make_tuple(1, Cli::subcommand::help, Config());
@@ -111,48 +217,19 @@ static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &
   }
 }
 
-template <typename Callable, typename Config>
-[[nodiscard]] static int run_subcommand(Callable fx, const Config &config) {
-  auto replay_warnings = [] {
-    [[maybe_unused]] const std::scoped_lock lck(nchg_global_mtx);
-    if (nchg_warning_message_buffer.empty()) {
-      return;
-    }
-    auto stderr_sink = std::make_shared<spdlog::sinks::stderr_color_sink_st>();
-    stderr_sink->set_pattern(nchg_log_msg_pattern);
-    stderr_sink->set_level(spdlog::level::warn);
-
-    auto logger = std::make_shared<spdlog::logger>("tmp_logger", std::move(stderr_sink));
-    logger->set_level(spdlog::level::warn);
-
-    logger->warn("replaying the last {} warning message(s)", nchg_warning_message_buffer.size());
-    for (const auto &msg : nchg_warning_message_buffer) {
-      logger->log(msg.first, msg.second);
-    }
-    nchg_warning_message_buffer.clear();
-  };
-
-  try {
-    const auto ec = fx(config);
-    replay_warnings();
-    return ec;
-  } catch (...) {
-    replay_warnings();
-    throw;
-  }
-}
-
 // NOLINTNEXTLINE(bugprone-exception-escape)
 int main(int argc, char **argv) noexcept {
   std::unique_ptr<Cli> cli{nullptr};
-  std::ios::sync_with_stdio(false);
-  std::cin.tie(nullptr);
 
   try {
-    setup_logger_console();
+    std::ios::sync_with_stdio(false);
+    std::cin.tie(nullptr);
+
+    auto local_logger = acquire_global_logger();
     cli = std::make_unique<Cli>(argc, argv);
     const auto [ec, subcmd, config] = parse_cli_and_setup_logger(*cli);
     if (ec != 0 || subcmd == Cli::subcommand::help) {
+      local_logger->clear();
       return ec;
     }
 
@@ -161,19 +238,19 @@ int main(int argc, char **argv) noexcept {
     using sc = Cli::subcommand;
     switch (subcmd) {
       case sc::compute: {
-        return run_subcommand(run_nchg_compute, std::get<ComputePvalConfig>(config));
+        return run_nchg_compute(std::get<ComputePvalConfig>(config));
       }
       case sc::expected: {
-        return run_subcommand(run_nchg_expected, std::get<ExpectedConfig>(config));
+        return run_nchg_expected(std::get<ExpectedConfig>(config));
       }
       case sc::filter: {
-        return run_subcommand(run_nchg_filter, std::get<FilterConfig>(config));
+        return run_nchg_filter(std::get<FilterConfig>(config));
       }
       case sc::merge: {
-        return run_subcommand(run_nchg_merge, std::get<MergeConfig>(config));
+        return run_nchg_merge(std::get<MergeConfig>(config));
       }
       case sc::view: {
-        return run_subcommand(run_nchg_view, std::get<ViewConfig>(config));
+        return run_nchg_view(std::get<ViewConfig>(config));
       }
       case sc::help:  // NOLINT
         break;
@@ -200,8 +277,7 @@ int main(int argc, char **argv) noexcept {
     return 1;
   } catch (...) {
     SPDLOG_CRITICAL(
-        "FAILURE! NCHG encountered the following error: caught an "
-        "unhandled exception!\n"
+        "FAILURE! NCHG encountered the following error: caught an unhandled exception!\n"
         "If you see this message, please file an issue on GitHub.\n");
     return 1;
   }

@@ -624,7 +624,11 @@ int run_nchg_compute(const ComputePvalConfig &c) {
   const auto interactions_processed = process_queries(chrom_pairs, expected_values, c);
 
   const auto t1 = std::chrono::steady_clock::now();
-  SPDLOG_INFO("Processed {} records in {}!", interactions_processed, format_duration(t1 - t0));
+  if (interactions_processed == 0) {
+    SPDLOG_WARN("no records have been processed. Is this intended?");
+  } else {
+    SPDLOG_INFO("processed {} records in {}!", interactions_processed, format_duration(t1 - t0));
+  }
 
   return 0;
 }

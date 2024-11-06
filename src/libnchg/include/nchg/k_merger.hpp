@@ -18,13 +18,16 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstddef>
 #include <functional>
 #include <iterator>
 #include <memory>
 #include <optional>
 #include <queue>
+#include <tuple>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "hictk/pixel.hpp"
@@ -94,8 +97,18 @@ class KMerger {
 
     iterator() = default;
 
+    // apple-clang < 16 chokes if this ctor is implemented out of line
     iterator(std::shared_ptr<std::vector<ItInternal>> heads,
-             std::shared_ptr<std::vector<ItInternal>> tails);
+             std::shared_ptr<std::vector<ItInternal>> tails)
+        : _pqueue(std::make_shared<PQueueT>()), _heads(std::move(heads)), _tails(std::move(tails)) {
+      assert(_heads->size() == _tails->size());
+      for (auto &it : *_heads) {
+        emplace(*it, _pqueue->size());
+        std::ignore = ++it;
+      }
+      _value = next();
+    }
+
     iterator(const iterator &other);
     iterator(iterator &&other) noexcept;
     ~iterator() noexcept = default;
@@ -114,6 +127,7 @@ class KMerger {
    private:
     [[nodiscard]] auto next() -> std::optional<T>;
     void replace_top_node();
+    void emplace(T value, std::size_t i);
   };
 };
 }  // namespace nchg

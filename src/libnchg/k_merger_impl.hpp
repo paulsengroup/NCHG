@@ -85,19 +85,6 @@ inline auto KMerger<It>::read_all() const -> std::vector<T> {
 
 template <typename It>
 template <typename ItInternal>
-inline KMerger<It>::iterator<ItInternal>::iterator(std::shared_ptr<std::vector<ItInternal>> heads,
-                                                   std::shared_ptr<std::vector<ItInternal>> tails)
-    : _pqueue(std::make_shared<PQueueT>()), _heads(std::move(heads)), _tails(std::move(tails)) {
-  assert(_heads->size() == _tails->size());
-  for (auto &it : *_heads) {
-    _pqueue->emplace(*it, _pqueue->size());
-    std::ignore = ++it;
-  }
-  _value = next();
-}
-
-template <typename It>
-template <typename ItInternal>
 inline KMerger<It>::iterator<ItInternal>::iterator(const iterator &other)
     : _value(other._value),
       _pqueue(other._pqueue ? std::make_shared<PQueueT>(*other._pqueue) : nullptr),
@@ -195,9 +182,19 @@ inline void KMerger<It>::iterator<ItInternal>::replace_top_node() {
   const auto i = _pqueue->top().i;
   _pqueue->pop();
   if (auto &it = (*_heads)[i]; it != (*_tails)[i]) [[likely]] {
-    _pqueue->emplace(*it, i);
+    emplace(*it, i);
     std::ignore = ++it;
   }
+}
+
+template <typename It>
+template <typename ItInternal>
+inline void KMerger<It>::iterator<ItInternal>::emplace(T value, std::size_t i) {
+#if defined(__apple_build_version__) && __apple_build_version__ < 16000000
+  _pqueue->emplace(Node{std::move(value), i});
+#else
+  _pqueue->emplace(std::move(value), i);
+#endif
 }
 
 template <typename It>

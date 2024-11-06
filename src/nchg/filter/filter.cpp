@@ -32,6 +32,7 @@
 #include <hictk/numeric_utils.hpp>
 #include <memory>
 #include <nchg/nchg.hpp>
+#include <numeric>
 #include <ranges>
 #include <set>
 #include <stdexcept>
@@ -142,7 +143,11 @@ using FlatPvalueMap = phmap::flat_hash_map<std::size_t, double>;
                .first;
     }
 
+#if defined(__apple_build_version__) && __apple_build_version__ < 16000000
+    it->second.emplace_back(PValue{i, record.pval});
+#else
     it->second.emplace_back(i, record.pval);
+#endif
     ++i;
   });
 
@@ -152,7 +157,7 @@ using FlatPvalueMap = phmap::flat_hash_map<std::size_t, double>;
 [[nodiscard]] static FlatPvalueMap alloc_pvalue_hashmap(const ChromChromPvalueMap& records) {
   auto sizes =
       records | std::views::values | std::views::transform([](const auto& v) { return v.size(); });
-  const auto num_records = std::ranges::fold_left(sizes, 0uz, std::plus{});
+  const auto num_records = std::accumulate(sizes.begin(), sizes.end(), 0uz);
 
   return FlatPvalueMap{num_records};
 }

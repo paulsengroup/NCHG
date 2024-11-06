@@ -20,8 +20,7 @@
 #include <fmt/format.h>
 
 #include <concepts>
-#include <hictk/numeric_utils.hpp>
-#include <type_traits>
+#include <hictk/genomic_interval.hpp>
 
 #include "nchg/nchg.hpp"
 #include "nchg/tools/config.hpp"
@@ -40,46 +39,6 @@ struct NCHGFilterResult {
 };
 
 using NCHGComputeResult = NCHGResult;
-
-template <typename N>
-[[nodiscard]] static N parse_numeric(std::string_view tok) {
-  return hictk::internal::parse_numeric_or_throw<N>(tok);
-}
-
-static std::tuple<std::string, std::uint32_t, std::uint32_t> parse_ucsc(std::string buffer) {
-  try {
-    if (buffer.empty()) {
-      throw std::runtime_error("query is empty");
-    }
-
-    const auto p1 = buffer.find_last_of(':');
-    auto p2 = buffer.find_last_of('-');
-
-    if (p1 == std::string::npos && p2 == std::string::npos) {
-      return std::make_tuple(buffer, 0, std::numeric_limits<std::uint32_t>::max());
-    }
-
-    if (p1 == std::string::npos || p2 == std::string::npos || p1 > p2) {
-      throw std::runtime_error(fmt::format("query \"{}\" is malformed", buffer));
-    }
-
-    if (buffer.find(',', p1) != std::string::npos) {
-      buffer.erase(std::remove(buffer.begin() + std::ptrdiff_t(p1), buffer.end(), ','),
-                   buffer.end());
-      p2 = buffer.find_last_of('-');
-    }
-
-    const auto chrom = buffer.substr(0, p1);
-    const auto start_str = buffer.substr(p1 + 1, p2 - (p1 + 1));
-    const auto end_str = buffer.substr(p2 + 1);
-
-    return std::make_tuple(chrom, parse_numeric<std::uint32_t>(start_str),
-                           parse_numeric<std::uint32_t>(end_str));
-  } catch (const std::exception& e) {
-    throw std::runtime_error(
-        fmt::format("unable to parse UCSC string \"{}\": {}", buffer, e.what()));
-  }
-}
 
 template <typename T>
   requires std::same_as<T, NCHGComputeResult>
@@ -179,41 +138,39 @@ static void process_record(const NCHGFilterResult& record, bool filter_by_coords
              record.odds_ratio, record.omega);
 }
 
-int run_nchg_view(const ViewConfig& c) {
-  ParquetStatsFile f{c.input_path, ParquetStatsFile::RecordType::infer};
-
-  const auto [chrom1, start1, end1] = parse_ucsc(c.range1);
-  const auto [chrom2, start2, end2] = parse_ucsc(c.range2);
+template <typename T>
+[[nodiscard]] static int process_records(ParquetStatsFile& f, const ViewConfig& c) {
+  const auto [chrom1, start1, end1] = hictk::GenomicInterval::parse_ucsc(c.range1);
+  const auto [chrom2, start2, end2] = hictk::GenomicInterval::parse_ucsc(c.range2);
 
   const auto filter_by_coords1 = chrom1 != "all";
   const auto filter_by_coords2 = chrom2 != "all";
 
-  if (f.record_type() == ParquetStatsFile::RecordType::NCHGCompute) {
-    using T = NCHGComputeResult;
-    if (c.with_header) {
-      print_header<T>();
-    }
-
-    std::for_each(f.begin<T>(), f.end<T>(), [&](const auto& record) {
-      process_record(record, filter_by_coords1, chrom1, start1, end1, filter_by_coords2, chrom2,
-                     start2, end2, c.pvalue_cutoff, c.log_ratio_cutoff);
-    });
-
-    return 0;
-  }
-
-  assert(f.record_type() == ParquetStatsFile::RecordType::NCHGFilter);
-  using T = NCHGFilterResult;
   if (c.with_header) {
     print_header<T>();
   }
 
-  std::for_each(f.begin<T>(), f.end<T>(), [&](const auto& record) {
-    process_record(record, filter_by_coords1, chrom1, start1, end1, filter_by_coords2, chrom2,
-                   start2, end2, c.pvalue_cutoff, c.log_ratio_cutoff);
-  });
+  auto first = f.begin<T>();
+  auto last = f.end<T>();
 
+  // apple-clang < 16 chokes if we use std::for_each()
+  while (first != last) {
+    process_record(*first, filter_by_coords1, chrom1, start1, end1, filter_by_coords2, chrom2,
+                   start2, end2, c.pvalue_cutoff, c.log_ratio_cutoff);
+    std::ignore = ++first;
+  }
   return 0;
+}
+
+int run_nchg_view(const ViewConfig& c) {
+  ParquetStatsFile f{c.input_path, ParquetStatsFile::RecordType::infer};
+
+  if (f.record_type() == ParquetStatsFile::RecordType::NCHGCompute) {
+    return process_records<NCHGComputeResult>(f, c);
+  }
+
+  assert(f.record_type() == ParquetStatsFile::RecordType::NCHGFilter);
+  return process_records<NCHGFilterResult>(f, c);
 }
 
 }  // namespace nchg

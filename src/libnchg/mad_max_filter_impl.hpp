@@ -73,8 +73,8 @@ inline std::pair<std::vector<bool>, std::vector<bool>> mad_max_filtering(
   auto mask2 = chrom1 == chrom2 ? mask1 : mad_max_filtering(margs2, mad_max);
 
   SPDLOG_INFO("[{}:{}]: MAD-max masking procedure flagged {}/{} bins for {} and {}/{} for {}",
-              chrom1.name(), chrom2.name(), std::ranges::fold_left(mask1, 0, std::plus{}),
-              mask1.size(), chrom1.name(), std::ranges::fold_left(mask2, 0, std::plus{}),
+              chrom1.name(), chrom2.name(), std::accumulate(mask1.begin(), mask1.end(), 0),
+              mask1.size(), chrom1.name(), std::accumulate(mask2.begin(), mask2.end(), 0),
               mask2.size(), chrom2.name());
 
   return {mask1, mask2};
@@ -92,7 +92,7 @@ inline std::vector<bool> mad_max_filtering(const Pixels& pixels, const hictk::Ch
 
   auto mask = mad_max_filtering(margs, mad_max);
   SPDLOG_INFO("[{}]: MAD-max masking procedure flagged {}/{} bins", chrom.name(),
-              std::ranges::fold_left(mask, 0, std::plus{}), mask.size());
+              std::accumulate(mask.begin(), mask.end(), 0), mask.size());
   return mask;
 }
 }  // namespace nchg

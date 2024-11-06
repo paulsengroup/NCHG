@@ -155,10 +155,6 @@ class NCHG {
   [[nodiscard]] auto aggregate_pixels(const hictk::GenomicInterval& range1,
                                       const hictk::GenomicInterval& range2) const;
 
-  template <typename N>
-  [[nodiscard]] constexpr auto aggregate_marginals(const hictk::GenomicInterval& range,
-                                                   const std::vector<N>& marginals,
-                                                   const std::vector<bool>& bin_mask) const;
   [[nodiscard]] static NCHGResult compute_stats(hictk::Pixel<std::uint64_t> pixel, double exp,
                                                 std::uint64_t obs_sum, double N1, double N2,
                                                 double exp_sum, double L1, double L2,

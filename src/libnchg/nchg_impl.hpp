@@ -54,25 +54,20 @@ namespace internal {
 
   return num / denom;
 }
-}  // namespace internal
 
+// GCC gets confused if we declare this as a member function
+// (static, not static, inline, constexpr, noexcept(true), noexcept(false)... It does not matter)
 template <typename N>
-constexpr auto NCHG::aggregate_marginals(const hictk::GenomicInterval &range,
-                                         const std::vector<N> &marginals,
-                                         const std::vector<bool> &bin_mask) const {
-  struct Result {
-    double bin_masked_frac{};
-    double sum{};
-  };
-
-  assert(_fp);
-  const auto resolution = _fp->resolution();
+constexpr std::pair<double, double> aggregate_marginals(
+    const hictk::GenomicInterval &range, std::uint32_t resolution, const std::vector<N> &marginals,
+    const std::vector<bool> &bin_mask) noexcept {
+  assert(resolution > 0);
 
   const auto i1 = range.start() / resolution;
   const auto i2 = (range.end() + resolution - 1) / resolution;
 
   if (i1 == i2) [[unlikely]] {
-    return Result{};
+    return {0.0, 0.0};
   }
 
   assert(i2 <= marginals.size());
@@ -87,16 +82,18 @@ constexpr auto NCHG::aggregate_marginals(const hictk::GenomicInterval &range,
 
   const auto bin_masked_frac = static_cast<double>(bin_masked) / static_cast<double>(i2 - i1);
 
-  return Result{bin_masked_frac, sum};
+  return {bin_masked_frac, sum};
 }
+}  // namespace internal
 
 constexpr double NCHG::compute_N1(const hictk::GenomicInterval &range1,
                                   const hictk::GenomicInterval &range2,
                                   double max_bad_bin_threshold) const noexcept {
   assert(_obs_matrix);
-  const auto &[bad_bin_frac, sum] =
-      aggregate_marginals(range1, _obs_matrix->marginals1(),
-                          *_expected_values.bin_mask(range1.chrom(), range2.chrom()).first);
+  assert(_fp);
+  const auto &[bad_bin_frac, sum] = internal::aggregate_marginals(
+      range1, _fp->resolution(), _obs_matrix->marginals1(),
+      *_expected_values.bin_mask(range1.chrom(), range2.chrom()).first);
 
   if (bad_bin_frac >= max_bad_bin_threshold) {
     return std::numeric_limits<double>::quiet_NaN();
@@ -109,9 +106,10 @@ constexpr double NCHG::compute_N2(const hictk::GenomicInterval &range1,
                                   const hictk::GenomicInterval &range2,
                                   double max_bad_bin_threshold) const noexcept {
   assert(_obs_matrix);
-  const auto &[bad_bin_frac, sum] =
-      aggregate_marginals(range2, _obs_matrix->marginals2(),
-                          *_expected_values.bin_mask(range1.chrom(), range2.chrom()).second);
+  assert(_fp);
+  const auto &[bad_bin_frac, sum] = internal::aggregate_marginals(
+      range2, _fp->resolution(), _obs_matrix->marginals2(),
+      *_expected_values.bin_mask(range1.chrom(), range2.chrom()).second);
 
   if (bad_bin_frac >= max_bad_bin_threshold) {
     return std::numeric_limits<double>::quiet_NaN();
@@ -124,9 +122,10 @@ constexpr double NCHG::compute_L1(const hictk::GenomicInterval &range1,
                                   const hictk::GenomicInterval &range2,
                                   double max_bad_bin_threshold) const noexcept {
   assert(_exp_matrix);
-  const auto &[bad_bin_frac, sum] =
-      aggregate_marginals(range1, _exp_matrix->marginals1(),
-                          *_expected_values.bin_mask(range1.chrom(), range2.chrom()).first);
+  assert(_fp);
+  const auto &[bad_bin_frac, sum] = internal::aggregate_marginals(
+      range1, _fp->resolution(), _exp_matrix->marginals1(),
+      *_expected_values.bin_mask(range1.chrom(), range2.chrom()).first);
 
   if (bad_bin_frac >= max_bad_bin_threshold) {
     return std::numeric_limits<double>::quiet_NaN();
@@ -139,9 +138,10 @@ constexpr double NCHG::compute_L2(const hictk::GenomicInterval &range1,
                                   const hictk::GenomicInterval &range2,
                                   double max_bad_bin_threshold) const noexcept {
   assert(_exp_matrix);
-  const auto &[bad_bin_frac, sum] =
-      aggregate_marginals(range2, _exp_matrix->marginals2(),
-                          *_expected_values.bin_mask(range1.chrom(), range2.chrom()).second);
+  assert(_fp);
+  const auto &[bad_bin_frac, sum] = internal::aggregate_marginals(
+      range2, _fp->resolution(), _exp_matrix->marginals2(),
+      *_expected_values.bin_mask(range1.chrom(), range2.chrom()).second);
 
   if (bad_bin_frac >= max_bad_bin_threshold) {
     return std::numeric_limits<double>::quiet_NaN();

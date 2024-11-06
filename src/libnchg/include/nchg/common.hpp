@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
+#include <version>
 
 namespace nchg {
 // to avoid useless casts (see
@@ -52,11 +53,21 @@ struct identity {
 
 [[nodiscard]] constexpr bool ndebug_not_defined() noexcept { return !ndebug_defined(); }
 
+#ifdef __cpp_lib_unreachable
+#define NCHG_UNREACHABLE_CODE std::unreachable();
+#elifdef __GNUC__
+#define NCHG_UNREACHABLE_CODE __builtin_unreachable();
+#elifdef _MSC_VER
+#define NCHG_UNREACHABLE_CODE __assume(0);
+#else
+#define NCHG_UNREACHABLE_CODE std::abort();
+#endif
+
 [[noreturn]] inline void unreachable_code() {
   if constexpr (ndebug_not_defined()) {
     throw std::logic_error("Unreachable code");
   }
-  std::unreachable();
+  NCHG_UNREACHABLE_CODE
 }
 
 }  // namespace nchg

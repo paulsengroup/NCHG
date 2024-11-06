@@ -17,7 +17,7 @@
 // <https://www.gnu.org/licenses/>.
 
 // clang-format off
-#include <nchg/nchg.hpp>
+#include "nchg/nchg.hpp"
 
 
 #include "nchg/suppress_warnings.hpp"

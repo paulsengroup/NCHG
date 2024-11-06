@@ -31,7 +31,6 @@
 #include <hictk/chromosome.hpp>
 #include <hictk/numeric_utils.hpp>
 #include <memory>
-#include <nchg/nchg.hpp>
 #include <numeric>
 #include <ranges>
 #include <set>
@@ -41,6 +40,7 @@
 #include <vector>
 
 #include "nchg/fdr.hpp"
+#include "nchg/nchg.hpp"
 #include "nchg/tools/common.hpp"
 #include "nchg/tools/io.hpp"
 #include "nchg/tools/tools.hpp"

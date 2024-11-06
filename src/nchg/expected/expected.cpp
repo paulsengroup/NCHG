@@ -32,13 +32,13 @@ NCHG_DISABLE_WARNING_POP
 #include <filesystem>
 #include <hictk/chromosome.hpp>
 #include <memory>
-#include <nchg/tools/common.hpp>
 #include <type_traits>
 #include <variant>
 
 #include "nchg/common.hpp"
 #include "nchg/concepts.hpp"
 #include "nchg/expected_values.hpp"
+#include "nchg/tools/common.hpp"
 #include "nchg/tools/config.hpp"
 #include "nchg/tools/io.hpp"
 #include "nchg/tools/tools.hpp"

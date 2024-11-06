@@ -86,9 +86,9 @@ constexpr std::pair<double, double> aggregate_marginals(
 }
 }  // namespace internal
 
-constexpr double NCHG::compute_N1(const hictk::GenomicInterval &range1,
-                                  const hictk::GenomicInterval &range2,
-                                  double max_bad_bin_threshold) const noexcept {
+inline double NCHG::compute_N1(const hictk::GenomicInterval &range1,
+                               const hictk::GenomicInterval &range2,
+                               double max_bad_bin_threshold) const noexcept {
   assert(_obs_matrix);
   assert(_fp);
   const auto &[bad_bin_frac, sum] = internal::aggregate_marginals(
@@ -102,9 +102,9 @@ constexpr double NCHG::compute_N1(const hictk::GenomicInterval &range1,
   return sum;
 }
 
-constexpr double NCHG::compute_N2(const hictk::GenomicInterval &range1,
-                                  const hictk::GenomicInterval &range2,
-                                  double max_bad_bin_threshold) const noexcept {
+inline double NCHG::compute_N2(const hictk::GenomicInterval &range1,
+                               const hictk::GenomicInterval &range2,
+                               double max_bad_bin_threshold) const noexcept {
   assert(_obs_matrix);
   assert(_fp);
   const auto &[bad_bin_frac, sum] = internal::aggregate_marginals(
@@ -118,9 +118,9 @@ constexpr double NCHG::compute_N2(const hictk::GenomicInterval &range1,
   return sum;
 }
 
-constexpr double NCHG::compute_L1(const hictk::GenomicInterval &range1,
-                                  const hictk::GenomicInterval &range2,
-                                  double max_bad_bin_threshold) const noexcept {
+inline double NCHG::compute_L1(const hictk::GenomicInterval &range1,
+                               const hictk::GenomicInterval &range2,
+                               double max_bad_bin_threshold) const noexcept {
   assert(_exp_matrix);
   assert(_fp);
   const auto &[bad_bin_frac, sum] = internal::aggregate_marginals(
@@ -134,9 +134,9 @@ constexpr double NCHG::compute_L1(const hictk::GenomicInterval &range1,
   return sum;
 }
 
-constexpr double NCHG::compute_L2(const hictk::GenomicInterval &range1,
-                                  const hictk::GenomicInterval &range2,
-                                  double max_bad_bin_threshold) const noexcept {
+inline double NCHG::compute_L2(const hictk::GenomicInterval &range1,
+                               const hictk::GenomicInterval &range2,
+                               double max_bad_bin_threshold) const noexcept {
   assert(_exp_matrix);
   assert(_fp);
   const auto &[bad_bin_frac, sum] = internal::aggregate_marginals(

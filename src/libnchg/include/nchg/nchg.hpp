@@ -140,18 +140,18 @@ class NCHG {
                                                   double precision = 1.0e-20,
                                                   double min_omega = 0.1);
 
-  [[nodiscard]] constexpr double compute_N1(const hictk::GenomicInterval& range1,
-                                            const hictk::GenomicInterval& range2,
-                                            double max_bad_bin_threshold) const noexcept;
-  [[nodiscard]] constexpr double compute_N2(const hictk::GenomicInterval& range1,
-                                            const hictk::GenomicInterval& range2,
-                                            double max_bad_bin_threshold) const noexcept;
-  [[nodiscard]] constexpr double compute_L1(const hictk::GenomicInterval& range1,
-                                            const hictk::GenomicInterval& range2,
-                                            double max_bad_bin_threshold) const noexcept;
-  [[nodiscard]] constexpr double compute_L2(const hictk::GenomicInterval& range1,
-                                            const hictk::GenomicInterval& range2,
-                                            double max_bad_bin_threshold) const noexcept;
+  [[nodiscard]] double compute_N1(const hictk::GenomicInterval& range1,
+                                  const hictk::GenomicInterval& range2,
+                                  double max_bad_bin_threshold) const noexcept;
+  [[nodiscard]] double compute_N2(const hictk::GenomicInterval& range1,
+                                  const hictk::GenomicInterval& range2,
+                                  double max_bad_bin_threshold) const noexcept;
+  [[nodiscard]] double compute_L1(const hictk::GenomicInterval& range1,
+                                  const hictk::GenomicInterval& range2,
+                                  double max_bad_bin_threshold) const noexcept;
+  [[nodiscard]] double compute_L2(const hictk::GenomicInterval& range1,
+                                  const hictk::GenomicInterval& range2,
+                                  double max_bad_bin_threshold) const noexcept;
   [[nodiscard]] auto aggregate_pixels(const hictk::GenomicInterval& range1,
                                       const hictk::GenomicInterval& range2) const;
 

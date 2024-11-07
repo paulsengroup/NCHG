@@ -332,7 +332,7 @@ using ChromosomePairs = std::vector<std::pair<hictk::Chromosome, hictk::Chromoso
   assert(c.output_prefix.empty());
   assert(!c.output_path.empty());
 
-  SPDLOG_INFO("begin processing {}:{}", chrom1.name(), chrom2.name());
+  SPDLOG_INFO("[{}:{}]: begin processing...", chrom1.name(), chrom2.name());
 
   std::vector<std::string> args{
       "compute",
@@ -349,7 +349,7 @@ using ChromosomePairs = std::vector<std::pair<hictk::Chromosome, hictk::Chromoso
       "--compression-level",
       fmt::to_string(c.compression_lvl),
       "--compression-method",
-      fmt::to_string(c.compression_method),
+      c.compression_method,
       "--verbosity",
       "2",
       c.path_to_hic.string(),
@@ -398,11 +398,13 @@ using ChromosomePairs = std::vector<std::pair<hictk::Chromosome, hictk::Chromoso
     boost::process::child proc(
         c.exec.string(), args,
         boost::process::std_in<boost::process::null, boost::process::std_out> boost::process::null);
-    if (proc.running()) {
-      SPDLOG_DEBUG("spawned worker process {}...", proc.id());
+    if (proc.running() || proc.exit_code() == 0) {
+      SPDLOG_DEBUG("[{}:{}]: spawned worker process {}...", chrom1.name(), chrom2.name(),
+                   proc.id());
       return proc;
     }
-    SPDLOG_DEBUG("spawning worker process failed (attempt {}/10)...", proc.id(), attempt + 1);
+    SPDLOG_WARN("[{}:{}]: spawning worker process {} failed (attempt {}/10)...", chrom1.name(),
+                chrom2.name(), proc.id(), attempt + 1);
     proc.terminate();
   }
 
@@ -514,8 +516,9 @@ static std::size_t process_queries_mt(
   BS::multi_future<std::size_t> workers(chrom_pairs.size());
   for (std::size_t i = 0; i < workers.size(); ++i) {
     workers[i] = tpool.submit_task([&, i] {
-      SPDLOG_DEBUG("submitting task {}/{}...", i + 1, workers.size());
       const auto &[chrom1, chrom2] = chrom_pairs[i];
+      SPDLOG_DEBUG("submitting task {}/{} ({}:{})...", i + 1, workers.size(), chrom1.name(),
+                   chrom2.name());
       return worker_fx(chrom1, chrom2, base_config, user_provided_expected_values, early_return);
     });
   }

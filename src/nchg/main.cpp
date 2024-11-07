@@ -120,6 +120,14 @@ class GlobalLogger {
     _msg_buffer.clear();
   }
 
+  static void reset_logger() noexcept {
+    try {
+      spdlog::set_default_logger(
+          std::make_shared<spdlog::logger>("main_logger", init_stderr_sink()));
+    } catch (...) {  // NOLINT
+    }
+  }
+
  public:
   GlobalLogger() noexcept {
     try {
@@ -141,6 +149,7 @@ class GlobalLogger {
 
   ~GlobalLogger() noexcept {
     if (!_ok) {
+      reset_logger();
       return;
     }
 
@@ -151,6 +160,7 @@ class GlobalLogger {
     } catch (...) {
       print_noexcept("FAILURE! Failed to replay NCHG warnings: unknown error");
     }
+    reset_logger();
   }
 
   static void set_level(int lvl) {
@@ -183,7 +193,9 @@ static auto global_logger = std::make_unique<GlobalLogger<256>>();
 
 static auto acquire_global_logger() noexcept { return std::move(global_logger); }
 
-static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &cli) {
+template <typename Logger>
+static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &cli,
+                                                                           Logger &logger) {
   try {
     auto config = cli.parse_arguments();
     const auto subcmd = cli.get_subcommand();
@@ -191,10 +203,10 @@ static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &
     std::visit(
         [&]<typename T>(const T &config_) {
           if constexpr (!std::is_same_v<T, std::monostate>) {
-            if (global_logger && global_logger->ok()) {
-              global_logger->set_level(config_.verbosity);  // NOLINT
+            if (logger.ok()) {
+              logger.set_level(config_.verbosity);  // NOLINT
               if (subcmd != Cli::subcommand::help) {
-                global_logger->print_welcome_msg();
+                logger.print_welcome_msg();
               }
             }
           }
@@ -227,7 +239,7 @@ int main(int argc, char **argv) noexcept {
 
     auto local_logger = acquire_global_logger();
     cli = std::make_unique<Cli>(argc, argv);
-    const auto [ec, subcmd, config] = parse_cli_and_setup_logger(*cli);
+    const auto [ec, subcmd, config] = parse_cli_and_setup_logger(*cli, *local_logger);
     if (ec != 0 || subcmd == Cli::subcommand::help) {
       local_logger->clear();
       return ec;
@@ -266,6 +278,10 @@ int main(int argc, char **argv) noexcept {
                           //  messages (if any)
   } catch (const std::bad_alloc &err) {
     SPDLOG_CRITICAL("FAILURE! Unable to allocate enough memory: {}\n", err.what());
+    return 1;
+  } catch (const spdlog::spdlog_ex &e) {
+    fmt::print(stderr, "FAILURE! NCHG encountered the following error while logging: {}\n",
+               e.what());
     return 1;
   } catch (const std::exception &e) {
     if (cli) {

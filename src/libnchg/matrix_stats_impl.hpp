@@ -69,6 +69,10 @@ template <typename N>
     return true;
   }
 
+  if (_bin_mask1->empty() || _bin_mask2->empty()) {
+    return false;
+  }
+
   const auto bin1_id = bin1.rel_id();
   const auto bin2_id = bin2.rel_id();
 

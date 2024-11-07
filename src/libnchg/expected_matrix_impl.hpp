@@ -74,8 +74,10 @@ inline ExpectedMatrixStats::ExpectedMatrixStats(const Pixels &pixels, hictk::Chr
       _min_delta(min_delta_),
       _max_delta(max_delta_) {
   if (scaling_factor != 1) {
-    std::ranges::transform(_weights, _weights.begin(),
-                           [&](const auto n) { return n / scaling_factor; });
+    std::ranges::transform(_weights, _weights.begin(), [&](const auto n) {
+      const auto scaled_n = n / scaling_factor;
+      return std::isfinite(scaled_n) ? scaled_n : 0.0;
+    });
   }
 
   MatrixStats<double> stats(_chrom1, _chrom2, bin_mask1, bin_mask2, bins.resolution(), min_delta_,

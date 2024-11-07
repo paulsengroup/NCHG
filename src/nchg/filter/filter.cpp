@@ -283,12 +283,12 @@ using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
     ParquetStatsFile f{c.input_path, ParquetStatsFile::RecordType::NCHGCompute};
     auto first = f.begin<NCHGResult>();
     const auto last = f.end<NCHGResult>();
-    for (; first != last; ++first) {
+    for (std::size_t i = 0; first != last; ++first, ++i) {
       if (early_return) [[unlikely]] {
         return records_enqueued;
       }
 
-      const auto pvalue_corrected = corrected_pvalues.at(records_enqueued++);
+      const auto pvalue_corrected = corrected_pvalues.at(i);
       assert(first->pval <= pvalue_corrected);
 
       if (!c.drop_non_significant || (pvalue_corrected <= c.fdr && first->log_ratio >= c.log_ratio))
@@ -299,6 +299,7 @@ using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
             return records_enqueued;
           }
         }
+        ++records_enqueued;
       }
     }
 

@@ -195,18 +195,14 @@ static std::shared_ptr<arrow::Array> make_chrom_dict(const hictk::Reference &chr
   // clang-format on
 
   try {
-    const auto schema = get_file_schema(fp);
-
-    auto schema_has_column = [&](const auto &col) {
-      return !!schema->GetFieldByName(std::string{col});
-    };
+    const auto col_names = get_file_schema(fp)->field_names();
 
     auto file_has_nchg_compute_records = [&] {
-      return std::ranges::all_of(expected_columns_nchg_compute, schema_has_column);
+      return std::ranges::equal(expected_columns_nchg_compute, col_names);
     };
 
     auto file_has_nchg_filter_records = [&] {
-      return std::ranges::all_of(expected_columns_nchg_filter, schema_has_column);
+      return std::ranges::equal(expected_columns_nchg_filter, col_names);
     };
 
     switch (expected_type) {

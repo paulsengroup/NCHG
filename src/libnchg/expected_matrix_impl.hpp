@@ -87,7 +87,6 @@ inline ExpectedMatrixStats::ExpectedMatrixStats(const Pixels &pixels, hictk::Chr
   _nnz = stats.nnz;
   _sum = stats.sum;
 
-  assert(static_cast<double>(_nnz) <= _sum);
   assert(internal::is_close(_sum, std::accumulate(_marginals1->begin(), _marginals1->end(), 0.0)));
   assert(internal::is_close(_sum, std::accumulate(_marginals2->begin(), _marginals2->end(), 0.0)));
 }

@@ -30,7 +30,6 @@
 #include <future>
 #include <hictk/chromosome.hpp>
 #include <hictk/numeric_utils.hpp>
-#include <memory>
 #include <numeric>
 #include <ranges>
 #include <set>
@@ -46,40 +45,6 @@
 #include "nchg/tools/tools.hpp"
 
 namespace nchg {
-
-struct SharedPtrStringCmp {
-  using is_transparent = void;
-  constexpr bool operator()(const std::shared_ptr<std::string>& a,
-                            const std::shared_ptr<std::string>& b) const noexcept {
-    assert(!!a);
-    assert(!!b);
-    return *a < *b;
-  }
-
-  constexpr bool operator()(const std::string& a,
-                            const std::shared_ptr<std::string>& b) const noexcept {
-    assert(!!b);
-    return a < *b;
-  }
-
-  constexpr bool operator()(const std::shared_ptr<std::string>& a,
-                            const std::string& b) const noexcept {
-    assert(!!a);
-    return *a < b;
-  }
-
-  constexpr bool operator()(std::string_view a,
-                            const std::shared_ptr<std::string>& b) const noexcept {
-    assert(!!b);
-    return a < *b;
-  }
-
-  constexpr bool operator()(const std::shared_ptr<std::string>& a,
-                            std::string_view b) const noexcept {
-    assert(!!a);
-    return *a < b;
-  }
-};
 
 struct StringPairCmp {
   using is_transparent = void;

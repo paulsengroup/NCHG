@@ -111,9 +111,6 @@ class NCHG {
   [[nodiscard]] auto end(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2) const
       -> IteratorVariant;
 
-  [[nodiscard]] std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>
-  compute_expected_profile() const;
-
  private:
   [[nodiscard]] static std::shared_ptr<const ExpectedMatrixStats> init_exp_matrix(
       const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2, const hictk::File& f,

@@ -266,32 +266,4 @@ double NCHG::compute_pvalue_nchg(std::vector<double> &buffer, std::uint64_t obs,
   return pvalue < 0 ? 1.0 : pvalue;
 }
 
-std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>
-NCHG::compute_expected_profile() const {
-  SPDLOG_INFO("initializing expected matrix weights from genome-wide interactions...");
-
-  return std::visit(
-      [&](const auto &f)
-          -> std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>> {
-        const auto [selectors, merger] = ExpectedValues::init_pixel_merger_cis(f);
-        if (merger.begin() == merger.end()) [[unlikely]] {
-          phmap::btree_map<hictk::Chromosome, double> scaling_factors{};
-          std::ranges::transform(
-              f.chromosomes(), std::inserter(scaling_factors, scaling_factors.end()),
-              [](const hictk::Chromosome &chrom) { return std::make_pair(chrom, 1.0); });
-          for (const auto &chrom : f.chromosomes()) {
-            scaling_factors.emplace(chrom, 1.0);
-          }
-          return {std::vector<double>(f.bins().size(), 0), scaling_factors};
-        }
-
-        const hictk::transformers::JoinGenomicCoords mjsel(merger.begin(), merger.end(),
-                                                           f.bins_ptr());
-
-        return ExpectedMatrixStats::build_expected_vector(mjsel, f.bins(), params().min_delta,
-                                                          params().max_delta);
-      },
-      _fp->get());
-}
-
 }  // namespace nchg

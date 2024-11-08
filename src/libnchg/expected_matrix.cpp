@@ -41,7 +41,12 @@ std::uint64_t ExpectedMatrixStats::nnz() const noexcept { return _nnz; }
 
 double ExpectedMatrixStats::sum() const noexcept { return _sum; }
 
-double ExpectedMatrixStats::nnz_avg() const noexcept { return sum() / static_cast<double>(nnz()); }
+double ExpectedMatrixStats::nnz_avg() const noexcept {
+  if (nnz() == 0) [[unlikely]] {
+    return 0.0;
+  }
+  return sum() / static_cast<double>(nnz());
+}
 
 const std::vector<double> &ExpectedMatrixStats::weights() const noexcept { return _weights; }
 

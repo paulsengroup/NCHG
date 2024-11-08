@@ -40,6 +40,9 @@ std::uint64_t ObservedMatrix::nnz() const noexcept { return _nnz; }
 std::uint64_t ObservedMatrix::sum() const noexcept { return _sum; }
 
 double ObservedMatrix::nnz_avg() const noexcept {
+  if (nnz() == 0) [[unlikely]] {
+    return 0.0;
+  }
   return static_cast<double>(sum()) / static_cast<double>(nnz());
 }
 

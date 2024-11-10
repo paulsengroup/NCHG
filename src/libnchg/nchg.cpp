@@ -219,7 +219,7 @@ double NCHG::compute_cumulative_nchg(std::vector<double> &buffer, std::uint64_t 
 
   const auto factor = 1.0 / nchg.MakeTable(buffer.data(), static_cast<std::int32_t>(buffer.size()),
                                            &params.x1, &params.x2, precision * 0.001);
-  const auto x_mean = static_cast<std::uint64_t>(lround(nchg.mean()));
+  const auto x_mean = static_cast<std::uint64_t>(std::lround(nchg.mean()));
   const auto x1 = static_cast<std::uint32_t>(params.x1);
   const auto x2 = static_cast<std::uint32_t>(params.x2);
 

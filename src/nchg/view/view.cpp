@@ -163,13 +163,15 @@ template <typename T>
 }
 
 int run_nchg_view(const ViewConfig& c) {
-  ParquetStatsFile f{c.input_path, ParquetStatsFile::RecordType::infer};
+  using enum ParquetStatsFile::RecordType;
 
-  if (f.record_type() == ParquetStatsFile::RecordType::NCHGCompute) {
+  ParquetStatsFile f{c.input_path, infer};
+
+  if (f.record_type() == NCHGCompute) {
     return process_records<NCHGComputeResult>(f, c);
   }
 
-  assert(f.record_type() == ParquetStatsFile::RecordType::NCHGFilter);
+  assert(f.record_type() == NCHGFilter);
   return process_records<NCHGFilterResult>(f, c);
 }
 

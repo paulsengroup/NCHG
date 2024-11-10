@@ -58,18 +58,19 @@ auto Cli::parse_arguments() -> Config {
     _cli.name(_exec_name);
     _cli.parse(_argc, _argv);
 
+    using enum subcommand;
     if (_cli.get_subcommand("compute")->parsed()) {
-      _subcommand = subcommand::compute;
+      _subcommand = compute;
     } else if (_cli.get_subcommand("expected")->parsed()) {
-      _subcommand = subcommand::expected;
+      _subcommand = expected;
     } else if (_cli.get_subcommand("filter")->parsed()) {
-      _subcommand = subcommand::filter;
+      _subcommand = filter;
     } else if (_cli.get_subcommand("merge")->parsed()) {
-      _subcommand = subcommand::merge;
+      _subcommand = merge;
     } else if (_cli.get_subcommand("view")->parsed()) {
-      _subcommand = subcommand::view;
+      _subcommand = view;
     } else {
-      _subcommand = subcommand::help;
+      _subcommand = help;
     }
   } catch (const CLI::ParseError &e) {
     //  This takes care of formatting and printing error messages (if any)

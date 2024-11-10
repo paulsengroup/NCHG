@@ -247,24 +247,24 @@ int main(int argc, char **argv) noexcept {
 
     cli->log_warnings();
 
-    using sc = Cli::subcommand;
     switch (subcmd) {
-      case sc::compute: {
+      using enum Cli::subcommand;
+      case compute: {
         return run_nchg_compute(std::get<ComputePvalConfig>(config));
       }
-      case sc::expected: {
+      case expected: {
         return run_nchg_expected(std::get<ExpectedConfig>(config));
       }
-      case sc::filter: {
+      case filter: {
         return run_nchg_filter(std::get<FilterConfig>(config));
       }
-      case sc::merge: {
+      case merge: {
         return run_nchg_merge(std::get<MergeConfig>(config));
       }
-      case sc::view: {
+      case view: {
         return run_nchg_view(std::get<ViewConfig>(config));
       }
-      case sc::help:  // NOLINT
+      case help:  // NOLINT
         break;
       default:
         throw std::runtime_error(

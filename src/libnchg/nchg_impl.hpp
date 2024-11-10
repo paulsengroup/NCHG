@@ -29,14 +29,23 @@
 #include <utility>
 #include <vector>
 
+#include "nchg/concepts.hpp"
 #include "nchg/expected_matrix.hpp"
 #include "nchg/observed_matrix.hpp"
 
 namespace nchg {
 namespace internal {
-[[nodiscard]] constexpr double compute_odds_ratio(double n, double total_sum, double sum1,
-                                                  double sum2) {
-  if (std::isnan(n) || sum1 == 0 || sum2 == 0) [[unlikely]] {
+
+template <typename N>
+  requires arithmetic<N>
+[[nodiscard]] constexpr double compute_odds_ratio(N n, N total_sum, N sum1, N sum2) {
+  if constexpr (std::is_floating_point_v<N>) {
+    if (std::isnan(n)) [[unlikely]] {
+      return std::numeric_limits<double>::quiet_NaN();
+    }
+  }
+
+  if (sum1 == 0 || sum2 == 0) [[unlikely]] {
     return std::numeric_limits<double>::quiet_NaN();
   }
 
@@ -52,31 +61,34 @@ namespace internal {
   assert(num >= 0);
   assert(denom >= 0);
 
-  return num / denom;
+  return conditional_static_cast<double>(num) / conditional_static_cast<double>(denom);
 }
 
 // GCC gets confused if we declare this as a member function
 // (static, not static, inline, constexpr, noexcept(true), noexcept(false)... It does not matter)
-template <typename N>
-constexpr std::pair<double, double> aggregate_marginals(
-    const hictk::GenomicInterval &range, std::uint32_t resolution, const std::vector<N> &marginals,
-    const std::vector<bool> &bin_mask) noexcept {
+template <typename N1,
+          typename N2 = std::conditional_t<std::is_floating_point_v<N1>, double, std::uint64_t>>
+  requires arithmetic<N1>
+constexpr std::pair<double, N2> aggregate_marginals(const hictk::GenomicInterval &range,
+                                                    std::uint32_t resolution,
+                                                    const std::vector<N1> &marginals,
+                                                    const std::vector<bool> &bin_mask) noexcept {
   assert(resolution > 0);
 
   const auto i1 = range.start() / resolution;
   const auto i2 = (range.end() + resolution - 1) / resolution;
 
   if (i1 == i2) [[unlikely]] {
-    return {0.0, 0.0};
+    return {N2{}, N2{}};
   }
 
   assert(i2 <= marginals.size());
   assert(i2 <= bin_mask.size());
 
   std::size_t bin_masked = 0;
-  double sum = 0.0;
+  N2 sum{};
   for (auto i = i1; i < i2; ++i) {
-    sum += static_cast<double>(marginals[i]);
+    sum += conditional_static_cast<N2>(marginals[i]);
     bin_masked += bin_mask[i];
   }
 
@@ -86,9 +98,9 @@ constexpr std::pair<double, double> aggregate_marginals(
 }
 }  // namespace internal
 
-inline double NCHG::compute_N1(const hictk::GenomicInterval &range1,
-                               const hictk::GenomicInterval &range2,
-                               double max_bad_bin_threshold) const noexcept {
+inline std::uint64_t NCHG::compute_N1(const hictk::GenomicInterval &range1,
+                                      const hictk::GenomicInterval &range2,
+                                      double max_bad_bin_threshold) const noexcept {
   assert(_obs_matrix);
   assert(_fp);
   const auto &[bad_bin_frac, sum] = internal::aggregate_marginals(
@@ -96,15 +108,15 @@ inline double NCHG::compute_N1(const hictk::GenomicInterval &range1,
       *_expected_values.bin_mask(range1.chrom(), range2.chrom()).first);
 
   if (bad_bin_frac >= max_bad_bin_threshold) {
-    return std::numeric_limits<double>::quiet_NaN();
+    return std::numeric_limits<std::uint64_t>::max();
   }
 
   return sum;
 }
 
-inline double NCHG::compute_N2(const hictk::GenomicInterval &range1,
-                               const hictk::GenomicInterval &range2,
-                               double max_bad_bin_threshold) const noexcept {
+inline std::uint64_t NCHG::compute_N2(const hictk::GenomicInterval &range1,
+                                      const hictk::GenomicInterval &range2,
+                                      double max_bad_bin_threshold) const noexcept {
   assert(_obs_matrix);
   assert(_fp);
   const auto &[bad_bin_frac, sum] = internal::aggregate_marginals(
@@ -112,7 +124,7 @@ inline double NCHG::compute_N2(const hictk::GenomicInterval &range1,
       *_expected_values.bin_mask(range1.chrom(), range2.chrom()).second);
 
   if (bad_bin_frac >= max_bad_bin_threshold) {
-    return std::numeric_limits<double>::quiet_NaN();
+    return std::numeric_limits<std::uint64_t>::max();
   }
 
   return sum;
@@ -195,9 +207,11 @@ inline auto NCHG::aggregate_pixels(const hictk::GenomicInterval &range1,
   return Result{obs, exp};
 }
 
-inline NCHGResult NCHG::compute_stats(hictk::Pixel<std::uint64_t> pixel, double exp,
-                                      std::uint64_t obs_sum, double N1, double N2, double exp_sum,
-                                      double L1, double L2, std::vector<double> &buffer) {
+template <typename N>
+  requires arithmetic<N>
+inline NCHGResult NCHG::compute_stats(hictk::Pixel<N> pixel, double exp, N obs_sum, N N1, N N2,
+                                      double exp_sum, double L1, double L2,
+                                      std::vector<double> &buffer) {
   // N1 and N2 can be NaN when a pixel/domain is masked
   if (pixel.count == 0 || std::isnan(N1) || std::isnan(N2)) [[unlikely]] {
     return {.pixel = std::move(pixel),
@@ -215,11 +229,10 @@ inline NCHGResult NCHG::compute_stats(hictk::Pixel<std::uint64_t> pixel, double 
 
   const auto intra_matrix = pixel.coords.bin1.chrom() == pixel.coords.bin2.chrom();
 
-  const auto obs = static_cast<double>(pixel.count);
-  const auto odds_ratio = internal::compute_odds_ratio(obs, static_cast<double>(obs_sum), N1, N2);
+  const auto odds_ratio = internal::compute_odds_ratio(pixel.count, obs_sum, N1, N2);
   const auto omega = intra_matrix ? internal::compute_odds_ratio(exp, exp_sum, L1, L2) : 1.0;
 
-  const auto log_ratio = std::log2(obs) - std::log2(exp);
+  const auto log_ratio = std::log2(static_cast<double>(pixel.count)) - std::log2(exp);
 
   if (!std::isfinite(odds_ratio) || !std::isfinite(omega)) [[unlikely]] {
     return {.pixel = std::move(pixel),
@@ -457,21 +470,21 @@ inline void NCHG::iterator<PixelSelector>::jump_to_next_valid_pixel() {
 }
 
 template <typename PixelSelector>
-constexpr double NCHG::iterator<PixelSelector>::compute_N1(
+constexpr std::uint64_t NCHG::iterator<PixelSelector>::compute_N1(
     const hictk::Pixel<std::uint64_t> &pixel) const noexcept {
   assert(_obs);
   const auto i = pixel.coords.bin1.rel_id();
   assert(i < _obs->marginals1().size());
-  return static_cast<double>(_obs->marginals1()[i]);
+  return _obs->marginals1()[i];
 }
 
 template <typename PixelSelector>
-constexpr double NCHG::iterator<PixelSelector>::compute_N2(
+constexpr std::uint64_t NCHG::iterator<PixelSelector>::compute_N2(
     const hictk::Pixel<std::uint64_t> &pixel) const noexcept {
   assert(_obs);
   const auto i = pixel.coords.bin2.rel_id();
   assert(i < _obs->marginals2().size());
-  return static_cast<double>(_obs->marginals2()[i]);
+  return _obs->marginals2()[i];
 }
 
 template <typename PixelSelector>

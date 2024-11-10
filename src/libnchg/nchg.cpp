@@ -97,8 +97,8 @@ auto NCHG::compute(const hictk::GenomicInterval &range1, const hictk::GenomicInt
   const auto L1 = compute_L1(range1, range2, bad_bin_fraction);
   const auto L2 = compute_L2(range1, range2, bad_bin_fraction);
 
-  const auto range1_masked = std::isnan(N1);
-  const auto range2_masked = std::isnan(N1);
+  const auto range1_masked = N1 == std::numeric_limits<decltype(N1)>::max();
+  const auto range2_masked = N2 == std::numeric_limits<decltype(N2)>::max();
 
   std::uint64_t obs = 0;
   double exp = 0.0;

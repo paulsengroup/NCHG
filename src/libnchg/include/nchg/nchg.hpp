@@ -137,12 +137,12 @@ class NCHG {
                                                   double precision = 1.0e-20,
                                                   double min_omega = 0.1);
 
-  [[nodiscard]] double compute_N1(const hictk::GenomicInterval& range1,
-                                  const hictk::GenomicInterval& range2,
-                                  double max_bad_bin_threshold) const noexcept;
-  [[nodiscard]] double compute_N2(const hictk::GenomicInterval& range1,
-                                  const hictk::GenomicInterval& range2,
-                                  double max_bad_bin_threshold) const noexcept;
+  [[nodiscard]] std::uint64_t compute_N1(const hictk::GenomicInterval& range1,
+                                         const hictk::GenomicInterval& range2,
+                                         double max_bad_bin_threshold) const noexcept;
+  [[nodiscard]] std::uint64_t compute_N2(const hictk::GenomicInterval& range1,
+                                         const hictk::GenomicInterval& range2,
+                                         double max_bad_bin_threshold) const noexcept;
   [[nodiscard]] double compute_L1(const hictk::GenomicInterval& range1,
                                   const hictk::GenomicInterval& range2,
                                   double max_bad_bin_threshold) const noexcept;
@@ -152,9 +152,10 @@ class NCHG {
   [[nodiscard]] auto aggregate_pixels(const hictk::GenomicInterval& range1,
                                       const hictk::GenomicInterval& range2) const;
 
-  [[nodiscard]] static NCHGResult compute_stats(hictk::Pixel<std::uint64_t> pixel, double exp,
-                                                std::uint64_t obs_sum, double N1, double N2,
-                                                double exp_sum, double L1, double L2,
+  template <typename N>
+    requires arithmetic<N>
+  [[nodiscard]] static NCHGResult compute_stats(hictk::Pixel<N> pixel, double exp, N obs_sum, N N1,
+                                                N N2, double exp_sum, double L1, double L2,
                                                 std::vector<double>& buffer);
 
  public:
@@ -223,9 +224,9 @@ class NCHG {
 
    private:
     void jump_to_next_valid_pixel();
-    [[nodiscard]] constexpr double compute_N1(
+    [[nodiscard]] constexpr std::uint64_t compute_N1(
         const hictk::Pixel<std::uint64_t>& pixel) const noexcept;
-    [[nodiscard]] constexpr double compute_N2(
+    [[nodiscard]] constexpr std::uint64_t compute_N2(
         const hictk::Pixel<std::uint64_t>& pixel) const noexcept;
     [[nodiscard]] constexpr double compute_L1(
         const hictk::Pixel<std::uint64_t>& pixel) const noexcept;

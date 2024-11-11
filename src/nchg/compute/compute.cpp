@@ -171,7 +171,11 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 
     std::ofstream fs{};
     fs.exceptions(fs.exceptions() | std::ios::badbit | std::ios::failbit);
+#ifdef __cpp_lib_ios_noreplace
+    fs.open(path, std::ios::out | std::ios::noreplace);
+#else
     fs.open(path);
+#endif
 
     for (const auto &chrom : chroms) {
       fmt::print(fs, "{}\t{}\n", chrom.name(), chrom.size());

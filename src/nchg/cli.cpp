@@ -177,13 +177,12 @@ void Cli::make_cartesian_product_subcommand() {
   sc.add_flag_function(
     "--cis-only",
     [&c](auto n) { if (n != 0) {c.process_trans = false;} },
-    "Only output pairs of domains corresponding to regions interacting in cis.")
+    "Only output pair of domains corresponding to regions interacting in cis.")
     ->capture_default_str();
-
   sc.add_flag_function(
     "--trans-only",
     [&c](auto n) { if (n != 0) {c.process_cis = false; }},
-    "Only output pairs of domains corresponding to regions interacting in trans.")
+    "Only output pair of domains corresponding to regions interacting in trans.")
     ->capture_default_str();
 
   sc.add_option(

@@ -282,7 +282,7 @@ enum class ParseStatus : std::uint_fast8_t { PARSED, SKIPPED, DUPLICATE };
   if (skipped_records != 0) {
     assert(!reference.empty());
     SPDLOG_WARN(
-        "parsed skipped {} records because they referred to chromosomes not listed in the given "
+        "parser skipped {} record(s) because they referred to chromosomes not listed in the given "
         "reference genome.",
         skipped_records);
   }

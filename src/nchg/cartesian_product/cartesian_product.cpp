@@ -346,7 +346,7 @@ struct ChromIndex {
     auto domains = fs.is_open() ? parse_domains(fs, chroms) : parse_domains(std::cin, chroms);
 
     if (read_from_stdin) {
-      SPDLOG_INFO("successfully read {} domains from file stdin!", domains.size());
+      SPDLOG_INFO("successfully read {} domains from stdin!", domains.size());
     } else {
       SPDLOG_INFO("successfully read {} domains from file \"{}\"!", domains.size(), path.string());
     }

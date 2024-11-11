@@ -797,8 +797,11 @@ void Cli::transform_args_compute_subcommand() {
       c.chrom2 = c.chrom1;
     }
     c.output_path = c.output_prefix;
-    c.output_path.replace_extension(".parquet");
     c.output_prefix.clear();
+
+    if (c.output_path.extension() != ".parquet") {
+      c.output_path = std::filesystem::path{fmt::format("{}.parquet", c.output_path.string())};
+    }
   }
 
   c.exec = get_path_to_executable();

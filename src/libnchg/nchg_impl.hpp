@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstdint>
 #include <hictk/pixel.hpp>
+#include <hictk/transformers/join_genomic_coords.hpp>
 #include <limits>
 #include <memory>
 #include <tuple>
@@ -96,6 +97,109 @@ constexpr std::pair<double, N2> aggregate_marginals(const hictk::GenomicInterval
 
   return {bin_masked_frac, sum};
 }
+
+[[nodiscard]] inline std::pair<std::uint64_t, double> aggregate_pixels_cis(
+    const hictk::File &f, const ExpectedMatrixStats &expected_matrix,
+    const hictk::GenomicInterval &range1, const hictk::GenomicInterval &range2,
+    std::uint64_t min_delta, std::uint64_t max_delta, const std::vector<bool> &bin_mask) {
+  assert(range1.chrom() == range2.chrom());
+  assert(min_delta <= max_delta);
+
+  std::uint64_t obs{};
+  double exp{};
+
+  const auto query_offset1 =
+      static_cast<std::int64_t>(f.bins().at(range1.chrom(), range1.start()).rel_id());
+  const auto query_offset2 =
+      static_cast<std::int64_t>(f.bins().at(range2.chrom(), range2.start()).rel_id());
+
+  const auto query_height = (range1.size() + f.resolution() - 1) / f.resolution();
+  const auto query_width = (range2.size() + f.resolution() - 1) / f.resolution();
+
+  std::visit(
+      [&](const auto &f_) {
+        const auto sel = f_.fetch(range1.chrom().name(), range1.start(), range1.end(),
+                                  range2.chrom().name(), range2.start(), range2.end());
+
+        const hictk::transformers::JoinGenomicCoords jsel(
+            sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), f.bins_ptr());
+
+        for (const hictk::Pixel<std::uint32_t> &p : jsel) {
+          const auto delta = p.coords.bin2.start() - p.coords.bin1.start();
+
+          const auto i1 = p.coords.bin1.rel_id();
+          const auto i2 = p.coords.bin2.rel_id();
+
+          if (delta < min_delta || delta >= max_delta || bin_mask[i1] || bin_mask[i2])
+              [[unlikely]] {
+            continue;
+          }
+
+          const auto observed_count = p.count;
+          const auto expected_count = expected_matrix.at(i1, i2);
+
+          const auto j1 = static_cast<std::int64_t>(i1) - query_offset1;
+          const auto j2 = static_cast<std::int64_t>(i2) - query_offset2;
+          const auto j3 = static_cast<std::int64_t>(i2) - query_offset1;
+          const auto j4 = static_cast<std::int64_t>(i1) - query_offset2;
+
+          bool added = false;
+          if (j1 >= 0 && j1 < query_height && j2 >= 0 && j2 < query_width) {
+            obs += observed_count;
+            exp += expected_count;
+            added = true;
+          }
+
+          if (added && j1 == j3 && j2 == j4) [[unlikely]] {
+            continue;
+          }
+
+          if (j3 >= 0 && j3 < query_height && j4 >= 0 && j4 < query_width) {
+            obs += observed_count;
+            exp += expected_count;
+          }
+        }
+      },
+      f.get());
+
+  return {obs, exp};
+}
+
+[[nodiscard]] inline std::pair<std::uint64_t, double> aggregate_pixels_trans(
+    const hictk::File &f, const ExpectedMatrixStats &expected_matrix,
+    const hictk::GenomicInterval &range1, const hictk::GenomicInterval &range2,
+    const std::vector<bool> &bin_mask1, const std::vector<bool> &bin_mask2) {
+  assert(range1.chrom() != range2.chrom());
+
+  std::uint64_t obs{};
+  double exp{};
+
+  const auto chrom_offset1 = f.bins().at(range1.chrom(), 0).id();
+  const auto chrom_offset2 = f.bins().at(range2.chrom(), 0).id();
+
+  std::visit(
+      [&](const auto &f_) {
+        const auto sel = f_.fetch(range1.chrom().name(), range1.start(), range1.end(),
+                                  range2.chrom().name(), range2.start(), range2.end());
+
+        std::for_each(sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(),
+                      [&](const hictk::ThinPixel<std::uint32_t> &p) {
+                        assert(p.bin1_id >= chrom_offset1);
+                        assert(p.bin2_id >= chrom_offset2);
+                        const auto i1 = p.bin1_id - chrom_offset1;
+                        const auto i2 = p.bin2_id - chrom_offset2;
+
+                        if (!bin_mask1[i1] && !bin_mask2[i2]) [[likely]] {
+                          obs += p.count;
+                          exp += expected_matrix.at(i1, i2);
+                        }
+                      });
+      },
+      f.get());
+
+  return {obs, exp};
+}
+
 }  // namespace internal
 
 inline std::uint64_t NCHG::compute_N1(const hictk::GenomicInterval &range1,
@@ -172,37 +276,22 @@ inline auto NCHG::aggregate_pixels(const hictk::GenomicInterval &range1,
     double exp{};
   };
 
-  const auto min_delta = params().min_delta;
-  const auto max_delta = params().max_delta;
+  if (range1.chrom() == range2.chrom()) {
+    const auto &mask = _expected_values.bin_mask(range1.chrom());
+    assert(mask);
+    const auto [obs, exp] = internal::aggregate_pixels_cis(
+        *_fp, *_exp_matrix, range1, range2, params().min_delta, params().max_delta, *mask);
 
-  const auto intra_matrix = range1.chrom() == range2.chrom();
+    return Result{obs, exp};
+  }
 
-  const auto &mask1 = *_expected_values.bin_mask(range1.chrom(), range2.chrom()).first;
-  const auto &mask2 = *_expected_values.bin_mask(range1.chrom(), range2.chrom()).second;
+  const auto &[mask1, mask2] = _expected_values.bin_mask(range1.chrom(), range2.chrom());
 
-  std::uint64_t obs{};
-  double exp{};
+  assert(mask1);
+  assert(mask2);
 
-  std::visit(
-      [&](const auto &f) {
-        const auto sel = f.fetch(range1.chrom().name(), range1.start(), range1.end(),
-                                 range2.chrom().name(), range2.start(), range2.end());
-
-        const hictk::transformers::JoinGenomicCoords jsel(
-            sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), f.bins_ptr());
-        for (const hictk::Pixel<std::uint32_t> &p : jsel) {
-          const auto delta =
-              intra_matrix ? p.coords.bin2.start() - p.coords.bin1.start() : min_delta;
-
-          const auto i1 = p.coords.bin1.rel_id();
-          const auto i2 = p.coords.bin2.rel_id();
-          if (delta >= min_delta && delta < max_delta && !mask1[i1] && !mask2[i2]) [[likely]] {
-            obs += p.count;
-            exp += _exp_matrix->at(i1, i2);
-          }
-        }
-      },
-      _fp->get());
+  const auto [obs, exp] =
+      internal::aggregate_pixels_trans(*_fp, *_exp_matrix, range1, range2, *mask1, *mask2);
 
   return Result{obs, exp};
 }
@@ -212,8 +301,8 @@ template <typename N>
 inline NCHGResult NCHG::compute_stats(hictk::Pixel<N> pixel, double exp, N obs_sum, N N1, N N2,
                                       double exp_sum, double L1, double L2,
                                       std::vector<double> &buffer) {
-  // N1 and N2 can be NaN when a pixel/domain is masked
-  if (pixel.count == 0 || std::isnan(N1) || std::isnan(N2)) [[unlikely]] {
+  constexpr auto bad_sum = std::numeric_limits<N>::max();
+  if (pixel.count == 0 || N1 == bad_sum || N2 == bad_sum) [[unlikely]] {
     return {.pixel = std::move(pixel),
             .expected = exp,
             .pval = 1.0,

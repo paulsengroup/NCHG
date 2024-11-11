@@ -266,7 +266,7 @@ int main(int argc, char **argv) noexcept {
     return cli->exit(e);  //  This takes care of formatting and printing error
                           //  messages (if any)
   } catch (const std::bad_alloc &err) {
-    SPDLOG_CRITICAL("FAILURE! Unable to allocate enough memory: {}\n", err.what());
+    SPDLOG_CRITICAL("FAILURE! Unable to allocate enough memory: {}", err.what());
     return 1;
   } catch (const spdlog::spdlog_ex &e) {
     fmt::print(stderr, "FAILURE! NCHG encountered the following error while logging: {}\n",
@@ -274,16 +274,16 @@ int main(int argc, char **argv) noexcept {
     return 1;
   } catch (const std::exception &e) {
     if (cli) {
-      SPDLOG_CRITICAL("FAILURE! NCHG {} encountered the following error: {}\n",
+      SPDLOG_CRITICAL("FAILURE! NCHG {} encountered the following error: {}",
                       cli->get_printable_subcommand(), e.what());
     } else {
-      SPDLOG_CRITICAL("FAILURE! NCHG encountered the following error: {}\n", e.what());
+      SPDLOG_CRITICAL("FAILURE! NCHG encountered the following error: {}", e.what());
     }
     return 1;
   } catch (...) {
     SPDLOG_CRITICAL(
         "FAILURE! NCHG encountered the following error: caught an unhandled exception!\n"
-        "If you see this message, please file an issue on GitHub.\n");
+        "If you see this message, please file an issue on GitHub.");
     return 1;
   }
   return 0;

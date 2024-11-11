@@ -136,7 +136,7 @@ inline auto KMerger<It>::iterator<ItInternal>::operator=(iterator &&other) noexc
 template <typename It>
 template <typename ItInternal>
 inline bool KMerger<It>::iterator<ItInternal>::operator==(const iterator &other) const noexcept {
-  if (!_heads || !other._heads) {
+  if (!_heads || !other._heads) [[unlikely]] {
     // check if we are at end
     return _heads == other._heads;
   }
@@ -166,7 +166,7 @@ template <typename ItInternal>
 inline auto KMerger<It>::iterator<ItInternal>::operator++() -> iterator & {
   assert(_heads);
   _value = next();
-  if (!_value) {
+  if (!_value) [[unlikely]] {
     _heads = nullptr;
     _tails = nullptr;
   }
@@ -181,16 +181,26 @@ inline void KMerger<It>::iterator<ItInternal>::replace_top_node() {
   assert(_tails);
   const auto i = _pqueue->top().i;
   _pqueue->pop();
-  if (auto &it = (*_heads)[i]; it != (*_tails)[i]) {
-    _pqueue->emplace(Node{*it, i});
+  if (auto &it = (*_heads)[i]; it != (*_tails)[i]) [[likely]] {
+    emplace(*it, i);
     std::ignore = ++it;
   }
 }
 
 template <typename It>
 template <typename ItInternal>
+inline void KMerger<It>::iterator<ItInternal>::emplace(T value, std::size_t i) {
+#if defined(__apple_build_version__) && __apple_build_version__ < 16000000
+  _pqueue->emplace(Node{std::move(value), i});
+#else
+  _pqueue->emplace(std::move(value), i);
+#endif
+}
+
+template <typename It>
+template <typename ItInternal>
 inline auto KMerger<It>::iterator<ItInternal>::next() -> std::optional<T> {
-  if (_pqueue->empty()) {
+  if (_pqueue->empty()) [[unlikely]] {
     return {};
   }
 

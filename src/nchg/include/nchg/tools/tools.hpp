@@ -18,34 +18,14 @@
 
 #pragma once
 
-#include <cstddef>
-#include <ranges>
-#include <vector>
-
-#include "nchg/common.hpp"
+#include "nchg/tools/config.hpp"
 
 namespace nchg {
 
-template <typename Stats>
-class BH_FDR {
-  std::vector<Stats> _pvalues{};
-  std::vector<std::size_t> _idx{};
-  std::vector<std::size_t> _ranks{};
-
- public:
-  BH_FDR() = default;
-  explicit BH_FDR(std::vector<Stats> pvalues_) noexcept;
-
-  void add_record(Stats&& s);
-  void add_records(const std::ranges::input_range auto& values);
-
-  void clear() noexcept;
-
-  template <typename UnaryOperation = identity>
-    requires std::invocable<UnaryOperation, Stats&>
-  [[nodiscard]] auto correct(UnaryOperation op = identity()) -> std::vector<Stats>;
-};
+[[nodiscard]] int run_command(const ComputePvalConfig& c);
+[[nodiscard]] int run_command(const ExpectedConfig& c);
+[[nodiscard]] int run_command(const FilterConfig& c);
+[[nodiscard]] int run_command(const MergeConfig& c);
+[[nodiscard]] int run_command(const ViewConfig& c);
 
 }  // namespace nchg
-
-#include "../../fdr_impl.hpp"

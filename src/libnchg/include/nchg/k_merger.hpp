@@ -18,18 +18,19 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstddef>
 #include <functional>
 #include <iterator>
 #include <memory>
 #include <optional>
 #include <queue>
+#include <tuple>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "hictk/pixel.hpp"
-#include "hictk/type_traits.hpp"
-#include "nchg/common.hpp"
 
 namespace nchg {
 
@@ -43,8 +44,8 @@ namespace nchg {
 /// iterator from which the top pixel originated)
 template <typename It>
 class KMerger {
-  using ItInternal = remove_cvref_t<It>;
-  using T = remove_cvref_t<decltype(*std::declval<It>())>;
+  using ItInternal = std::remove_cvref_t<It>;
+  using T = std::remove_cvref_t<decltype(*std::declval<It>())>;
   struct Node {
     T value{};        // NOLINT
     std::size_t i{};  // NOLINT
@@ -69,8 +70,8 @@ class KMerger {
   template <typename ItOfIts>
   KMerger(ItOfIts first_head, ItOfIts last_head, ItOfIts first_tail);
 
-  auto begin() const -> iterator<ItInternal>;
-  auto end() const noexcept -> iterator<ItInternal>;
+  [[nodiscard]] auto begin() const -> iterator<ItInternal>;
+  [[nodiscard]] auto end() const noexcept -> iterator<ItInternal>;
 
   [[nodiscard]] auto read_all() const -> std::vector<T>;
 
@@ -92,21 +93,22 @@ class KMerger {
     using const_pointer = const value_type *;
     using reference = value_type &;
     using const_reference = const value_type &;
-    using iterator_category = std::forward_iterator_tag;
+    using iterator_category = std::input_iterator_tag;
 
     iterator() = default;
 
-    // I'm defining the constructor here to workaround compilation errors when building with clang
-    explicit iterator(std::shared_ptr<std::vector<ItInternal>> heads,
-                      std::shared_ptr<std::vector<ItInternal>> tails)
+    // apple-clang < 16 chokes if this ctor is implemented out of line
+    iterator(std::shared_ptr<std::vector<ItInternal>> heads,
+             std::shared_ptr<std::vector<ItInternal>> tails)
         : _pqueue(std::make_shared<PQueueT>()), _heads(std::move(heads)), _tails(std::move(tails)) {
       assert(_heads->size() == _tails->size());
       for (auto &it : *_heads) {
-        _pqueue->emplace(Node{*it, _pqueue->size()});
+        emplace(*it, _pqueue->size());
         std::ignore = ++it;
       }
       _value = next();
     }
+
     iterator(const iterator &other);
     iterator(iterator &&other) noexcept;
     ~iterator() noexcept = default;
@@ -125,6 +127,7 @@ class KMerger {
    private:
     [[nodiscard]] auto next() -> std::optional<T>;
     void replace_top_node();
+    void emplace(T value, std::size_t i);
   };
 };
 }  // namespace nchg

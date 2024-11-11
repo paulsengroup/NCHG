@@ -16,7 +16,7 @@
 // with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-#include "nchg/cli.hpp"
+#include "nchg/tools/cli.hpp"
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -42,7 +42,7 @@
 #include <unistd.h>
 #endif
 
-#include "nchg/config.hpp"
+#include "nchg/tools/config.hpp"
 
 namespace nchg {
 
@@ -58,18 +58,19 @@ auto Cli::parse_arguments() -> Config {
     _cli.name(_exec_name);
     _cli.parse(_argc, _argv);
 
+    using enum subcommand;
     if (_cli.get_subcommand("compute")->parsed()) {
-      _subcommand = subcommand::compute;
+      _subcommand = compute;
     } else if (_cli.get_subcommand("expected")->parsed()) {
-      _subcommand = subcommand::expected;
+      _subcommand = expected;
     } else if (_cli.get_subcommand("filter")->parsed()) {
-      _subcommand = subcommand::filter;
+      _subcommand = filter;
     } else if (_cli.get_subcommand("merge")->parsed()) {
-      _subcommand = subcommand::merge;
+      _subcommand = merge;
     } else if (_cli.get_subcommand("view")->parsed()) {
-      _subcommand = subcommand::view;
+      _subcommand = view;
     } else {
-      _subcommand = subcommand::help;
+      _subcommand = help;
     }
   } catch (const CLI::ParseError &e) {
     //  This takes care of formatting and printing error messages (if any)
@@ -78,9 +79,9 @@ auto Cli::parse_arguments() -> Config {
   } catch (const std::exception &e) {
     _exit_code = 1;
     throw std::runtime_error(
-        fmt::format(FMT_STRING("An unexpected error has occurred while parsing "
-                               "CLI arguments: {}. If you see this "
-                               "message, please file an issue on GitHub"),
+        fmt::format("An unexpected error has occurred while parsing "
+                    "CLI arguments: {}. If you see this "
+                    "message, please file an issue on GitHub",
                     e.what()));
 
   } catch (...) {
@@ -118,10 +119,17 @@ std::string_view Cli::subcommand_to_str(subcommand s) noexcept {
   }
 }
 
+void Cli::log_warnings() const noexcept {
+  for (const auto &w : _warnings) {
+    SPDLOG_WARN("{}", w);
+  }
+  _warnings.clear();
+}
+
 void Cli::make_cli() {
   _cli.name(_exec_name);
   _cli.description("NCHG.");
-  _cli.set_version_flag("-V,--version", "0.0.1");
+  _cli.set_version_flag("-V,--version", "0.0.2");
   _cli.require_subcommand(1);
 
   make_compute_subcommand();
@@ -156,7 +164,8 @@ void Cli::make_compute_subcommand() {
     c.output_prefix,
     "Path prefix to use for output.\n"
     "Depending on the parameters used to invoke NCHG, this will result in one or more\n"
-    "files named myprefix.chrA.chrB.parquet.")
+    "files named like myprefix.chrA.chrB.parquet plus a file named myprefix.chrom.sizes.\n"
+    "When --chrom1 and/or --chrom2 have been specified a single file named myprefix.parquet will be created.")
     ->required();
   sc.add_option(
     "--resolution",
@@ -185,14 +194,14 @@ void Cli::make_compute_subcommand() {
     "Path to a BED file with a list of domains whose pair-wise interactions should\n"
     "be assessed for significance.")
     ->check(CLI::ExistingFile);
-  sc.add_flag(
+  sc.add_flag_function(
     "--cis-only",
-    c.cis_only,
+    [&c](auto n) { if (n != 0) {c.compute_trans = false;} },
     "Process interactions from intra-chromosomal matrices only.")
     ->capture_default_str();
-  sc.add_flag(
+  sc.add_flag_function(
     "--trans-only",
-    c.trans_only,
+    [&c](auto n) { if (n != 0) {c.compute_cis = false; }},
     "Process interactions from inter-chromosomal matrices only.")
     ->capture_default_str();
   sc.add_option(
@@ -284,7 +293,7 @@ void Cli::make_compute_subcommand() {
     "-v,--verbosity",
     c.verbosity,
     "Set verbosity of output to the console.")
-    ->check(CLI::Range(1, 5))
+    ->check(CLI::Range(1, 4))
     ->capture_default_str();
   // clang-format on
 
@@ -643,7 +652,6 @@ void Cli::validate_compute_subcommand() const {
   const auto &c = std::get<ComputePvalConfig>(_config);
   const auto &sc = *_cli.get_subcommand("compute");
 
-  std::vector<std::string> warnings;
   std::vector<std::string> errors;
 
   const auto is_mcool = hictk::cooler::utils::is_multires_file(c.path_to_hic.string());
@@ -664,21 +672,23 @@ void Cli::validate_compute_subcommand() const {
   const auto trans_only_parsed = !sc.get_option("--trans-only")->empty();
 
   if (trans_only_parsed && (min_delta_parsed || max_delta_parsed)) {
-    warnings.emplace_back("--min-delta and --max-delta are ignored when --trans-only=true");
+    _warnings.emplace_back("--min-delta and --max-delta are ignored when --trans-only=true");
   }
 
   if (c.compression_method == "lz4" && c.compression_lvl > 9) {
-    warnings.emplace_back("compression method lz4 supports compression levels up to 9");
+    _warnings.emplace_back("compression method lz4 supports compression levels up to 9");
   }
 
-  for (const auto &w : warnings) {
-    SPDLOG_WARN(FMT_STRING("{}"), w);
+  if (c.threads > 1 && c.chrom1.has_value()) {
+    _warnings.emplace_back(
+        "number of threads set with --threads is ignored because --chrom1 has been specified: "
+        "concurrency will be limited to a single thread");
   }
 
   if (!errors.empty()) {
     throw std::runtime_error(
-        fmt::format(FMT_STRING("the following error(s) where encountered while validating CLI "
-                               "arguments and input file(s):\n - {}"),
+        fmt::format("the following error(s) where encountered while validating CLI "
+                    "arguments and input file(s):\n - {}",
                     fmt::join(errors, "\n - ")));
   }
 }
@@ -686,22 +696,17 @@ void Cli::validate_compute_subcommand() const {
 void Cli::validate_expected_subcommand() const {
   const auto &c = std::get<ExpectedConfig>(_config);
 
-  [[maybe_unused]] std::vector<std::string> warnings;
   std::vector<std::string> errors;
 
   if (!c.force && std::filesystem::exists(c.output_path)) {
-    errors.emplace_back(fmt::format(
-        FMT_STRING("Refusing to overwrite file {}. Pass --force to overwrite."), c.output_path));
-  }
-
-  for (const auto &w : warnings) {
-    SPDLOG_WARN(FMT_STRING("{}"), w);
+    errors.emplace_back(
+        fmt::format("Refusing to overwrite file {}. Pass --force to overwrite.", c.output_path));
   }
 
   if (!errors.empty()) {
     throw std::runtime_error(
-        fmt::format(FMT_STRING("the following error(s) where encountered while validating CLI "
-                               "arguments and input file(s):\n - {}"),
+        fmt::format("the following error(s) where encountered while validating CLI "
+                    "arguments and input file(s):\n - {}",
                     fmt::join(errors, "\n - ")));
   }
 }
@@ -711,29 +716,23 @@ void Cli::validate_filter_subcommand() const {
 
   std::vector<std::string> errors;
   if (!c.force && std::filesystem::exists(c.output_path)) {
-    errors.emplace_back(fmt::format(
-        FMT_STRING("Refusing to overwrite file {}. Pass --force to overwrite."), c.output_path));
+    errors.emplace_back(
+        fmt::format("Refusing to overwrite file {}. Pass --force to overwrite.", c.output_path));
   }
 
   if (!errors.empty()) {
     throw std::runtime_error(
-        fmt::format(FMT_STRING("the following error(s) where encountered while validating CLI "
-                               "arguments and input file(s):\n - {}"),
+        fmt::format("the following error(s) where encountered while validating CLI "
+                    "arguments and input file(s):\n - {}",
                     fmt::join(errors, "\n - ")));
   }
 }
 
 void Cli::validate_merge_subcommand() const {
-  auto &c = std::get<MergeConfig>(_config);
-
-  std::vector<std::string> warnings;
+  const auto &c = std::get<MergeConfig>(_config);
 
   if (c.compression_method == "lz4" && c.compression_lvl > 9) {
-    warnings.emplace_back("compression method lz4 supports compression levels up to 9");
-  }
-
-  for (const auto &w : warnings) {
-    SPDLOG_WARN(FMT_STRING("{}"), w);
+    _warnings.emplace_back("compression method lz4 supports compression levels up to 9");
   }
 }
 
@@ -793,14 +792,30 @@ static std::string get_path_to_executable() {
 
 void Cli::transform_args_compute_subcommand() {
   auto &c = std::get<ComputePvalConfig>(_config);
-  if (c.chrom1 != "all" && c.chrom2 == "all") {
-    c.chrom2 = c.chrom1;
+  if (c.chrom1.has_value()) {
+    if (!c.chrom2.has_value()) {
+      c.chrom2 = c.chrom1;
+    }
+    c.output_path = c.output_prefix;
+    c.output_prefix.clear();
+
+    if (c.output_path.extension() != ".parquet") {
+      c.output_path = std::filesystem::path{fmt::format("{}.parquet", c.output_path.string())};
+    }
   }
 
   c.exec = get_path_to_executable();
 
+  if (!c.output_prefix.empty()) {
+    c.tmpdir = c.output_prefix.parent_path() / "tmp/";
+  }
+
   if (c.compression_method == "lz4") {
     c.compression_lvl = std::min(c.compression_lvl, std::uint8_t{9});
+  }
+
+  if (c.chrom1.has_value()) {
+    c.threads = 1;
   }
 
   // in spdlog, high numbers correspond to low log levels

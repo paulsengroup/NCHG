@@ -30,7 +30,7 @@
 
 namespace nchg::test {
 
-TEST_CASE("ExpectedMatrix (cis)", "[short][expected_matrix]") {
+TEST_CASE("ExpectedMatrixStats (cis)", "[short][expected_matrix]") {
   const std::uint32_t resolution = 5;
 
   const hictk::Chromosome chrom1{0, "chr1", 35};
@@ -44,7 +44,7 @@ TEST_CASE("ExpectedMatrix (cis)", "[short][expected_matrix]") {
   const auto bin6 = bins.at(5);
   const auto bin7 = bins.at(6);
 
-  using Pixel = hictk::Pixel<std::uint32_t>;
+  using Pixel = hictk::Pixel<double>;
   // clang-format off
 
   // 1 0 1 0 1 1 1 | 1 0 1 0 1 1 1
@@ -55,23 +55,22 @@ TEST_CASE("ExpectedMatrix (cis)", "[short][expected_matrix]") {
   // 0 0 0 0 0 1 0 | 1 0 0 0 0 1 0
   // 0 0 0 0 0 0 1 | 1 0 0 0 0 0 1
   const std::array<Pixel, 11> pixels{
-      Pixel{{bin1, bin1}, 1},
-      Pixel{{bin1, bin3}, 1},
-      Pixel{{bin1, bin5}, 1},
-      Pixel{{bin1, bin6}, 1},
-      Pixel{{bin1, bin7}, 1},
-      Pixel{{bin2, bin2}, 1},
-      Pixel{{bin3, bin3}, 1},
-      Pixel{{bin4, bin4}, 1},
-      Pixel{{bin5, bin5}, 1},
-      Pixel{{bin6, bin6}, 1},
-      Pixel{{bin7, bin7}, 1}
+      Pixel{{bin1, bin1}, 1.0},
+      Pixel{{bin1, bin3}, 1.0},
+      Pixel{{bin1, bin5}, 1.0},
+      Pixel{{bin1, bin6}, 1.0},
+      Pixel{{bin1, bin7}, 1.0},
+      Pixel{{bin2, bin2}, 1.0},
+      Pixel{{bin3, bin3}, 1.0},
+      Pixel{{bin4, bin4}, 1.0},
+      Pixel{{bin5, bin5}, 1.0},
+      Pixel{{bin6, bin6}, 1.0},
+      Pixel{{bin7, bin7}, 1.0}
   };
   // clang-format on
 
   SECTION("full matrix") {
-    const ExpectedMatrix m{pixels.begin(), pixels.end(), pixels.begin(), pixels.end(), chrom1,
-                           chrom1,         bins};
+    const ExpectedMatrixStats m{pixels, pixels, chrom1, chrom1, bins};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);
@@ -88,17 +87,7 @@ TEST_CASE("ExpectedMatrix (cis)", "[short][expected_matrix]") {
   }
 
   SECTION("masked matrix") {
-    const ExpectedMatrix m{pixels.begin(),
-                           pixels.end(),
-                           pixels.begin(),
-                           pixels.end(),
-                           chrom1,
-                           chrom1,
-                           bins,
-                           {},
-                           {},
-                           1,
-                           100};
+    const ExpectedMatrixStats m{pixels, pixels, chrom1, chrom1, bins, {}, {}, 1, 100};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);
@@ -124,16 +113,14 @@ TEST_CASE("ExpectedMatrix (cis)", "[short][expected_matrix]") {
   SECTION("empty matrix") {
     const std::vector<Pixel> buff{};
 
-    const ExpectedMatrix m1{buff.begin(), buff.end(), buff.begin(), buff.end(),
-                            chrom1,       chrom1,     bins};
+    const ExpectedMatrixStats m1{buff, buff, chrom1, chrom1, bins};
     CHECK(std::all_of(m1.marginals1().begin(), m1.marginals1().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(std::all_of(m1.marginals2().begin(), m1.marginals2().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(m1.nnz() == 0);
 
-    const ExpectedMatrix m2{buff.begin(), buff.end(), buff.begin(), buff.end(),
-                            chrom1,       chrom1,     bins};
+    const ExpectedMatrixStats m2{buff, buff, chrom1, chrom1, bins};
     CHECK(std::all_of(m2.marginals1().begin(), m2.marginals1().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(std::all_of(m2.marginals2().begin(), m2.marginals2().end(),
@@ -142,7 +129,7 @@ TEST_CASE("ExpectedMatrix (cis)", "[short][expected_matrix]") {
   }
 }
 
-TEST_CASE("ExpectedMatrix (trans)", "[short][expected_matrix]") {
+TEST_CASE("ExpectedMatrixStats (trans)", "[short][expected_matrix]") {
   const std::uint32_t resolution = 5;
 
   const hictk::Chromosome chrom1{0, "chr1", 15};
@@ -155,22 +142,21 @@ TEST_CASE("ExpectedMatrix (trans)", "[short][expected_matrix]") {
   const auto bin4 = bins.at(3);
   const auto bin5 = bins.at(4);
 
-  using Pixel = hictk::Pixel<std::uint32_t>;
+  using Pixel = hictk::Pixel<double>;
   // clang-format off
 
   // 1  0
   // 10 1
   // 0  0
   const std::array<Pixel, 3> pixels{
-      Pixel{{bin1, bin4}, 1},
-      Pixel{{bin2, bin4}, 10},
-      Pixel{{bin2, bin5}, 1},
+      Pixel{{bin1, bin4}, 1.0},
+      Pixel{{bin2, bin4}, 10.0},
+      Pixel{{bin2, bin5}, 1.0},
   };
   // clang-format on
 
   SECTION("full matrix") {
-    const ExpectedMatrix m{pixels.begin(), pixels.end(), pixels.begin(), pixels.end(), chrom1,
-                           chrom2,         bins};
+    const ExpectedMatrixStats m{pixels, pixels, chrom1, chrom2, bins};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);
@@ -196,17 +182,7 @@ TEST_CASE("ExpectedMatrix (trans)", "[short][expected_matrix]") {
   }
 
   SECTION("masked matrix") {
-    const ExpectedMatrix m{pixels.begin(),
-                           pixels.end(),
-                           pixels.begin(),
-                           pixels.end(),
-                           chrom1,
-                           chrom2,
-                           bins,
-                           {},
-                           {},
-                           1,
-                           100};
+    const ExpectedMatrixStats m{pixels, pixels, chrom1, chrom2, bins, {}, {}, 1, 100};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);
@@ -233,16 +209,14 @@ TEST_CASE("ExpectedMatrix (trans)", "[short][expected_matrix]") {
 
   SECTION("empty matrix") {
     const std::vector<Pixel> buff{};
-    const ExpectedMatrix m1{buff.begin(), buff.end(), buff.begin(), buff.end(),
-                            chrom1,       chrom1,     bins};
+    const ExpectedMatrixStats m1{buff, buff, chrom1, chrom1, bins};
     CHECK(std::all_of(m1.marginals1().begin(), m1.marginals1().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(std::all_of(m1.marginals2().begin(), m1.marginals2().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(m1.nnz() == 0);
 
-    const ExpectedMatrix m2{buff.begin(), buff.end(), buff.begin(), buff.end(),
-                            chrom1,       chrom1,     bins};
+    const ExpectedMatrixStats m2{buff, buff, chrom1, chrom1, bins};
     CHECK(std::all_of(m2.marginals1().begin(), m2.marginals1().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(std::all_of(m2.marginals2().begin(), m2.marginals2().end(),

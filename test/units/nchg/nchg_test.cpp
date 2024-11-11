@@ -22,8 +22,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include <hictk/cooler/cooler.hpp>
-#include <hictk/fmt/pixel.hpp>
+#include <hictk/file.hpp>
+#include <hictk/genomic_interval.hpp>
 #include <memory>
 
 #include "tmpdir.hpp"
@@ -33,9 +33,9 @@ namespace nchg::test {
 TEST_CASE("NCHG", "[medium][nchg]") {
   const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
 
-  const auto clr = std::make_shared<const hictk::cooler::File>(test_file.string());
+  const auto clr = std::make_shared<const hictk::File>(test_file.string());
 
-  auto params = NCHG<hictk::cooler::File>::DefaultParams;
+  auto params = NCHG::DefaultParams;
   params.mad_max = 0.0;
 
   const auto chr1 = clr->chromosomes().at("chr1");

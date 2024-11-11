@@ -33,6 +33,7 @@ add_executable(NCHG)
 target_sources(
   NCHG
   PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/common/io.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/compute/compute.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/expected/expected.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/filter/filter.cpp"
@@ -48,25 +49,35 @@ target_link_libraries(
   PRIVATE
     nchg_project_options
     nchg_project_warnings
-    libnchg
-    Arrow::arrow_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
     Boost::headers
     Boost::filesystem # Required by boost::process::v2
     bshoshany-thread-pool::bshoshany-thread-pool
     CLI11::CLI11
     concurrentqueue::concurrentqueue
     fmt::fmt-header-only
+    readerwriterqueue::readerwriterqueue
+    spdlog::spdlog_header_only
+  PUBLIC
+    nchg::libnchg
+    Arrow::arrow_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
     hictk::libhictk
     HighFive
     Parquet::parquet_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
-    readerwriterqueue::readerwriterqueue
-    spdlog::spdlog_header_only
     Threads::Threads
 )
 
 target_compile_definitions(NCHG PRIVATE SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
 
 include(GNUInstallDirs)
+
+install(
+  TARGETS
+    stocc
+    randomc
+    COMPONENT
+    Libraries
+)
+
 install(
   TARGETS
     NCHG

@@ -56,30 +56,46 @@ FetchContent_MakeAvailable(stocc)
 set(BUILD_SHARED_LIBS "${NCHG_BUILD_SHARED_LIBS}")
 unset(NCHG_BUILD_SHARED_LIBS)
 
-add_library(libnchg INTERFACE)
+add_library(libnchg OBJECT)
 add_library(nchg::libnchg ALIAS libnchg)
 
 target_sources(
   libnchg
-  INTERFACE
-    FILE_SET HEADERS
-    BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include"
+  PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/expected_matrix.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/expected_matrix_impl.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/expected_values_aggregator.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/expected_values_aggregator_impl.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/expected_values.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/expected_values_impl.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/fdr_impl.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/k_merger_impl.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/mad_max_filter.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/mad_max_filter_impl.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/matrix_stats_impl.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/nchg.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/nchg_impl.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/observed_matrix.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/observed_matrix_impl.hpp"
 )
 
 target_include_directories(
   libnchg
-  INTERFACE
+  PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:include>"
 )
 
 target_link_libraries(
   libnchg
-  INTERFACE
+  PRIVATE
+    nchg_project_options
+    nchg_project_warnings
     fmt::fmt-header-only
+    spdlog::spdlog_header_only
+  PUBLIC
     hictk::libhictk
     phmap
-    spdlog::spdlog_header_only
     stocc
 )
 

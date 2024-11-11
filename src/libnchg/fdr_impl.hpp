@@ -21,18 +21,17 @@
 
 #include <algorithm>
 #include <cassert>
+#include <concepts>
 #include <cstddef>
-#include <memory>
 #include <numeric>
-#include <stdexcept>
-#include <tuple>
 #include <utility>
 #include <vector>
 
 namespace nchg {
 
 template <typename Stats>
-inline BH_FDR<Stats>::BH_FDR(std::vector<Stats> pvalues_) : _pvalues(std::move(pvalues_)) {}
+inline BH_FDR<Stats>::BH_FDR(std::vector<Stats> pvalues_) noexcept
+    : _pvalues(std::move(pvalues_)) {}
 
 template <typename Stats>
 inline void BH_FDR<Stats>::add_record(Stats&& s) {
@@ -40,9 +39,8 @@ inline void BH_FDR<Stats>::add_record(Stats&& s) {
 }
 
 template <typename Stats>
-template <typename StatsIt>
-inline void BH_FDR<Stats>::add_records(StatsIt first, StatsIt last) {
-  _pvalues.insert(_pvalues.end(), first, last);
+inline void BH_FDR<Stats>::add_records(const std::ranges::input_range auto& values) {
+  _pvalues.insert(_pvalues.end(), values.begin(), values.end());
 }
 
 template <typename Stats>
@@ -54,16 +52,16 @@ inline void BH_FDR<Stats>::clear() noexcept {
 
 template <typename Stats>
 template <typename UnaryOperation>
+  requires std::invocable<UnaryOperation, Stats&>
 inline auto BH_FDR<Stats>::correct(UnaryOperation op) -> std::vector<Stats> {
-  if (_pvalues.size() < 2) {
+  if (_pvalues.size() < 2) [[unlikely]] {
     return _pvalues;
   }
 
   _idx.resize(_pvalues.size());
   std::iota(_idx.begin(), _idx.end(), 0);
 
-  std::sort(_idx.begin(), _idx.end(),
-            [&](const auto i1, const auto i2) { return op(_pvalues[i1]) < op(_pvalues[i2]); });
+  std::ranges::sort(_idx, std::less{}, [&](const auto i) { return op(_pvalues[i]); });
 
   _ranks.resize(_pvalues.size());
   for (std::size_t i = 0; i < _ranks.size(); ++i) {

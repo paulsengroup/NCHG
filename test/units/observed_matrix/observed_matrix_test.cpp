@@ -54,7 +54,7 @@ TEST_CASE("ObservedMatrix (cis)", "[short][observed_matrix]") {
   // clang-format on
 
   SECTION("full matrix") {
-    const ObservedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom1, bins};
+    const ObservedMatrix m{pixels, chrom1, chrom1, bins};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);
@@ -76,7 +76,7 @@ TEST_CASE("ObservedMatrix (cis)", "[short][observed_matrix]") {
   }
 
   SECTION("masked matrix") {
-    const ObservedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom1, bins, 0.0, {}, {}, 1, 100};
+    const ObservedMatrix m{pixels, chrom1, chrom1, bins, 0.0, {}, {}, 1, 100};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);
@@ -102,7 +102,7 @@ TEST_CASE("ObservedMatrix (cis)", "[short][observed_matrix]") {
 
   SECTION("empty matrix") {
     const std::vector<Pixel> buff{};
-    const ObservedMatrix m{buff.begin(), buff.end(), chrom1, chrom1, bins};
+    const ObservedMatrix m{std::ranges::subrange(buff.begin(), buff.end()), chrom1, chrom1, bins};
     CHECK(std::all_of(m.marginals1().begin(), m.marginals1().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(std::all_of(m.marginals2().begin(), m.marginals2().end(),
@@ -138,7 +138,7 @@ TEST_CASE("ObservedMatrix (trans)", "[short][observed_matrix]") {
   // clang-format on
 
   SECTION("full matrix") {
-    const ObservedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom2, bins};
+    const ObservedMatrix m{pixels, chrom1, chrom2, bins};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);
@@ -161,7 +161,7 @@ TEST_CASE("ObservedMatrix (trans)", "[short][observed_matrix]") {
   }
 
   SECTION("masked matrix") {
-    const ObservedMatrix m{pixels.begin(), pixels.end(), chrom1, chrom2, bins, 0.0, {}, {}, 1, 100};
+    const ObservedMatrix m{pixels, chrom1, chrom2, bins, 0.0, {}, {}, 1, 100};
 
     SECTION("accessors") {
       CHECK(m.resolution() == resolution);
@@ -187,7 +187,8 @@ TEST_CASE("ObservedMatrix (trans)", "[short][observed_matrix]") {
 
     SECTION("empty matrix") {
       const std::vector<Pixel> buff{};
-      const ObservedMatrix m1{buff.begin(), buff.end(), chrom1, chrom1, bins};
+      const ObservedMatrix m1{std::ranges::subrange(buff.begin(), buff.end()), chrom1, chrom1,
+                              bins};
       CHECK(std::all_of(m1.marginals1().begin(), m1.marginals1().end(),
                         [](const auto n) { return n == 0; }));
       CHECK(std::all_of(m1.marginals2().begin(), m1.marginals2().end(),
@@ -198,7 +199,7 @@ TEST_CASE("ObservedMatrix (trans)", "[short][observed_matrix]") {
 
   SECTION("empty matrix") {
     const std::vector<Pixel> buff{};
-    const ObservedMatrix m{buff.begin(), buff.end(), chrom1, chrom1, bins};
+    const ObservedMatrix m{std::ranges::subrange(buff.begin(), buff.end()), chrom1, chrom1, bins};
     CHECK(std::all_of(m.marginals1().begin(), m.marginals1().end(),
                       [](const auto n) { return n == 0; }));
     CHECK(std::all_of(m.marginals2().begin(), m.marginals2().end(),

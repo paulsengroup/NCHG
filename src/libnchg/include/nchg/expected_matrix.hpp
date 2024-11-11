@@ -20,23 +20,20 @@
 
 #include <parallel_hashmap/btree.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <hictk/bin_table.hpp>
 #include <hictk/chromosome.hpp>
 #include <hictk/pixel.hpp>
 #include <limits>
 #include <memory>
-#include <type_traits>
 #include <vector>
+
+#include "nchg/concepts.hpp"
 
 namespace nchg {
 
-template <typename PixelIt>
-class ExpectedMatrix {
-  using PixelT = std::remove_const_t<std::remove_reference_t<decltype(*std::declval<PixelIt>())>>;
-  using N = decltype(std::declval<PixelT>().count);
-  static_assert(std::is_same_v<PixelT, hictk::Pixel<N>>);
-
+class ExpectedMatrixStats {
   hictk::Chromosome _chrom1{};
   hictk::Chromosome _chrom2{};
 
@@ -54,19 +51,21 @@ class ExpectedMatrix {
   std::uint64_t _nnz{};
 
  public:
-  template <typename PixelItGw>
-  ExpectedMatrix(PixelIt first_pixel, PixelIt last_pixel, PixelItGw first_pixel_gw,
-                 PixelItGw last_pixel_gw, const hictk::Chromosome &chrom1,
-                 const hictk::Chromosome &chrom2, const hictk::BinTable &bins,
-                 const std::vector<bool> &bin_mask1 = {}, const std::vector<bool> &bin_mask2 = {},
-                 std::uint64_t min_delta_ = 0,
-                 std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max());
+  template <typename Pixels>
+    requires PixelRange<Pixels>
+  ExpectedMatrixStats(const Pixels &pixels, hictk::Chromosome chrom1, hictk::Chromosome chrom2,
+                      hictk::BinTable bins, std::vector<double> weights, double scaling_factor,
+                      const std::vector<bool> &bin_mask1 = {},
+                      const std::vector<bool> &bin_mask2 = {}, std::uint64_t min_delta_ = 0,
+                      std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max());
 
-  ExpectedMatrix(PixelIt first_pixel, PixelIt last_pixel, hictk::Chromosome chrom1,
-                 hictk::Chromosome chrom2, hictk::BinTable bins, std::vector<double> weights,
-                 double scaling_factor, const std::vector<bool> &bin_mask1 = {},
-                 const std::vector<bool> &bin_mask2 = {}, std::uint64_t min_delta_ = 0,
-                 std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max());
+  template <typename Pixels, typename PixelsGW>
+    requires PixelRange<Pixels> && PixelRange<PixelsGW>
+  ExpectedMatrixStats(const Pixels &pixels, const PixelsGW &pixels_gw,
+                      const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
+                      const hictk::BinTable &bins, const std::vector<bool> &bin_mask1 = {},
+                      const std::vector<bool> &bin_mask2 = {}, std::uint64_t min_delta_ = 0,
+                      std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max());
 
   [[nodiscard]] std::uint32_t resolution() const noexcept;
   [[nodiscard]] std::size_t num_rows() const noexcept;
@@ -90,21 +89,15 @@ class ExpectedMatrix {
   [[nodiscard]] const std::vector<double> &marginals1() const noexcept;
   [[nodiscard]] const std::vector<double> &marginals2() const noexcept;
 
-  template <typename PixelItGw>
+  template <typename Pixels>
+    requires PixelRange<Pixels>
   [[nodiscard]] static std::pair<std::vector<double>, phmap::btree_map<hictk::Chromosome, double>>
-  build_expected_vector(PixelItGw first_pixel, PixelItGw last_pixel, const hictk::BinTable &bins,
-                        std::uint64_t min_delta_, std::uint64_t max_delta_);
+  build_expected_vector(const Pixels &pixels, const hictk::BinTable &bins, std::uint64_t min_delta_,
+                        std::uint64_t max_delta_);
 
- private:
-  static auto compute_stats(PixelIt first_pixel, PixelIt last_pixel,
-                            const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
-                            const hictk::BinTable &bins, const std::vector<double> &weights,
-                            const std::vector<bool> &bin_mask1, const std::vector<bool> &bin_mask2,
-                            std::uint64_t min_delta_, std::uint64_t max_delta_);
-
-  template <typename PixelItGw>
-  static std::vector<double> compute_weights(PixelItGw first_pixel, PixelItGw last_pixel,
-                                             const hictk::Chromosome &chrom1,
+  template <typename Pixels>
+    requires PixelRange<Pixels>
+  static std::vector<double> compute_weights(const Pixels &pixels, const hictk::Chromosome &chrom1,
                                              const hictk::Chromosome &chrom2,
                                              const hictk::BinTable &bins, std::uint64_t min_delta_,
                                              std::uint64_t max_delta_);

@@ -18,34 +18,35 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
-#include <ranges>
+#include <stdexcept>
 #include <vector>
-
-#include "nchg/common.hpp"
 
 namespace nchg {
 
-template <typename Stats>
-class BH_FDR {
-  std::vector<Stats> _pvalues{};
-  std::vector<std::size_t> _idx{};
-  std::vector<std::size_t> _ranks{};
+template <typename T>
+[[nodiscard]] constexpr T median(std::vector<T> v) {
+  if (v.empty()) {
+    throw std::runtime_error("median was called on an empty vector");
+  }
 
- public:
-  BH_FDR() = default;
-  explicit BH_FDR(std::vector<Stats> pvalues_) noexcept;
+  const auto size = static_cast<std::ptrdiff_t>(v.size());
+  auto first = v.begin();
+  auto mid = first + (size / 2);
+  auto last = v.end();
 
-  void add_record(Stats&& s);
-  void add_records(const std::ranges::input_range auto& values);
+  std::nth_element(first, mid, last);
 
-  void clear() noexcept;
+  if (size % 2 != 0) {
+    return *mid;
+  }
 
-  template <typename UnaryOperation = identity>
-    requires std::invocable<UnaryOperation, Stats&>
-  [[nodiscard]] auto correct(UnaryOperation op = identity()) -> std::vector<Stats>;
-};
+  const auto n1 = *mid;
+  std::nth_element(first, --mid, last);
+  const auto n2 = *mid;
+
+  return (n1 + n2) / 2;
+}
 
 }  // namespace nchg
-
-#include "../../fdr_impl.hpp"

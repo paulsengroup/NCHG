@@ -17,6 +17,9 @@
 // <https://www.gnu.org/licenses/>.
 
 // clang-format off
+#include <queue>
+
+
 #include "nchg/suppress_warnings.hpp"
 NCHG_DISABLE_WARNING_PUSH
 NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
@@ -28,7 +31,6 @@ NCHG_DISABLE_WARNING_POP
 #include <moodycamel/blockingconcurrentqueue.h>
 #include <spdlog/spdlog.h>
 
-#include <BS_thread_pool.hpp>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -36,40 +38,42 @@ NCHG_DISABLE_WARNING_POP
 #include <cstdint>
 #include <exception>
 #include <filesystem>
+#include <future>
 #include <stdexcept>
 #include <utility>
 #include <vector>
 
 #include "nchg/common.hpp"
-#include "nchg/config.hpp"
-#include "nchg/io.hpp"
 #include "nchg/k_merger.hpp"
 #include "nchg/nchg.hpp"
-#include "nchg/tools.hpp"
+#include "nchg/tools/common.hpp"
+#include "nchg/tools/config.hpp"
+#include "nchg/tools/io.hpp"
+#include "nchg/tools/tools.hpp"
 
 namespace nchg {
 
-[[nodiscard]] static std::pair<std::vector<ParquetStatsFile<NCHGResult>::iterator>,
-                               std::vector<ParquetStatsFile<NCHGResult>::iterator>>
+[[nodiscard]] static std::pair<std::vector<ParquetStatsFile::iterator<NCHGResult>>,
+                               std::vector<ParquetStatsFile::iterator<NCHGResult>>>
 init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference &chroms) {
-  std::vector<ParquetStatsFile<NCHGResult>::iterator> heads{};
-  std::vector<ParquetStatsFile<NCHGResult>::iterator> tails{};
+  std::vector<ParquetStatsFile::iterator<NCHGResult>> heads{};
+  std::vector<ParquetStatsFile::iterator<NCHGResult>> tails{};
 
-  SPDLOG_INFO(FMT_STRING("enumerating chrom-chrom tables under prefix {}..."), prefix);
+  SPDLOG_INFO("enumerating chrom-chrom tables under prefix {}...", prefix);
   for (std::uint32_t chrom1_id = 0; chrom1_id < chroms.size(); ++chrom1_id) {
     const auto &chrom1 = chroms.at(chrom1_id);
-    if (chrom1.is_all()) {
+    if (chrom1.is_all()) [[unlikely]] {
       break;
     }
     for (std::uint32_t chrom2_id = chrom1_id; chrom2_id < chroms.size(); ++chrom2_id) {
       const auto &chrom2 = chroms.at(chrom2_id);
-      const auto path = fmt::format(FMT_STRING("{}.{}.{}.parquet"), prefix.string(), chrom1.name(),
-                                    chrom2.name());
+      const auto path =
+          fmt::format("{}.{}.{}.parquet", prefix.string(), chrom1.name(), chrom2.name());
       if (std::filesystem::exists(path)) {
-        ParquetStatsFile<NCHGResult> f(path);
-        auto first = f.begin();
-        auto last = f.end();
-        if (first != last) {
+        ParquetStatsFile f(path, ParquetStatsFile::RecordType::NCHGCompute);
+        auto first = f.begin<NCHGResult>();
+        auto last = f.end<NCHGResult>();
+        if (first != last) [[likely]] {
           heads.emplace_back(std::move(first));
           tails.emplace_back(std::move(last));
         }
@@ -78,119 +82,141 @@ init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference 
   }
 
   if (heads.empty()) {
-    throw std::runtime_error(
-        fmt::format(FMT_STRING("unable to find any table under prefix {}"), prefix));
+    throw std::runtime_error(fmt::format("unable to find any table under prefix {}", prefix));
   }
 
-  SPDLOG_INFO(FMT_STRING("enumerated {} non-empty tables"), heads.size());
+  SPDLOG_INFO("enumerated {} non-empty tables", heads.size());
 
-  return std::make_pair(std::move(heads), std::move(tails));
+  return {heads, tails};
 }
 
-int run_nchg_merge(const MergeConfig &c) {
-  const auto t0 = std::chrono::system_clock::now();
+using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
 
-  const auto path_to_chrom_sizes =
-      fmt::format(FMT_STRING("{}.chrom.sizes"), c.input_prefix.string());
+[[nodiscard]] static std::size_t producer_fx(const hictk::Reference &chromosomes,
+                                             const std::filesystem::path &input_prefix,
+                                             RecordQueue &queue, std::atomic<bool> &early_return) {
+  try {
+    std::size_t records_enqueued{};
+    auto [heads, tails] = init_file_iterators(input_prefix, chromosomes);
+    const KMerger merger(heads, tails);
 
-  SPDLOG_INFO(FMT_STRING("reading chromosomes from \"{}\"..."), path_to_chrom_sizes);
-  const auto chroms = hictk::Reference::from_chrom_sizes(path_to_chrom_sizes);
-  SPDLOG_INFO(FMT_STRING("read {} chromosomes!"), chroms.size());
-
-  moodycamel::BlockingConcurrentQueue<NCHGResult> queue(64 * 1024);
-
-  BS::thread_pool tpool(static_cast<BS::concurrency_t>(std::min(2UL, c.threads)));
-
-  std::atomic<bool> early_return{false};
-
-  auto producer = tpool.submit_task([&]() {
-    try {
-      auto [heads, tails] = init_file_iterators(c.input_prefix, chroms);
-      const KMerger merger(heads, tails);
-
-      for (const auto &s : merger) {
-        while (!queue.try_enqueue(s)) {
-          if (early_return) {
-            return;
-          }
+    for (const auto &s : merger) {
+      while (!queue.try_enqueue(s)) [[unlikely]] {
+        if (early_return) [[unlikely]] {
+          return records_enqueued;
         }
       }
-
-      NCHGResult s{};
-      s.pval = -1;
-      queue.enqueue(s);  // EOQ
-    } catch (const std::exception &e) {
-      early_return = true;
-      throw std::runtime_error(
-          fmt::format(FMT_STRING("an exception occurred in the producer thread: {}"), e.what()));
-    } catch (...) {
-      early_return = true;
-      throw;
+      ++records_enqueued;
     }
-  });
 
-  auto consumer = tpool.submit_task([&]() {
-    try {
-      auto writer = init_parquet_file_writer<NCHGResult>(
-          chroms, c.output_path, c.force, c.compression_method, c.compression_lvl, c.threads - 2);
+    NCHGResult s{};
+    s.pval = -1;
+    queue.enqueue(s);  // EOQ
 
-      std::size_t records_processed = 0;
-      NCHGResult buffer{};
+    return records_enqueued;
+  } catch (const std::exception &e) {
+    early_return = true;
+    throw std::runtime_error(fmt::format("an exception occurred in producer thread: {}", e.what()));
+  } catch (...) {
+    SPDLOG_ERROR("an unknown exception occurred in producer thread");
+    early_return = true;
+    throw;
+  }
+}
 
-      const std::size_t batch_size = 1'000'000;
-      RecordBatchBuilder builder(chroms);
+[[nodiscard]] static std::size_t consumer_fx(const MergeConfig &c,
+                                             const hictk::Reference &chromosomes,
+                                             RecordQueue &queue, std::atomic<bool> &early_return) {
+  try {
+    auto writer = init_parquet_file_writer<NCHGResult>(chromosomes, c.output_path, c.force,
+                                                       c.compression_method, c.compression_lvl,
+                                                       c.threads - 2);
 
-      auto t1 = std::chrono::steady_clock::now();
-      for (std::size_t i = 0; true; ++i) {
-        while (!queue.wait_dequeue_timed(buffer, std::chrono::milliseconds(10))) {
-          if (early_return) {
-            return records_processed;
-          }
-        }
-        if (buffer.pval == -1) {  // EOQ
-          break;
-        }
-        if (builder.size() == batch_size) {
-          builder.write(*writer);
-        }
-        builder.append(buffer);
-        ++records_processed;
+    std::size_t records_dequeued = 0;
+    NCHGResult buffer{};
 
-        if (i == 10'000'000) {
-          const auto t2 = std::chrono::steady_clock::now();
-          const auto delta =
-              static_cast<double>(
-                  std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()) /
-              1000.0;
+    const std::size_t batch_size = 1'000'000;
+    RecordBatchBuilder builder(chromosomes);
 
-          SPDLOG_INFO(FMT_STRING("merging {:.0f} records/s..."), static_cast<double>(i) / delta);
-          t1 = t2;
-          i = 0;
+    auto t1 = std::chrono::steady_clock::now();
+    for (std::size_t i = 0; true; ++i) {
+      while (!queue.wait_dequeue_timed(buffer, std::chrono::milliseconds(10))) [[unlikely]] {
+        if (early_return) [[unlikely]] {
+          return records_dequeued;
         }
       }
+      if (buffer.pval == -1) [[unlikely]] {  // EOQ
+        break;
+      }
 
-      if (builder.size() != 0) {
+      if (builder.size() == batch_size) [[unlikely]] {
         builder.write(*writer);
       }
+      builder.append(buffer);
+      ++records_dequeued;
 
-      return records_processed;
-    } catch (const std::exception &e) {
-      early_return = true;
-      throw std::runtime_error(
-          fmt::format(FMT_STRING("an exception occurred in the consumer thread: {}"), e.what()));
-    } catch (...) {
-      early_return = true;
-      throw;
+      if (i == 10'000'000) [[unlikely]] {
+        const auto t2 = std::chrono::steady_clock::now();
+        const auto delta =
+            static_cast<double>(
+                std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()) /
+            1000.0;
+
+        SPDLOG_INFO("merging {:.0f} records/s...", static_cast<double>(i) / delta);
+        t1 = t2;
+        i = 0;
+      }
     }
+
+    if (builder.size() != 0) {
+      builder.write(*writer);
+    }
+
+    return records_dequeued;
+  } catch (const std::exception &e) {
+    early_return = true;
+    throw std::runtime_error(fmt::format("an exception occurred in consumer thread: {}", e.what()));
+  } catch (...) {
+    SPDLOG_ERROR("an unknown exception occurred in consumer thread");
+    early_return = true;
+    throw;
+  }
+}
+
+int run_command(const MergeConfig &c) {
+  const auto t0 = std::chrono::steady_clock::now();
+
+  const auto path_to_chrom_sizes = fmt::format("{}.chrom.sizes", c.input_prefix.string());
+
+  SPDLOG_INFO("reading chromosomes from \"{}\"...", path_to_chrom_sizes);
+  const auto chroms = hictk::Reference::from_chrom_sizes(path_to_chrom_sizes);
+  SPDLOG_INFO("read {} chromosomes!", chroms.size());
+
+  moodycamel::BlockingConcurrentQueue<NCHGResult> queue(64 * 1024);
+  std::atomic<bool> early_return{false};
+
+  auto producer = std::async(std::launch::deferred, [&] {
+    SPDLOG_DEBUG("spawning producer thread...");
+    return producer_fx(chroms, c.input_prefix, queue, early_return);
   });
 
-  producer.get();
-  const auto interactions_processed = consumer.get();
+  auto consumer = std::async(std::launch::async, [&] {
+    SPDLOG_DEBUG("spawning consumer thread...");
+    return consumer_fx(c, chroms, queue, early_return);
+  });
 
-  const auto t1 = std::chrono::system_clock::now();
-  const auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
-  SPDLOG_INFO(FMT_STRING("Processed {} records in {}s!"), interactions_processed,
-              static_cast<double>(delta) / 1000.0);
+  const auto records_enqueued = producer.get();
+  const auto records_dequeued = consumer.get();
+
+  if (records_enqueued != records_dequeued) {
+    throw std::runtime_error(
+        fmt::format("record queue is corrupted: not all records have been dequeued: "
+                    "expected {} records, found {}",
+                    records_enqueued, records_dequeued));
+  }
+
+  const auto t1 = std::chrono::steady_clock::now();
+  SPDLOG_INFO("processed {} records in {}!", records_dequeued, format_duration(t1 - t0));
 
   return 0;
 }

@@ -22,17 +22,16 @@
 #include <hictk/bin_table.hpp>
 #include <hictk/chromosome.hpp>
 #include <hictk/pixel.hpp>
+#include <limits>
 #include <memory>
-#include <type_traits>
 #include <vector>
+
+#include "nchg/concepts.hpp"
 
 namespace nchg {
 
-template <typename PixelIt>
 class ObservedMatrix {
-  using PixelT = std::remove_const_t<std::remove_reference_t<decltype(*std::declval<PixelIt>())>>;
-  using N = decltype(std::declval<PixelT>().count);
-  static_assert(std::is_same_v<PixelT, hictk::Pixel<N>>);
+  using N = std::uint32_t;
 
   hictk::Chromosome _chrom1{};
   hictk::Chromosome _chrom2{};
@@ -51,8 +50,11 @@ class ObservedMatrix {
 
  public:
   ObservedMatrix() = delete;
-  ObservedMatrix(PixelIt first_pixel, PixelIt last_pixel, hictk::Chromosome chrom1,
-                 hictk::Chromosome chrom2, hictk::BinTable bins, double mad_max_ = 0.0,
+
+  template <typename Pixels>
+    requires PixelRange<Pixels>
+  ObservedMatrix(const Pixels& pixels, hictk::Chromosome chrom1, hictk::Chromosome chrom2,
+                 hictk::BinTable bins, double mad_max_ = 0.0,
                  const std::vector<bool>& bin_mask1 = {}, const std::vector<bool>& bin_mask2 = {},
                  std::uint64_t min_delta_ = 0,
                  std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max());
@@ -76,11 +78,12 @@ class ObservedMatrix {
   [[nodiscard]] const std::vector<std::uint64_t>& marginals2() const noexcept;
 
  private:
-  static auto compute_stats(PixelIt first_pixel, PixelIt last_pixel,
-                            const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2,
-                            const hictk::BinTable& bins, const std::vector<bool>& bin_mask1,
-                            const std::vector<bool>& bin_mask2, std::uint64_t min_delta_,
-                            std::uint64_t max_delta_);
+  template <typename Pixels>
+    requires PixelRange<Pixels>
+  static auto compute_stats(const Pixels& pixels, const hictk::Chromosome& chrom1,
+                            const hictk::Chromosome& chrom2, const hictk::BinTable& bins,
+                            const std::vector<bool>& bin_mask1, const std::vector<bool>& bin_mask2,
+                            std::uint64_t min_delta_, std::uint64_t max_delta_);
 };
 
 }  // namespace nchg

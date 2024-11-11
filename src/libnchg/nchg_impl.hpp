@@ -53,9 +53,9 @@ template <typename N>
   assert(n <= sum2);
   assert(sum1 <= total_sum);
   assert(sum2 <= total_sum);
-  assert(sum1 + sum2 <= 2 * total_sum);
+  assert(sum1 + sum2 <= total_sum + n);
 
-  const auto num = n * ((2 * total_sum) - sum1 - sum2 + n);
+  const auto num = n * (total_sum - sum1 - sum2 + n);
   const auto denom = (sum1 - n) * (sum2 - n);
 
   assert(num >= 0);
@@ -229,9 +229,12 @@ inline NCHGResult NCHG::compute_stats(hictk::Pixel<N> pixel, double exp, N obs_s
 
   const auto intra_matrix = pixel.coords.bin1.chrom() == pixel.coords.bin2.chrom();
 
+  if (!intra_matrix) {
+    obs_sum *= 2;
+  }
+
   const auto odds_ratio = internal::compute_odds_ratio(pixel.count, obs_sum, N1, N2);
   const auto omega = intra_matrix ? internal::compute_odds_ratio(exp, exp_sum, L1, L2) : 1.0;
-
   const auto log_ratio = std::log2(static_cast<double>(pixel.count)) - std::log2(exp);
 
   if (!std::isfinite(odds_ratio) || !std::isfinite(omega)) [[unlikely]] {
@@ -250,6 +253,10 @@ inline NCHGResult NCHG::compute_stats(hictk::Pixel<N> pixel, double exp, N obs_s
             .log_ratio = log_ratio,
             .odds_ratio = odds_ratio,
             .omega = omega};
+  }
+
+  if (!intra_matrix) {
+    obs_sum /= 2;
   }
 
   const auto pvalue = compute_pvalue_nchg(buffer, pixel.count, static_cast<std::uint64_t>(N1),

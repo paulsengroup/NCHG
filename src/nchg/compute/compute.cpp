@@ -755,7 +755,7 @@ static void validate_expected_values(
   return plan;
 }
 
-int run_nchg_compute(const ComputePvalConfig &c) {
+int run_command(const ComputePvalConfig &c) {
   try {
     const auto t0 = std::chrono::steady_clock::now();
 

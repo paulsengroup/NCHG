@@ -183,7 +183,7 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
   }
 }
 
-int run_nchg_merge(const MergeConfig &c) {
+int run_command(const MergeConfig &c) {
   const auto t0 = std::chrono::steady_clock::now();
 
   const auto path_to_chrom_sizes = fmt::format("{}.chrom.sizes", c.input_prefix.string());

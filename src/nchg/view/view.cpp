@@ -162,7 +162,7 @@ template <typename T>
   return 0;
 }
 
-int run_nchg_view(const ViewConfig& c) {
+int run_command(const ViewConfig& c) {
   using enum ParquetStatsFile::RecordType;
 
   ParquetStatsFile f{c.input_path, infer};

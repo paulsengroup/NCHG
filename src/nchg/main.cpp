@@ -247,30 +247,19 @@ int main(int argc, char **argv) noexcept {
 
     cli->log_warnings();
 
-    switch (subcmd) {
-      using enum Cli::subcommand;
-      case compute: {
-        return run_nchg_compute(std::get<ComputePvalConfig>(config));
-      }
-      case expected: {
-        return run_nchg_expected(std::get<ExpectedConfig>(config));
-      }
-      case filter: {
-        return run_nchg_filter(std::get<FilterConfig>(config));
-      }
-      case merge: {
-        return run_nchg_merge(std::get<MergeConfig>(config));
-      }
-      case view: {
-        return run_nchg_view(std::get<ViewConfig>(config));
-      }
-      case help:  // NOLINT
-        break;
-      default:
-        throw std::runtime_error(
-            "Default branch in switch statement in nchg::main() should be unreachable! "
-            "If you see this message, please file an issue on GitHub");
-    }
+    assert(!config.valueless_by_exception());
+    return std::visit(
+        []<typename Config>(const Config &c) -> int {
+          if constexpr (std::is_same_v<Config, std::monostate>) {
+            throw std::runtime_error(
+                "Caught attempt to visit a Config object in std::monostate. "
+                "This should never be possible! "
+                "If you see this message, please file an issue on GitHub.");
+          } else {
+            return run_command(c);
+          }
+        },
+        config);
 
   } catch (const CLI::ParseError &e) {
     assert(cli);

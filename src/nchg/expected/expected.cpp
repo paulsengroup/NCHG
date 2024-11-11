@@ -154,7 +154,7 @@ static void process_one_chromosome_pair(FilePtr f, const ExpectedConfig &c) {
               format_duration(t1 - t0));
 }
 
-int run_nchg_expected(const ExpectedConfig &c) {
+int run_command(const ExpectedConfig &c) {
   const auto f = std::make_shared<const hictk::File>(c.input_path.string(), c.resolution);
 
   if (c.cis_only) {

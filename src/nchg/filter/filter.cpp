@@ -334,7 +334,7 @@ using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
   }
 }
 
-int run_nchg_filter(const FilterConfig& c) {
+int run_command(const FilterConfig& c) {
   const auto t0 = std::chrono::steady_clock::now();
   const auto corrected_pvalues = correct_pvalues(read_records(c.input_path), c);
 

@@ -18,17 +18,14 @@
 
 #pragma once
 
-#include <atomic>
-#include <cstddef>
-
 #include "nchg/tools/config.hpp"
 
 namespace nchg {
 
-[[nodiscard]] int run_nchg_compute(const ComputePvalConfig& c);
-[[nodiscard]] int run_nchg_expected(const ExpectedConfig& c);
-[[nodiscard]] int run_nchg_filter(const FilterConfig& c);
-[[nodiscard]] int run_nchg_merge(const MergeConfig& c);
-[[nodiscard]] int run_nchg_view(const ViewConfig& c);
+[[nodiscard]] int run_command(const ComputePvalConfig& c);
+[[nodiscard]] int run_command(const ExpectedConfig& c);
+[[nodiscard]] int run_command(const FilterConfig& c);
+[[nodiscard]] int run_command(const MergeConfig& c);
+[[nodiscard]] int run_command(const ViewConfig& c);
 
 }  // namespace nchg

@@ -322,7 +322,11 @@ struct ChromIndex {
         break;
       }
     }
+#if defined(__apple_build_version__) && __apple_build_version__ < 16000000
+    index.emplace_back(ChromIndex{chrom, i0, i1});
+#else
     index.emplace_back(chrom, i0, i1);
+#endif
     i = i1;
   }
 

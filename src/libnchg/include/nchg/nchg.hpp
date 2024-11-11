@@ -152,11 +152,10 @@ class NCHG {
   [[nodiscard]] auto aggregate_pixels(const hictk::GenomicInterval& range1,
                                       const hictk::GenomicInterval& range2) const;
 
-  template <typename N>
-    requires arithmetic<N>
-  [[nodiscard]] static NCHGResult compute_stats(hictk::Pixel<N> pixel, double exp, N obs_sum, N N1,
-                                                N N2, double exp_sum, double L1, double L2,
-                                                std::vector<double>& buffer);
+  [[nodiscard]] static NCHGResult compute_stats(hictk::Pixel<std::uint64_t> pixel, double exp,
+                                                std::uint64_t obs_sum, std::uint64_t N1,
+                                                std::uint64_t N2, double exp_sum, double L1,
+                                                double L2, std::vector<double>& buffer);
 
  public:
   template <typename PixelSelector>

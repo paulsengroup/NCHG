@@ -161,38 +161,36 @@ static std::shared_ptr<arrow::Array> make_chrom_dict(const hictk::Reference &chr
                                                const std::shared_ptr<arrow::io::ReadableFile> &fp,
                                                ParquetStatsFile::RecordType expected_type)
     -> ParquetStatsFile::RecordType {
-  // clang-format off
-  static constexpr std::array<std::string_view, 12> expected_columns_nchg_compute{
-    "chrom1",
-    "start1",
-    "end1",
-    "chrom2",
-    "start2",
-    "end2",
-    "pvalue",
-    "observed_count",
-    "expected_count",
-    "log_ratio",
-    "odds_ratio",
-    "omega",
-  };
+  static constexpr auto expected_columns_nchg_compute = std::to_array<std::string_view>({
+      "chrom1",
+      "start1",
+      "end1",
+      "chrom2",
+      "start2",
+      "end2",
+      "pvalue",
+      "observed_count",
+      "expected_count",
+      "log_ratio",
+      "odds_ratio",
+      "omega",
+  });
 
-  static constexpr std::array<std::string_view, 13> expected_columns_nchg_filter{
-    "chrom1",
-    "start1",
-    "end1",
-    "chrom2",
-    "start2",
-    "end2",
-    "pvalue",
-    "pvalue_corrected",
-    "observed_count",
-    "expected_count",
-    "log_ratio",
-    "odds_ratio",
-    "omega",
-  };
-  // clang-format on
+  static constexpr auto expected_columns_nchg_filter = std::to_array<std::string_view>({
+      "chrom1",
+      "start1",
+      "end1",
+      "chrom2",
+      "start2",
+      "end2",
+      "pvalue",
+      "pvalue_corrected",
+      "observed_count",
+      "expected_count",
+      "log_ratio",
+      "odds_ratio",
+      "omega",
+  });
 
   try {
     const auto col_names = get_file_schema(fp)->field_names();

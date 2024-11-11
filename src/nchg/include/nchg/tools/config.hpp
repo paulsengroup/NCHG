@@ -31,6 +31,9 @@ struct CartesianProductConfig {
   std::filesystem::path path_to_domains{};
   std::filesystem::path path_to_chrom_sizes{};
 
+  std::optional<std::string> chrom1{};
+  std::optional<std::string> chrom2{};
+
   bool process_cis{true};
   bool process_trans{true};
 

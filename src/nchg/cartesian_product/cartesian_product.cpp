@@ -108,7 +108,21 @@ struct DomainEq {
   }
 };
 
-[[nodiscard]] static hictk::Reference parse_chrom_sizes(const std::filesystem::path& path) {
+[[nodiscard]] static hictk::Reference parse_chrom_sizes(const std::filesystem::path& path,
+                                                        const std::optional<std::string>& chrom1,
+                                                        const std::optional<std::string>& chrom2) {
+  if (chrom1.has_value()) {
+    assert(chrom2.has_value());
+
+    const std::vector names{*chrom1, *chrom2};
+    const std::vector sizes(2, std::numeric_limits<std::uint32_t>::max());
+    if (chrom1 == chrom2) {
+      return {names.begin(), names.begin() + 1, sizes.begin()};
+    }
+
+    return {names.begin(), names.end(), sizes.begin()};
+  }
+
   if (path.empty()) {
     return {};
   }
@@ -397,14 +411,22 @@ int run_command(const CartesianProductConfig& c) {
 
   const auto t0 = std::chrono::steady_clock::now();
 
-  const auto domains = parse_domains(c.path_to_domains, parse_chrom_sizes(c.path_to_chrom_sizes));
+  const auto domains = parse_domains(c.path_to_domains,
+                                     parse_chrom_sizes(c.path_to_chrom_sizes, c.chrom1, c.chrom2));
+
   const auto index = index_chromosomes(domains);
 
   std::size_t records_processed = 0;
   for (std::size_t i = 0; i < index.size(); ++i) {
     const auto& [chrom1, i0, i1] = index[i];
+    if (c.chrom1.has_value() && *c.chrom1 != chrom1) {
+      continue;
+    }
     for (std::size_t j = i; j < index.size(); ++j) {
       const auto& [chrom2, j0, j1] = index[j];
+      if (c.chrom2.has_value() && *c.chrom2 != chrom2) {
+        continue;
+      }
 
       if (!c.process_cis && chrom1 == chrom2) {
         SPDLOG_DEBUG("skipping domains for {}:{}...", chrom1, chrom2);

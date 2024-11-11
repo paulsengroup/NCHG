@@ -166,14 +166,22 @@ void Cli::make_cartesian_product_subcommand() {
     "Pass \"-\" or \"stdin\" if the domains should be read from stdin.")
     ->check(CLI::ExistingFile | CLI::IsMember{{"-", "stdin"}})
     ->required();
-
   sc.add_option(
     "-c,--chrom-sizes",
     c.path_to_chrom_sizes,
     "Path to .chrom.sizes file.\n"
     "Chromosomes will be used to sort domains prior to processing.")
     ->check(CLI::ExistingFile);
-
+  sc.add_option(
+    "--chrom1",
+    c.chrom1,
+    "Name of the first chromosome used to filter domains.")
+    ->capture_default_str();
+  sc.add_option(
+    "--chrom2",
+    c.chrom2,
+    "Name of the second chromosome used to filter domains.")
+    ->capture_default_str();
   sc.add_flag_function(
     "--cis-only",
     [&c](auto n) { if (n != 0) {c.process_trans = false;} },
@@ -184,7 +192,6 @@ void Cli::make_cartesian_product_subcommand() {
     [&c](auto n) { if (n != 0) {c.process_cis = false; }},
     "Only output pair of domains corresponding to regions interacting in trans.")
     ->capture_default_str();
-
   sc.add_option(
     "-v,--verbosity",
     c.verbosity,
@@ -193,7 +200,15 @@ void Cli::make_cartesian_product_subcommand() {
     ->capture_default_str();
   // clang-format on
 
+  sc.get_option("--chrom-sizes")->excludes("--chrom1");
+  sc.get_option("--chrom-sizes")->excludes("--chrom2");
+
+  sc.get_option("--cis-only")->excludes("--chrom1");
+  sc.get_option("--cis-only")->excludes("--chrom2");
   sc.get_option("--cis-only")->excludes("--trans-only");
+
+  sc.get_option("--trans-only")->excludes("--chrom1");
+  sc.get_option("--trans-only")->excludes("--chrom2");
 
   _config = std::monostate{};
 }
@@ -822,6 +837,13 @@ void Cli::transform_args() {
 
 void Cli::transform_args_cartesian_product_subcommand() {
   auto &c = std::get<CartesianProductConfig>(_config);
+
+  if (c.chrom1.has_value()) {
+    if (!c.chrom2.has_value()) {
+      c.chrom2 = c.chrom1;
+    }
+  }
+
   // in spdlog, high numbers correspond to low log levels
   assert(c.verbosity > 0 && c.verbosity <= SPDLOG_LEVEL_CRITICAL);
   c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;

@@ -350,20 +350,6 @@ void RecordBatchBuilder::write(parquet::arrow::FileWriter &writer) {
   reset();
 }
 
-std::string_view truncate_bed3_record(std::string_view record, char sep) {
-  const auto pos1 = record.find(sep);
-  if (pos1 == std::string_view::npos) {
-    throw std::runtime_error("invalid bed record, expected 3 tokens, found 1");
-  }
-  const auto pos2 = record.find('\t', pos1 + 1);
-  if (pos2 == std::string_view::npos) {
-    throw std::runtime_error("invalid bed record, expected 3 tokens, found 2");
-  }
-  const auto pos3 = record.find('\t', pos2 + 1);
-
-  return record.substr(0, pos3);
-}
-
 phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> parse_bin_mask(
     const hictk::Reference &chroms, std::uint32_t bin_size, const std::filesystem::path &path) {
   if (path.empty()) {
@@ -391,7 +377,7 @@ phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> parse_bin_mask(
       }
 
       try {
-        const auto record = truncate_bed3_record(buffer);
+        const auto record = truncate_record<3>(buffer);
         auto domain = hictk::GenomicInterval::parse_bed(chroms, record);
 
         const auto num_bins = (domain.chrom().size() + bin_size - 1) / bin_size;

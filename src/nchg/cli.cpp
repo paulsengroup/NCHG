@@ -265,8 +265,9 @@ void Cli::make_compute_subcommand() {
   sc.add_option(
     "--domains",
     c.path_to_domains,
-    "Path to a BED file with a list of domains whose pair-wise interactions should\n"
-    "be assessed for significance.")
+    "Path to a BEDPE file with the list of 2D domains to be processed.\n"
+    "For each domain, NCHG will first fetch and aggregate interactions overlapping with the given coordinates.\n"
+    "Then, NCHG will asses the statistical significance of the observed interactions after aggregation.")
     ->check(CLI::ExistingFile);
   sc.add_flag_function(
     "--cis-only",

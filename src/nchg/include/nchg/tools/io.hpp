@@ -172,7 +172,8 @@ template <typename Record>
 [[nodiscard]] phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> parse_bin_mask(
     const hictk::Reference &chroms, std::uint32_t bin_size, const std::filesystem::path &path);
 
-[[nodiscard]] std::string_view truncate_bed3_record(std::string_view record, char sep = '\t');
+template <std::size_t NTOKS>
+[[nodiscard]] std::string_view truncate_record(std::string_view record, char sep = '\t');
 
 namespace internal {
 

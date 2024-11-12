@@ -247,4 +247,21 @@ inline std::unique_ptr<parquet::arrow::FileWriter> init_parquet_file_writer(
   return result.MoveValueUnsafe();
 }
 
+template <std::size_t NTOKS>
+std::string_view truncate_record(std::string_view record, char sep) {
+  static_assert(NTOKS != 0);
+
+  std::size_t offset{};
+  for (std::size_t i = 0; i < NTOKS; ++i) {
+    const auto pos = record.find(sep, offset + 1);
+    if (pos == std::string_view::npos && i != NTOKS - 1) [[unlikely]] {
+      throw std::runtime_error(
+          fmt::format("invalid record, expected {} tokens, found {}", NTOKS, i));
+    }
+    offset = pos;
+  }
+
+  return record.substr(0, offset);
+}
+
 }  // namespace nchg

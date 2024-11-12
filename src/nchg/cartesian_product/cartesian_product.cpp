@@ -261,7 +261,7 @@ enum class ParseStatus : std::uint_fast8_t { PARSED, SKIPPED, DUPLICATE };
       if (line.back() == '\r') [[unlikely]] {
         line.resize(line.size() - 1);
       }
-      const auto status = parse_record(truncate_bed3_record(line, '\t'), i, reference,
+      const auto status = parse_record(truncate_record<3>(line, '\t'), i, reference,
                                        parsed_chromosomes, unique_domains);
       switch (status) {
         using enum ParseStatus;

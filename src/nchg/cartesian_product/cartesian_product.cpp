@@ -258,7 +258,7 @@ enum class ParseStatus : std::uint_fast8_t { PARSED, SKIPPED, DUPLICATE };
       if (line.empty()) [[unlikely]] {
         continue;
       }
-      if (line.back() == '\r') [[unlike]] {
+      if (line.back() == '\r') [[unlikely]] {
         line.resize(line.size() - 1);
       }
       const auto status = parse_record(truncate_bed3_record(line, '\t'), i, reference,
@@ -398,7 +398,7 @@ struct ChromIndex {
   std::size_t num_records = 0;
   for (std::size_t i = i0; i < i1; ++i) {
     const auto& [chrom1, start1, end1] = domains[i];
-    for (std::size_t j = j0; j < j1; ++j) {
+    for (std::size_t j = std::max(j0, i); j < j1; ++j) {
       const auto& [chrom2, start2, end2] = domains[j];
       fmt::print(FMT_COMPILE("{}\t{}\t{}\t{}\t{}\t{}\n"), chrom1, start1, end1, chrom2, start2,
                  end2);

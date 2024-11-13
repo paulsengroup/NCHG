@@ -20,6 +20,7 @@
 
 #include "nchg/text.hpp"
 
+// clang-format off
 #include "nchg/suppress_warnings.hpp"
 NCHG_DISABLE_WARNING_PUSH
 NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS

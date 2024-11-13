@@ -28,7 +28,7 @@ target_sources(
   nchg_io
   PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/k_merger_impl.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/parquet_helpers.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_helpers.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_reader.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_reader_impl.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_writer.cpp"

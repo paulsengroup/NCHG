@@ -16,8 +16,9 @@
 // with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-#include "nchg/parquet_helpers.hpp"
+#include "nchg/parquet_stats_file_helpers.hpp"
 
+// clang-format off
 #include "nchg/suppress_warnings.hpp"
 NCHG_DISABLE_WARNING_PUSH
 NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS

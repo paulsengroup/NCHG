@@ -483,7 +483,7 @@ jobs:
       - name: Test NCHG cartesian-product (trans)
         run: |
           bin/NCHG cartesian-product                           \
-            --cis-only                                         \
+            --trans-only                                       \
             test/data/ENCFF447ERX.1000000.compartments.bed     \
             > domains.bedpe
 
@@ -497,7 +497,7 @@ jobs:
         run: |
           bin/NCHG cartesian-product                           \
             --chrom1 chr1                                      \
-            --chrom1 chr3                                      \
+            --chrom2 chr3                                      \
             test/data/ENCFF447ERX.1000000.compartments.bed     \
             > domains.bedpe
 
@@ -540,7 +540,7 @@ jobs:
             test/data/ENCFF447ERX.1000000.cool                 \
             "$OUT_PREFIX"                                      \
             --threads "$NPROC"                               \
-            --domains test/data/ENCFF447ERX.1000000.compartments.bed
+            --domains "$DATA_DIR/cartesian_product/$OUT_PREFIX.gw-domains.bedpe"
 
           test/scripts/validate_nchg_output.py compute \
             "$OUT_PREFIX"                              \

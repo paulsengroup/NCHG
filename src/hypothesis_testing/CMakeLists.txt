@@ -20,7 +20,7 @@ FetchContent_Declare(
   stocc
   URL
     "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc-20240322.tar.xz"
-  URL_HASH SHA256=91e414f44445dcdfa569148c2484a50cadd786e30d833836d98f6111f82e9850
+  URL_HASH SHA256=b6bb7f778d77f46035614f5adb88c3a990ba36205886f03ce90f7f3e32ad2a44
   UPDATE_DISCONNECTED 1
   EXCLUDE_FROM_ALL
   SYSTEM
@@ -31,11 +31,7 @@ find_package(hictk REQUIRED)
 find_package(phmap REQUIRED)
 find_package(spdlog REQUIRED)
 
-set(NCHG_BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS}")
-set(BUILD_SHARED_LIBS OFF)
 FetchContent_MakeAvailable(stocc)
-set(BUILD_SHARED_LIBS "${NCHG_BUILD_SHARED_LIBS}")
-unset(NCHG_BUILD_SHARED_LIBS)
 
 add_library(nchg_hypothesis_testing STATIC)
 add_library(nchg::hypothesis_testing ALIAS nchg_hypothesis_testing)

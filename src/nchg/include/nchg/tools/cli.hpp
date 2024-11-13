@@ -118,6 +118,7 @@ class Cli {
  public:
   enum subcommand : std::uint_fast8_t {
     help,
+    cartesian_product,
     compute,
     expected,
     filter,
@@ -144,6 +145,7 @@ class Cli {
   subcommand _subcommand{subcommand::help};
   mutable std::vector<std::string> _warnings{};
 
+  void make_cartesian_product_subcommand();
   void make_compute_subcommand();
   void make_expected_subcommand();
   void make_filter_subcommand();
@@ -151,6 +153,7 @@ class Cli {
   void make_view_subcommand();
   void make_cli();
 
+  void validate_cartesian_product_subcommand() const;
   void validate_compute_subcommand() const;
   void validate_expected_subcommand() const;
   void validate_filter_subcommand() const;
@@ -158,6 +161,7 @@ class Cli {
   void validate_view_subcommand() const;
   void validate_args() const;
 
+  void transform_args_cartesian_product_subcommand();
   void transform_args_compute_subcommand();
   void transform_args_expected_subcommand();
   void transform_args_filter_subcommand();

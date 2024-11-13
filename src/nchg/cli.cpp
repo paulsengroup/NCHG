@@ -59,7 +59,9 @@ auto Cli::parse_arguments() -> Config {
     _cli.parse(_argc, _argv);
 
     using enum subcommand;
-    if (_cli.get_subcommand("compute")->parsed()) {
+    if (_cli.get_subcommand("cartesian-product")->parsed()) {
+      _subcommand = cartesian_product;
+    } else if (_cli.get_subcommand("compute")->parsed()) {
       _subcommand = compute;
     } else if (_cli.get_subcommand("expected")->parsed()) {
       _subcommand = expected;
@@ -103,6 +105,8 @@ int Cli::exit() const noexcept { return _exit_code; }
 
 std::string_view Cli::subcommand_to_str(subcommand s) noexcept {
   switch (s) {
+    case cartesian_product:
+      return "cartesian-product";
     case compute:
       return "compute";
     case expected:
@@ -132,11 +136,81 @@ void Cli::make_cli() {
   _cli.set_version_flag("-V,--version", "0.0.2");
   _cli.require_subcommand(1);
 
+  make_cartesian_product_subcommand();
   make_compute_subcommand();
   make_expected_subcommand();
   make_filter_subcommand();
   make_merge_subcommand();
   make_view_subcommand();
+}
+
+void Cli::make_cartesian_product_subcommand() {
+  auto &sc =
+      *_cli.add_subcommand("cartesian-product",
+                           "Compute the cartesian product of domains from a list in BED3 format.")
+           ->fallthrough()
+           ->preparse_callback([this]([[maybe_unused]] std::size_t i) {
+             assert(_config.index() == 0);
+             _config = CartesianProductConfig{};
+           });
+
+  _config = CartesianProductConfig{};
+  auto &c = std::get<CartesianProductConfig>(_config);
+
+  // clang-format off
+  sc.add_option(
+    "domains",
+    c.path_to_domains,
+    "Path to a BED3+ file with the list of domains to be processed.\n"
+    "Domains should be sorted by chromosome when --chrom-sizes is not provided.\n"
+    "Pass \"-\" or \"stdin\" if the domains should be read from stdin.")
+    ->check(CLI::ExistingFile | CLI::IsMember{{"-", "stdin"}})
+    ->required();
+  sc.add_option(
+    "-c,--chrom-sizes",
+    c.path_to_chrom_sizes,
+    "Path to .chrom.sizes file.\n"
+    "Chromosomes will be used to sort domains prior to processing.")
+    ->check(CLI::ExistingFile);
+  sc.add_option(
+    "--chrom1",
+    c.chrom1,
+    "Name of the first chromosome used to filter domains.")
+    ->capture_default_str();
+  sc.add_option(
+    "--chrom2",
+    c.chrom2,
+    "Name of the second chromosome used to filter domains.")
+    ->capture_default_str();
+  sc.add_flag_function(
+    "--cis-only",
+    [&c](auto n) { if (n != 0) {c.process_trans = false;} },
+    "Only output pair of domains corresponding to regions interacting in cis.")
+    ->capture_default_str();
+  sc.add_flag_function(
+    "--trans-only",
+    [&c](auto n) { if (n != 0) {c.process_cis = false; }},
+    "Only output pair of domains corresponding to regions interacting in trans.")
+    ->capture_default_str();
+  sc.add_option(
+    "-v,--verbosity",
+    c.verbosity,
+    "Set verbosity of output to the console.")
+    ->check(CLI::Range(1, 4))
+    ->capture_default_str();
+  // clang-format on
+
+  sc.get_option("--chrom-sizes")->excludes("--chrom1");
+  sc.get_option("--chrom-sizes")->excludes("--chrom2");
+
+  sc.get_option("--cis-only")->excludes("--chrom1");
+  sc.get_option("--cis-only")->excludes("--chrom2");
+  sc.get_option("--cis-only")->excludes("--trans-only");
+
+  sc.get_option("--trans-only")->excludes("--chrom1");
+  sc.get_option("--trans-only")->excludes("--chrom2");
+
+  _config = std::monostate{};
 }
 
 void Cli::make_compute_subcommand() {
@@ -191,8 +265,9 @@ void Cli::make_compute_subcommand() {
   sc.add_option(
     "--domains",
     c.path_to_domains,
-    "Path to a BED file with a list of domains whose pair-wise interactions should\n"
-    "be assessed for significance.")
+    "Path to a BEDPE file with the list of 2D domains to be processed.\n"
+    "For each domain, NCHG will first fetch and aggregate interactions overlapping with the given coordinates.\n"
+    "Then, NCHG will asses the statistical significance of the observed interactions after aggregation.")
     ->check(CLI::ExistingFile);
   sc.add_flag_function(
     "--cis-only",
@@ -633,6 +708,8 @@ void Cli::make_view_subcommand() {
 
 void Cli::validate_args() const {
   switch (get_subcommand()) {
+    case cartesian_product:
+      return validate_cartesian_product_subcommand();  // NOLINT
     case compute:
       return validate_compute_subcommand();  // NOLINT
     case expected:
@@ -647,6 +724,8 @@ void Cli::validate_args() const {
       return;
   }
 }
+
+void Cli::validate_cartesian_product_subcommand() const {}
 
 void Cli::validate_compute_subcommand() const {
   const auto &c = std::get<ComputePvalConfig>(_config);
@@ -740,6 +819,8 @@ void Cli::validate_view_subcommand() const {}
 
 void Cli::transform_args() {
   switch (get_subcommand()) {
+    case cartesian_product:
+      return transform_args_cartesian_product_subcommand();  // NOLINT
     case compute:
       return transform_args_compute_subcommand();  // NOLINT
     case expected:
@@ -755,10 +836,13 @@ void Cli::transform_args() {
   }
 }
 
-void Cli::transform_args_expected_subcommand() {
-  auto &c = std::get<ExpectedConfig>(_config);
-  if (c.chrom1 != "all" && c.chrom2 == "all") {
-    c.chrom2 = c.chrom1;
+void Cli::transform_args_cartesian_product_subcommand() {
+  auto &c = std::get<CartesianProductConfig>(_config);
+
+  if (c.chrom1.has_value()) {
+    if (!c.chrom2.has_value()) {
+      c.chrom2 = c.chrom1;
+    }
   }
 
   // in spdlog, high numbers correspond to low log levels
@@ -816,6 +900,17 @@ void Cli::transform_args_compute_subcommand() {
 
   if (c.chrom1.has_value()) {
     c.threads = 1;
+  }
+
+  // in spdlog, high numbers correspond to low log levels
+  assert(c.verbosity > 0 && c.verbosity <= SPDLOG_LEVEL_CRITICAL);
+  c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
+}
+
+void Cli::transform_args_expected_subcommand() {
+  auto &c = std::get<ExpectedConfig>(_config);
+  if (c.chrom1 != "all" && c.chrom2 == "all") {
+    c.chrom2 = c.chrom1;
   }
 
   // in spdlog, high numbers correspond to low log levels

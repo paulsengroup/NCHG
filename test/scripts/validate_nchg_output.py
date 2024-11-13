@@ -48,6 +48,25 @@ def add_common_flags(parser):
     )
 
 
+def make_cartesian_product_sc(main_parser):
+    sc: argparse.ArgumentParser = main_parser.add_parser(
+        "cartesian-product",
+        help="Validate the output produced by NCHG cartesian-product.",
+    )
+    sc.add_argument(
+        "test-bedpe",
+        type=pathlib.Path,
+        help="Path to the BEDPE file to be tested.",
+    )
+    sc.add_argument(
+        "ref-bedpe",
+        type=pathlib.Path,
+        help="Path to the BEDPE file to be used as ground truth.",
+    )
+
+    add_common_flags(sc)
+
+
 def make_compute_sc(main_parser):
     sc: argparse.ArgumentParser = main_parser.add_parser(
         "compute",
@@ -151,6 +170,7 @@ def make_cli() -> argparse.ArgumentParser:
         title="subcommands", dest="command", required=True, help="List of available subcommands:"
     )
 
+    make_cartesian_product_sc(sub_parser)
     make_compute_sc(sub_parser)
     make_merge_sc(sub_parser)
     make_filter_sc(sub_parser)
@@ -174,6 +194,10 @@ def import_table(path: pathlib.Path) -> pd.DataFrame:
         return pd.read_table(path)
     except Exception as e:
         raise RuntimeError(f"failed to read data from {path}: file is not in .tsv or .parquet format") from e
+
+
+def import_bedpe(path: pathlib.Path) -> pd.DataFrame:
+    return pd.read_table(path, names=["chrom1", "start1", "end1", "chrom2", "start2", "end2"])
 
 
 def validate_columns(expected: pd.DataFrame, found: pd.DataFrame, path: pathlib.Path):
@@ -215,7 +239,7 @@ def validate_chrom_sizes(expected: pd.DataFrame, found: pd.DataFrame, path: path
     logging.debug("%s validation was successful!", path)
 
 
-def validate_data(expected: pd.DataFrame, found: pd.DataFrame, path: pathlib.Path):
+def validate_pvalue_tables(expected: pd.DataFrame, found: pd.DataFrame, path: pathlib.Path):
     logging.debug("validating %s...", path)
 
     if len(expected) != len(found):
@@ -383,7 +407,7 @@ def validate_expected_profile_h5(expected: pathlib.Path, found: pathlib.Path):
         compare_h5_nodes_recursive(ref["/"], tgt["/"])
 
 
-def validate_table(expected_path: pathlib.Path, found_path: pathlib.Path):
+def validate_pvalue_table(expected_path: pathlib.Path, found_path: pathlib.Path):
     assert expected_path.is_file()
     try:
         if not found_path.is_file():
@@ -393,9 +417,43 @@ def validate_table(expected_path: pathlib.Path, found_path: pathlib.Path):
         found = import_table(found_path)
 
         validate_columns(expected, found, found_path)
-        validate_data(expected, found, found_path)
+        validate_pvalue_tables(expected, found, found_path)
     except RuntimeError as e:
         raise RuntimeError(f"failed to validate table {found_path.stem}: {e}")
+
+
+def validate_nchg_cartesian_product(test_file: pathlib.Path, ref_file: pathlib.Path) -> int:
+    logging.info(f"### NCHG cartesian-product: validating {test_file}...")
+    if test_file.resolve() == ref_file.resolve():
+        raise RuntimeError(f"test-bedpe and ref-bedpe point to the same file: {ref_file}")
+
+    expected = import_bedpe(ref_file)
+    found = import_bedpe(test_file)
+
+    ok = True
+    if (expected.columns != found.columns).any():
+        logging.error("table is not correct: expected %s columns, found %s", expected.columns, found.columns)
+        ok = False
+
+    if len(expected) != len(found):
+        logging.error("table is not correct: expected %d rows, found %d", len(expected), len(found))
+        ok = False
+
+    if not ok:
+        return 1
+
+    errors = []
+    for col in expected.columns:
+        num_mismatches = (expected[col] != found[col]).sum()
+        if num_mismatches != 0:
+            errors.append(f'Found {num_mismatches} mismatched values while comparing column "{col}".')
+
+    if len(errors) != 0:
+        logging.error("data validation failed:\n - " + "\n - ".join(errors))
+        return 1
+
+    logging.debug("%s validation was successful", test_file)
+    return 0
 
 
 def validate_nchg_compute(test_prefix: pathlib.Path, ref_prefix: pathlib.Path) -> int:
@@ -430,7 +488,7 @@ def validate_nchg_compute(test_prefix: pathlib.Path, ref_prefix: pathlib.Path) -
         logging.debug("processing table %s...", prefix.lstrip("."))
         try:
             path2 = pathlib.Path(f"{test_prefix}{prefix}.parquet")
-            validate_table(path1, path2)
+            validate_pvalue_table(path1, path2)
         except RuntimeError as e:
             ok = False
             logging.error(e)
@@ -446,7 +504,7 @@ def validate_nchg_merge(test_file: pathlib.Path, ref_file: pathlib.Path) -> int:
         raise RuntimeError(f"test-parquet and ref-parquet point to the same file: {ref_file}")
 
     try:
-        validate_table(ref_file, test_file)
+        validate_pvalue_table(ref_file, test_file)
         return 0
     except RuntimeError as e:
         logging.error(e)
@@ -459,7 +517,7 @@ def validate_nchg_filter(test_file: pathlib.Path, ref_file: pathlib.Path) -> int
         raise RuntimeError(f"test-parquet and ref-parquet point to the same file: {ref_file}")
 
     try:
-        validate_table(ref_file, test_file)
+        validate_pvalue_table(ref_file, test_file)
         return 0
     except RuntimeError as e:
         logging.error(e)
@@ -472,7 +530,7 @@ def validate_nchg_view(test_file: pathlib.Path, ref_file: pathlib.Path) -> int:
         raise RuntimeError(f"test-tsv and ref-tsv point to the same file: {ref_file}")
 
     try:
-        validate_table(ref_file, test_file)
+        validate_pvalue_table(ref_file, test_file)
         return 0
     except RuntimeError as e:
         logging.error(e)
@@ -496,6 +554,8 @@ def main() -> int:
     setup_logger(args["verbosity"].upper())
 
     cmd = args["command"]
+    if cmd == "cartesian-product":
+        return validate_nchg_cartesian_product(args["test-bedpe"], args["ref-bedpe"])
     if cmd == "compute":
         return validate_nchg_compute(args["test-prefix"], args["ref-prefix"])
 

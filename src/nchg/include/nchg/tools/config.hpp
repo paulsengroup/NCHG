@@ -26,6 +26,20 @@
 #include <variant>
 
 namespace nchg {
+
+struct CartesianProductConfig {
+  std::filesystem::path path_to_domains{};
+  std::filesystem::path path_to_chrom_sizes{};
+
+  std::optional<std::string> chrom1{};
+  std::optional<std::string> chrom2{};
+
+  bool process_cis{true};
+  bool process_trans{true};
+
+  std::uint8_t verbosity{3};
+};
+
 struct ComputePvalConfig {
   std::filesystem::path exec{};
   std::filesystem::path path_to_hic{};
@@ -134,6 +148,7 @@ struct ViewConfig {
 // clang-format off
 using Config = std::variant<
     std::monostate,
+    CartesianProductConfig,
     ComputePvalConfig,
     ExpectedConfig,
     FilterConfig,

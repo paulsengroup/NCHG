@@ -127,15 +127,6 @@ jobs:
 
           cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo             \
                 -DCMAKE_PREFIX_PATH="$PWD/conan-env"          \
-                -DENABLE_DEVELOPER_MODE=ON                    \
-                -DOPT_ENABLE_INTERPROCEDURAL_OPTIMIZATION=OFF \
-                -DOPT_ENABLE_SANITIZER_ADDRESS=OFF            \
-                -DOPT_ENABLE_SANITIZER_LEAK=OFF               \
-                -DOPT_ENABLE_SANITIZER_POINTER_COMPARE=OFF    \
-                -DOPT_ENABLE_SANITIZER_POINTER_SUBTRACT=OFF   \
-                -DOPT_ENABLE_SANITIZER_UNDEFINED_BEHAVIOR=OFF \
-                -DOPT_ENABLE_CPPCHECK=OFF                     \
-                -DOPT_ENABLE_CLANG_TIDY=OFF                   \
                 -DNCHG_ENABLE_TESTING=ON                      \
                 -DNCHG_DOWNLOAD_TEST_DATASET=OFF              \
                 -DCMAKE_C_FLAGS="$cov_flags"                  \
@@ -379,6 +370,78 @@ jobs:
           echo "DATA_DIR=$PWD/test/data/integration_tests" | tee -a "$GITHUB_ENV"
           echo "OUT_PREFIX=ENCFF447ERX.1000000" | tee -a "$GITHUB_ENV"
 
+      - name: Test NCHG cartesian-product (gw)
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.cartesian-product-gw.profraw"
+
+          sudo -u devel                                        \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG cartesian-product                \
+            test/data/ENCFF447ERX.1000000.compartments.bed     \
+            > "$OUT_PREFIX.bedpe"
+
+          test/scripts/validate_nchg_output.py cartesian-product \
+            "$OUT_PREFIX.bedpe"                                  \
+            "$DATA_DIR/cartesian_product/$OUT_PREFIX.gw-domains.bedpe"
+
+          rm "$OUT_PREFIX"*
+
+      - name: Test NCHG cartesian-product (cis)
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.cartesian-product-cis.profraw"
+
+          sudo -u devel                                        \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG cartesian-product                \
+            --cis-only                                         \
+            test/data/ENCFF447ERX.1000000.compartments.bed     \
+            > domains.bedpe
+
+          test/scripts/validate_nchg_output.py cartesian-product \
+            domains.bedpe                                        \
+            "$DATA_DIR/cartesian_product/$OUT_PREFIX.cis-domains.bedpe"
+
+          rm *.bedpe
+
+      - name: Test NCHG cartesian-product (trans)
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.cartesian-product-trans.profraw"
+
+          sudo -u devel                                        \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG cartesian-product                \
+            --trans-only                                       \
+            test/data/ENCFF447ERX.1000000.compartments.bed     \
+            > domains.bedpe
+
+          test/scripts/validate_nchg_output.py cartesian-product \
+            domains.bedpe                                        \
+            "$DATA_DIR/cartesian_product/$OUT_PREFIX.trans-domains.bedpe"
+
+          rm *.bedpe
+
+      - name: Test NCHG cartesian-product (chr1:chr3)
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.cartesian-product-chr1-chr3.profraw"
+
+          sudo -u devel                                        \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG cartesian-product                \
+            --chrom1 chr1                                      \
+            --chrom2 chr3                                      \
+            test/data/ENCFF447ERX.1000000.compartments.bed     \
+            > domains.bedpe
+
+          grep -E '\bchr1\b.*\bchr3\b' \
+            "$DATA_DIR/cartesian_product/$OUT_PREFIX.trans-domains.bedpe" \
+            > expected.bedpe
+
+          test/scripts/validate_nchg_output.py cartesian-product \
+            domains.bedpe                                        \
+            expected.bedpe
+
+          rm *.bedpe
+
       - name: Test NCHG compute (mt)
         run: |
           LLVM_PROFILE_FILE="$PWD/nchg.compute-mt.%$(nproc)m.profraw"
@@ -420,7 +483,7 @@ jobs:
             test/data/ENCFF447ERX.1000000.cool                 \
             "$OUT_PREFIX"                                      \
             --threads "$(nproc)"                               \
-            --domains test/data/ENCFF447ERX.1000000.compartments.bed
+            --domains "$DATA_DIR/cartesian_product/$OUT_PREFIX.gw-domains.bedpe"
 
           test/scripts/validate_nchg_output.py compute \
             "$OUT_PREFIX"                              \

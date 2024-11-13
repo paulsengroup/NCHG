@@ -18,8 +18,8 @@
 
 # gersemi: off
 file(
-  DOWNLOAD https://zenodo.org/records/14069775/files/nchg_test_data.tar.zst?download=1
-  EXPECTED_HASH SHA256=097eb7d6228f470000291ad4b83e0d8b7fd916ecfab74749833c01f13e8a882b
+  DOWNLOAD https://zenodo.org/records/14133677/files/nchg_test_data.tar.zst?download=1
+  EXPECTED_HASH SHA256=17d89d3d79996eadd5c9e60ed4411a5351abb87af8e0ab214856ea3bc9fab362
   "${PROJECT_SOURCE_DIR}/test/data/nchg_test_data.tar.zst"
 )
 # gersemi: on

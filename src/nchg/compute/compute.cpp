@@ -57,9 +57,10 @@ NCHG_DISABLE_WARNING_POP
 #include "nchg/common.hpp"
 #include "nchg/concepts.hpp"
 #include "nchg/nchg.hpp"
+#include "nchg/record_batch_builder.hpp"
+#include "nchg/text.hpp"
 #include "nchg/tools/common.hpp"
 #include "nchg/tools/config.hpp"
-#include "nchg/tools/io.hpp"
 #include "nchg/tools/tools.hpp"
 
 namespace nchg {

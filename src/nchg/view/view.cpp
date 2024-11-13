@@ -23,8 +23,8 @@
 #include <hictk/genomic_interval.hpp>
 
 #include "nchg/nchg.hpp"
+#include "nchg/parquet_stats_file.hpp"
 #include "nchg/tools/config.hpp"
-#include "nchg/tools/io.hpp"
 #include "nchg/tools/tools.hpp"
 
 namespace nchg {

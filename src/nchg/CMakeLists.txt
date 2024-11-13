@@ -16,7 +16,6 @@
 # with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
-find_package(Arrow REQUIRED)
 find_package(Boost REQUIRED COMPONENTS filesystem)
 find_package(bshoshany-thread-pool REQUIRED)
 find_package(CLI11 REQUIRED)
@@ -34,7 +33,6 @@ target_sources(
   NCHG
   PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/cartesian_product/cartesian_product.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/common/io.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/compute/compute.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/expected/expected.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/filter/filter.cpp"
@@ -63,10 +61,7 @@ target_link_libraries(
     readerwriterqueue::readerwriterqueue
     spdlog::spdlog_header_only
   PUBLIC
-    Arrow::arrow_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
     hictk::libhictk
-    HighFive
-    Parquet::parquet_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
     Threads::Threads
 )
 

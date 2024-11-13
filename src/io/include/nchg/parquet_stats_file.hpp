@@ -35,26 +35,10 @@ NCHG_DISABLE_WARNING_POP
 #include <cstdint>
 #include <filesystem>
 #include <hictk/reference.hpp>
-#include <iterator>
 #include <memory>
 #include <string>
-#include <string_view>
-#include <type_traits>
 
 namespace nchg {
-
-// https://stackoverflow.com/a/16000226
-template <typename T, typename = int>
-struct has_pval_corrected : std::false_type {};
-
-template <typename T>
-struct has_pval_corrected<T, decltype((void)T::pval_corrected, 0)> : std::true_type {};
-
-template <typename T, typename = int>
-struct has_log_ratio : std::false_type {};
-
-template <typename T>
-struct has_log_ratio<T, decltype((void)T::log_ratio, 0)> : std::true_type {};
 
 class ParquetStatsFile {
  public:
@@ -121,57 +105,6 @@ class ParquetStatsFile {
   };
 };
 
-class RecordBatchBuilder {
-  std::size_t _i{};
-
-  hictk::Reference _chroms{};
-
-  arrow::StringDictionary32Builder _chrom1{};
-  arrow::UInt32Builder _start1{};
-  arrow::UInt32Builder _end1{};
-
-  arrow::StringDictionary32Builder _chrom2{};
-  arrow::UInt32Builder _start2{};
-  arrow::UInt32Builder _end2{};
-
-  arrow::DoubleBuilder _pvalue{};
-  arrow::DoubleBuilder _pvalue_corrected{};
-  arrow::UInt64Builder _observed{};
-  arrow::DoubleBuilder _expected{};
-  arrow::DoubleBuilder _log_ratio{};
-  arrow::DoubleBuilder _odds{};
-  arrow::DoubleBuilder _omega{};
-
- public:
-  RecordBatchBuilder(hictk::Reference chroms);
-
-  [[nodiscard]] std::size_t size() const noexcept;
-  [[nodiscard]] std::size_t capacity() const noexcept;
-
-  template <typename Stats>
-  void append(const Stats &s);
-  void reset();
-
-  [[nodiscard]] std::shared_ptr<arrow::RecordBatch> get();
-
-  void write(parquet::arrow::FileWriter &writer);
-
- private:
-  template <typename ArrayBuilder, typename T>
-  void append(ArrayBuilder &builder, const T &data);
-
-  template <typename ArrayBuilder>
-  [[nodiscard]] std::shared_ptr<arrow::Array> finish(ArrayBuilder &builder);
-};
-
-template <typename Record>
-[[nodiscard]] std::unique_ptr<parquet::arrow::FileWriter> init_parquet_file_writer(
-    const hictk::Reference &chroms, const std::filesystem::path &path, bool force,
-    std::string_view compression_method, std::uint8_t compression_lvl, std::size_t threads);
-
-[[nodiscard]] phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> parse_bin_mask(
-    const hictk::Reference &chroms, std::uint32_t bin_size, const std::filesystem::path &path);
-
 template <std::size_t NTOKS>
 [[nodiscard]] std::string_view truncate_record(std::string_view record, char sep = '\t');
 
@@ -186,4 +119,4 @@ namespace internal {
 
 }  // namespace nchg
 
-#include "../../../common/io_impl.hpp"
+#include "../../parquet_stats_file_impl.hpp"

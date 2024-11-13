@@ -40,8 +40,9 @@
 
 #include "nchg/fdr.hpp"
 #include "nchg/nchg.hpp"
+#include "nchg/parquet_stats_file.hpp"
+#include "nchg/record_batch_builder.hpp"
 #include "nchg/tools/common.hpp"
-#include "nchg/tools/io.hpp"
 #include "nchg/tools/tools.hpp"
 
 namespace nchg {
@@ -236,7 +237,6 @@ struct NCHGFilterResult {
 };
 
 static_assert(has_pval_corrected<NCHGFilterResult>::value);
-static_assert(has_log_ratio<NCHGFilterResult>::value);
 
 using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
 

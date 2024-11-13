@@ -18,6 +18,7 @@
 
 find_package(FMT REQUIRED)
 find_package(hictk REQUIRED)
+find_package(HDF5 REQUIRED QUIET COMPONENTS C)
 find_package(HighFive REQUIRED)
 find_package(phmap REQUIRED)
 find_package(spdlog REQUIRED)
@@ -57,6 +58,7 @@ target_link_libraries(
     nchg::common
     nchg::preproc
     hictk::libhictk
+    HDF5::HDF5
     HighFive
     phmap
 )

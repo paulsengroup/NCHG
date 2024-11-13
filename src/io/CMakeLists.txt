@@ -16,24 +16,44 @@
 # with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
+find_package(Arrow REQUIRED)
+find_package(FMT REQUIRED)
 find_package(hictk REQUIRED)
+find_package(spdlog REQUIRED)
 
-add_library(nchg_io INTERFACE)
+add_library(nchg_io STATIC)
 add_library(nchg::io ALIAS nchg_io)
 
-target_sources(nchg_io INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/k_merger_impl.hpp")
+target_sources(
+  nchg_io
+  PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/k_merger_impl.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/parquet_helpers.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_impl.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/record_batch_builder.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/record_batch_builder_impl.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/text.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/text_impl.hpp"
+)
 
 target_include_directories(
   nchg_io
-  INTERFACE
+  PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:include>"
 )
 
 target_link_libraries(
   nchg_io
-  INTERFACE
+  PRIVATE
     nchg_project_options
     nchg_project_warnings
+    nchg::common
+    fmt::fmt-header-only
+    spdlog::spdlog_header_only
+  PUBLIC
+    Arrow::arrow_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
     hictk::libhictk
+    Parquet::parquet_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
 )

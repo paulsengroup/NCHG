@@ -30,6 +30,8 @@ NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
 NCHG_DISABLE_WARNING_POP
 // clang-format on
 
+#include <spdlog/spdlog.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -42,106 +44,9 @@ NCHG_DISABLE_WARNING_POP
 #include <string_view>
 #include <utility>
 
+#include "nchg/parquet_helpers.hpp"
+
 namespace nchg {
-
-template <typename Stats>
-inline auto ParquetStatsFile::begin() -> iterator<Stats> {
-  return {_chroms, _sr, true};
-}
-template <typename Stats>
-inline auto ParquetStatsFile::end() -> iterator<Stats> {
-  return iterator<Stats>::at_end(_chroms, _sr);
-}
-
-template <typename Stats>
-inline ParquetStatsFile::iterator<Stats>::iterator(std::shared_ptr<const hictk::Reference> chroms,
-                                                   std::shared_ptr<parquet::StreamReader> sr,
-                                                   bool init_value)
-    : _chroms(std::move(chroms)), _sr(std::move(sr)), _buffer(std::make_shared<std::string>()) {
-  if (init_value && _sr->current_row() != _sr->num_rows()) {
-    if (_sr->eof()) {
-      *this = at_end(_chroms, _sr);
-    } else {
-      read_pixel();
-    }
-  }
-}
-
-template <typename Stats>
-inline auto ParquetStatsFile::iterator<Stats>::at_end(
-    std::shared_ptr<const hictk::Reference> chroms, std::shared_ptr<parquet::StreamReader> sr)
-    -> iterator<Stats> {
-  iterator it{std::move(chroms), std::move(sr), false};
-  it._offset = it._sr->num_rows();
-
-  return it;
-}
-
-template <typename Stats>
-inline bool ParquetStatsFile::iterator<Stats>::operator==(const iterator &other) const noexcept {
-  return _sr == other._sr && _offset == other._offset;
-}
-
-template <typename Stats>
-inline bool ParquetStatsFile::iterator<Stats>::operator!=(const iterator &other) const noexcept {
-  return !(*this == other);
-}
-
-template <typename Stats>
-inline auto ParquetStatsFile::iterator<Stats>::operator*() const noexcept -> const_reference {
-  return _value;
-}
-
-template <typename Stats>
-inline auto ParquetStatsFile::iterator<Stats>::operator->() const noexcept -> const_pointer {
-  return &_value;
-}
-
-template <typename Stats>
-inline auto ParquetStatsFile::iterator<Stats>::operator++() -> iterator & {
-  if (_sr->eof()) [[unlikely]] {
-    *this = at_end(_chroms, _sr);
-    return *this;
-  }
-
-  read_pixel();
-  return *this;
-}
-
-template <typename Stats>
-inline void ParquetStatsFile::iterator<Stats>::read_pixel() {
-  assert(!_sr->eof());
-  std::uint32_t start1{};
-  std::uint32_t end1{};
-  std::uint32_t start2{};
-  std::uint32_t end2{};
-  std::uint64_t observed_count{};
-
-  *_sr >> *_buffer;
-  const auto chrom1 = !!_chroms ? _chroms->at(*_buffer) : hictk::Chromosome{0, *_buffer, 1};
-  *_sr >> start1;
-  *_sr >> end1;
-
-  *_sr >> *_buffer;
-  const auto chrom2 = !!_chroms ? _chroms->at(*_buffer) : hictk::Chromosome{0, *_buffer, 1};
-  *_sr >> start2;
-  *_sr >> end2;
-
-  *_sr >> _value.pval;
-  if constexpr (has_pval_corrected<Stats>()) {
-    *_sr >> _value.pval_corrected;
-  }
-  *_sr >> observed_count;
-  *_sr >> _value.expected;
-  if constexpr (has_log_ratio<Stats>()) {
-    *_sr >> _value.log_ratio;
-  }
-  *_sr >> _value.odds_ratio;
-  *_sr >> _value.omega;
-  *_sr >> parquet::EndRow;
-
-  _value.pixel = hictk::Pixel{chrom1, start1, end1, chrom2, start2, end2, observed_count};
-}
 
 template <typename Stats>
 inline void RecordBatchBuilder::append(const Stats &s) {
@@ -193,14 +98,14 @@ inline std::unique_ptr<parquet::arrow::FileWriter> init_parquet_file_writer(
     return {};
   }
 
-  const auto schema = has_pval_corrected<Record>::value ? *internal::get_schema_padj(chroms)
-                                                        : *internal::get_schema(chroms);
+  const auto schema =
+      has_pval_corrected<Record>::value ? *get_schema_padj(chroms) : *get_schema(chroms);
 
   auto builder = parquet::WriterProperties::Builder()
                      .created_by("NCHG v0.0.2")
                      ->version(parquet::ParquetVersion::PARQUET_2_6)
                      ->data_page_version(parquet::ParquetDataPageVersion::V2)
-                     ->compression(internal::parse_parquet_compression(compression_method))
+                     ->compression(parse_parquet_compression(compression_method))
                      ->compression_level(compression_lvl)
                      ->disable_statistics()
                      ->build();
@@ -245,23 +150,6 @@ inline std::unique_ptr<parquet::arrow::FileWriter> init_parquet_file_writer(
   }
 
   return result.MoveValueUnsafe();
-}
-
-template <std::size_t NTOKS>
-std::string_view truncate_record(std::string_view record, char sep) {
-  static_assert(NTOKS != 0);
-
-  std::size_t offset{};
-  for (std::size_t i = 0; i < NTOKS; ++i) {
-    const auto pos = record.find(sep, offset + 1);
-    if (pos == std::string_view::npos && i != NTOKS - 1) [[unlikely]] {
-      throw std::runtime_error(
-          fmt::format("invalid record, expected {} tokens, found {}", NTOKS, i));
-    }
-    offset = pos;
-  }
-
-  return record.substr(0, offset);
 }
 
 }  // namespace nchg

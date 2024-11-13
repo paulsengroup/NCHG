@@ -55,7 +55,7 @@ inline void ParquetStatsFileWriter::initialize_writer() {
         has_pval_corrected<Record>::value ? *get_schema_padj(_chroms) : *get_schema(_chroms);
 
     if constexpr (has_pval_corrected<Record>::value) {
-      _pvalue_corrected = {};
+      _pvalue_corrected = arrow::DoubleBuilder{};
     }
 
     auto arrow_properties = parquet::ArrowWriterProperties::Builder()

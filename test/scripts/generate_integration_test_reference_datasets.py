@@ -107,7 +107,7 @@ def add_common_flags(parser):
     )
 
 
-def make_cross_product_sc(main_parser):
+def make_cartesian_product_sc(main_parser):
     sc: argparse.ArgumentParser = main_parser.add_parser(
         "cross-product",
         help="Generate the reference dataset for NCHG cross-product.",
@@ -489,10 +489,10 @@ def generate_all_files(nchg_bin: pathlib.Path, force: bool, timeout: float, args
     suffix = pathlib.Path(args["cool-uri"].partition("::")[0]).stem
 
     for dom_type in ["gw", "cis", "trans"]:
-        output = args["output-dir"] / "cross_product" / f"{suffix}.{dom_type}-domains.bedpe"
+        output = args["output-dir"] / "cartesian_product" / f"{suffix}.{dom_type}-domains.bedpe"
         generate_2d_domains(args["domains"], output, dom_type, args["force"])
 
-    domains = args["output-dir"] / "cross_product" / f"{suffix}.gw-domains.bedpe"
+    domains = args["output-dir"] / "cartesian_product" / f"{suffix}.gw-domains.bedpe"
     outprefix = args["output-dir"] / "compute_with_domains" / suffix
     run_nchg_compute(
         nchg_bin,
@@ -585,7 +585,7 @@ def main():
 
     cmd = args["command"]
 
-    if cmd == "cross-product":
+    if cmd == "cartesian-product":
         generate_2d_domains(
             args["domains"],
             args["out-path"],

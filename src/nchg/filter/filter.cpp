@@ -41,7 +41,7 @@
 #include "nchg/fdr.hpp"
 #include "nchg/nchg.hpp"
 #include "nchg/parquet_stats_file_reader.hpp"
-#include "nchg/record_batch_builder.hpp"
+#include "nchg/parquet_stats_file_writer.hpp"
 #include "nchg/tools/common.hpp"
 #include "nchg/tools/tools.hpp"
 
@@ -293,11 +293,8 @@ using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
         *ParquetStatsFileReader(c.input_path, ParquetStatsFileReader::RecordType::NCHGCompute)
              .chromosomes();
 
-    const auto writer = init_parquet_file_writer<NCHGFilterResult>(
-        chroms, c.output_path, c.force, c.compression_method, c.compression_lvl, c.threads - 2);
-
-    constexpr std::size_t batch_size = 1'000'000;
-    RecordBatchBuilder builder{chroms};
+    ParquetStatsFileWriter writer(chroms, c.output_path, c.force, c.compression_method,
+                                  c.compression_lvl, c.threads - 2);
 
     NCHGFilterResult res{};
 
@@ -310,20 +307,14 @@ using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
 
       if (res.pval == -1) [[unlikely]] {
         // EOQ
-        if (builder.size() != 0) {
-          builder.write(*writer);
-        }
-        return records_dequeued;
+        break;
       }
 
-      if (builder.size() == batch_size) [[unlikely]] {
-        builder.write(*writer);
-        builder.reset();
-      }
-      builder.append(res);
+      writer.append(res);
       ++records_dequeued;
     }
 
+    writer.finalize<NCHGFilterResult>();
     return records_dequeued;
   } catch (const std::exception& e) {
     early_return = true;

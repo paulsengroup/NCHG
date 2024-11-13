@@ -46,7 +46,7 @@ NCHG_DISABLE_WARNING_POP
 #include "nchg/k_merger.hpp"
 #include "nchg/nchg.hpp"
 #include "nchg/parquet_stats_file_reader.hpp"
-#include "nchg/record_batch_builder.hpp"
+#include "nchg/parquet_stats_file_writer.hpp"
 #include "nchg/tools/common.hpp"
 #include "nchg/tools/config.hpp"
 #include "nchg/tools/tools.hpp"
@@ -128,15 +128,11 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
                                              const hictk::Reference &chromosomes,
                                              RecordQueue &queue, std::atomic<bool> &early_return) {
   try {
-    auto writer = init_parquet_file_writer<NCHGResult>(chromosomes, c.output_path, c.force,
-                                                       c.compression_method, c.compression_lvl,
-                                                       c.threads - 2);
+    ParquetStatsFileWriter writer(chromosomes, c.output_path, c.force, c.compression_method,
+                                  c.compression_lvl, c.threads - 2);
 
     std::size_t records_dequeued = 0;
     NCHGResult buffer{};
-
-    const std::size_t batch_size = 1'000'000;
-    RecordBatchBuilder builder(chromosomes);
 
     auto t1 = std::chrono::steady_clock::now();
     for (std::size_t i = 0; true; ++i) {
@@ -149,10 +145,7 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
         break;
       }
 
-      if (builder.size() == batch_size) [[unlikely]] {
-        builder.write(*writer);
-      }
-      builder.append(buffer);
+      writer.append(buffer);
       ++records_dequeued;
 
       if (i == 10'000'000) [[unlikely]] {
@@ -168,9 +161,7 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
       }
     }
 
-    if (builder.size() != 0) {
-      builder.write(*writer);
-    }
+    writer.finalize<NCHGResult>();
 
     return records_dequeued;
   } catch (const std::exception &e) {

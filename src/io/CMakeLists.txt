@@ -31,8 +31,8 @@ target_sources(
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_helpers.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_reader.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_reader_impl.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/record_batch_builder.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/record_batch_builder_impl.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_writer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_writer_impl.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/text.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/text_impl.hpp"
 )

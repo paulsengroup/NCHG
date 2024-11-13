@@ -57,7 +57,7 @@ NCHG_DISABLE_WARNING_POP
 #include "nchg/common.hpp"
 #include "nchg/concepts.hpp"
 #include "nchg/nchg.hpp"
-#include "nchg/record_batch_builder.hpp"
+#include "nchg/parquet_stats_file_writer.hpp"
 #include "nchg/text.hpp"
 #include "nchg/tools/common.hpp"
 #include "nchg/tools/config.hpp"
@@ -456,37 +456,29 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   SPDLOG_INFO("[{}:{}] begin processing domains from {}...", *c.chrom1, *c.chrom2,
               c.path_to_domains);
 
-  const auto writer = init_parquet_file_writer<NCHGResult>(
-      f->chromosomes(), c.output_path, c.force, c.compression_method, c.compression_lvl, c.threads);
+  ParquetStatsFileWriter writer(f->chromosomes(), c.output_path, c.force, c.compression_method,
+                                c.compression_lvl, c.threads);
 
   const auto selected_domains =
       domains.extract(f->chromosomes().at(*c.chrom1), f->chromosomes().at(*c.chrom2));
   if (selected_domains.empty()) {
+    writer.finalize<NCHGResult>();
     return 0;
   }
 
   const auto nchg = init_nchg(f, expected_values, c);
 
-  constexpr std::size_t batch_size = 1'000'000;
-  RecordBatchBuilder builder(f->bins().chromosomes());
-
   std::size_t num_records = 0;
   for (const auto &domain : selected_domains) {
     const auto s = nchg.compute(domain.first, domain.second, c.bad_bin_fraction);
 
-    if (builder.size() == batch_size) [[unlikely]] {
-      builder.write(*writer);
-    }
-
     if (std::isfinite(s.odds_ratio) && s.omega != 0) [[likely]] {
-      builder.append(s);
+      writer.append(s);
     }
     ++num_records;
   }
 
-  if (builder.size() != 0) {
-    builder.write(*writer);
-  }
+  writer.finalize<NCHGResult>();
   return num_records;
 }
 
@@ -503,11 +495,8 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   const auto &chrom2 = f->chromosomes().at(*c.chrom2);
   const auto nchg = init_nchg(f, expected_values, c);
 
-  const auto writer = init_parquet_file_writer<NCHGResult>(
-      f->chromosomes(), c.output_path, c.force, c.compression_method, c.compression_lvl, c.threads);
-
-  constexpr std::size_t batch_size = 1'000'000;
-  RecordBatchBuilder builder{f->chromosomes()};
+  ParquetStatsFileWriter writer(f->chromosomes(), c.output_path, c.force, c.compression_method,
+                                c.compression_lvl, c.threads);
 
   std::size_t num_records = 0;
   auto first = nchg.begin(chrom1, chrom2);
@@ -519,20 +508,14 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
         std::for_each(it1, it2, [&](const auto &s) {
           ++num_records;
 
-          if (builder.size() == batch_size) [[unlikely]] {
-            builder.write(*writer);
-          }
-
           if (std::isfinite(s.odds_ratio) && s.omega != 0) [[likely]] {
-            builder.append(s);
+            writer.append(s);
           }
         });
       },
       first);
 
-  if (builder.size() != 0) {
-    builder.write(*writer);
-  }
+  writer.finalize<NCHGResult>();
   return num_records;
 }
 

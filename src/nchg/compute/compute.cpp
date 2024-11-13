@@ -597,11 +597,18 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
       }
     }
   } else {
-    for (const auto &chrom : chroms) {
-      if (chrom.is_all()) [[unlikely]] {
+    for (std::uint32_t chrom1_id = 0; chrom1_id < chroms.size(); ++chrom1_id) {
+      const auto &chrom1 = chroms.at(chrom1_id);
+      if (chrom1.is_all()) [[unlikely]] {
         continue;
       }
-      buffer.emplace(chrom, chrom);
+      for (std::uint32_t chrom2_id = chrom1_id + 1; chrom2_id < chroms.size(); ++chrom2_id) {
+        const auto &chrom2 = chroms.at(chrom2_id);
+        if (chrom2.is_all()) [[unlikely]] {
+          continue;
+        }
+        buffer.emplace(chrom1, chrom2);
+      }
     }
   }
   return buffer;

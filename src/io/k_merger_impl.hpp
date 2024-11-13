@@ -18,11 +18,11 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cassert>
+#include <optional>
 #include <utility>
 #include <vector>
-
-#include "hictk/pixel.hpp"
 
 namespace nchg {
 

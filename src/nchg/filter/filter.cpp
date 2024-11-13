@@ -40,8 +40,9 @@
 
 #include "nchg/fdr.hpp"
 #include "nchg/nchg.hpp"
+#include "nchg/parquet_stats_file_reader.hpp"
+#include "nchg/parquet_stats_file_writer.hpp"
 #include "nchg/tools/common.hpp"
-#include "nchg/tools/io.hpp"
 #include "nchg/tools/tools.hpp"
 
 namespace nchg {
@@ -95,7 +96,7 @@ using FlatPvalueMap = phmap::flat_hash_map<std::size_t, double>;
   ChromChromPvalueMap records{};
 
   std::size_t i = 0;
-  ParquetStatsFile f{path, ParquetStatsFile::RecordType::NCHGCompute};
+  ParquetStatsFileReader f{path, ParquetStatsFileReader::RecordType::NCHGCompute};
   std::for_each(f.begin<NCHGResult>(), f.end<NCHGResult>(), [&](const NCHGResult& record) {
     const auto& chrom1 = record.pixel.coords.bin1.chrom();
     const auto& chrom2 = record.pixel.coords.bin2.chrom();
@@ -236,7 +237,6 @@ struct NCHGFilterResult {
 };
 
 static_assert(has_pval_corrected<NCHGFilterResult>::value);
-static_assert(has_log_ratio<NCHGFilterResult>::value);
 
 using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
 
@@ -245,7 +245,7 @@ using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
                                              RecordQueue& queue, std::atomic<bool>& early_return) {
   std::size_t records_enqueued{};
   try {
-    ParquetStatsFile f{c.input_path, ParquetStatsFile::RecordType::NCHGCompute};
+    ParquetStatsFileReader f{c.input_path, ParquetStatsFileReader::RecordType::NCHGCompute};
     auto first = f.begin<NCHGResult>();
     const auto last = f.end<NCHGResult>();
     for (std::size_t i = 0; first != last; ++first, ++i) {
@@ -290,13 +290,11 @@ using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
   std::size_t records_dequeued{};
   try {
     const auto chroms =
-        *ParquetStatsFile(c.input_path, ParquetStatsFile::RecordType::NCHGCompute).chromosomes();
+        *ParquetStatsFileReader(c.input_path, ParquetStatsFileReader::RecordType::NCHGCompute)
+             .chromosomes();
 
-    const auto writer = init_parquet_file_writer<NCHGFilterResult>(
-        chroms, c.output_path, c.force, c.compression_method, c.compression_lvl, c.threads - 2);
-
-    constexpr std::size_t batch_size = 1'000'000;
-    RecordBatchBuilder builder{chroms};
+    ParquetStatsFileWriter writer(chroms, c.output_path, c.force, c.compression_method,
+                                  c.compression_lvl, c.threads - 2);
 
     NCHGFilterResult res{};
 
@@ -309,20 +307,14 @@ using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
 
       if (res.pval == -1) [[unlikely]] {
         // EOQ
-        if (builder.size() != 0) {
-          builder.write(*writer);
-        }
-        return records_dequeued;
+        break;
       }
 
-      if (builder.size() == batch_size) [[unlikely]] {
-        builder.write(*writer);
-        builder.reset();
-      }
-      builder.append(res);
+      writer.append(res);
       ++records_dequeued;
     }
 
+    writer.finalize<NCHGFilterResult>();
     return records_dequeued;
   } catch (const std::exception& e) {
     early_return = true;

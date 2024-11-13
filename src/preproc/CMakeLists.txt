@@ -16,29 +16,33 @@
 # with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
-include(FetchContent)
+find_package(FMT REQUIRED)
+find_package(hictk REQUIRED)
+find_package(phmap REQUIRED)
+find_package(spdlog REQUIRED)
 
-set(HICTK_ENABLE_TESTING OFF)
-set(HICTK_BUILD_EXAMPLES OFF)
-set(HICTK_BUILD_BENCHMARKS OFF)
-set(HICTK_WITH_EIGEN OFF)
-set(HICTK_BUILD_TOOLS OFF)
-set(HICTK_INSTALL OFF)
-set(HICTK_ENABLE_GIT_VERSION_TRACKING OFF)
+add_library(preproc STATIC)
+add_library(nchg::preproc ALIAS preproc)
 
-FetchContent_Declare(
-  hictk
-  GIT_REPOSITORY https://github.com/paulsengroup/hictk.git
-  GIT_TAG v2.0.1
-  EXCLUDE_FROM_ALL
-  OVERRIDE_FIND_PACKAGE
-  SYSTEM
+target_sources(
+  preproc
+  PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/mad_max_filter.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/mad_max_filter_impl.hpp"
 )
 
-add_subdirectory(common)
-add_subdirectory(descriptive_stats)
-add_subdirectory(hypothesis_testing)
-add_subdirectory(io)
-add_subdirectory(preproc)
+target_include_directories(
+  preproc
+  PUBLIC
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    "$<INSTALL_INTERFACE:include>"
+)
 
-add_subdirectory(nchg)
+target_link_libraries(
+  preproc
+  PRIVATE
+    nchg_project_options
+    nchg_project_warnings
+  PUBLIC
+    nchg::common
+)

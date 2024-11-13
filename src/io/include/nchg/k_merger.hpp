@@ -30,18 +30,16 @@
 #include <utility>
 #include <vector>
 
-#include "hictk/pixel.hpp"
-
 namespace nchg {
 
 /// This class is basically a wrapper around a priority queue of objects of type Node, and can be
 /// used to merge two or more sorted sequences of objects.
-/// Node consist of an object and an index.
+/// Nodes consist of an object and an index.
 /// The object should be comparable with objects of the same type to determine which comes first in
 /// a sorted sequence.
 /// The index represents from which iterator the object was read.
 /// This allows us to know from which iterator we should read the next object (i.e. the same
-/// iterator from which the top pixel originated)
+/// iterator from which the top node originated)
 template <typename It>
 class KMerger {
   using ItInternal = std::remove_cvref_t<It>;

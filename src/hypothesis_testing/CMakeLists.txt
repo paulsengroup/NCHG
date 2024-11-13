@@ -16,30 +16,11 @@
 # with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
-include(FetchContent)
-
-set(HICTK_ENABLE_TESTING OFF)
-set(HICTK_BUILD_EXAMPLES OFF)
-set(HICTK_BUILD_BENCHMARKS OFF)
-set(HICTK_WITH_EIGEN OFF)
-set(HICTK_BUILD_TOOLS OFF)
-set(HICTK_INSTALL OFF)
-set(HICTK_ENABLE_GIT_VERSION_TRACKING OFF)
-
-FetchContent_Declare(
-  hictk
-  GIT_REPOSITORY https://github.com/paulsengroup/hictk.git
-  GIT_TAG v2.0.1
-  EXCLUDE_FROM_ALL
-  OVERRIDE_FIND_PACKAGE
-  SYSTEM
-)
-
 FetchContent_Declare(
   stocc
   URL
     "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stocc-20240322.tar.xz"
-  URL_HASH SHA256=91e414f44445dcdfa569148c2484a50cadd786e30d833836d98f6111f82e9850
+  URL_HASH SHA256=b6bb7f778d77f46035614f5adb88c3a990ba36205886f03ce90f7f3e32ad2a44
   UPDATE_DISCONNECTED 1
   EXCLUDE_FROM_ALL
   SYSTEM
@@ -50,58 +31,38 @@ find_package(hictk REQUIRED)
 find_package(phmap REQUIRED)
 find_package(spdlog REQUIRED)
 
-set(NCHG_BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS}")
-set(BUILD_SHARED_LIBS OFF)
 FetchContent_MakeAvailable(stocc)
-set(BUILD_SHARED_LIBS "${NCHG_BUILD_SHARED_LIBS}")
-unset(NCHG_BUILD_SHARED_LIBS)
 
-add_library(libnchg OBJECT)
-add_library(nchg::libnchg ALIAS libnchg)
+add_library(nchg_hypothesis_testing STATIC)
+add_library(nchg::hypothesis_testing ALIAS nchg_hypothesis_testing)
 
 target_sources(
-  libnchg
+  nchg_hypothesis_testing
   PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/expected_matrix.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/expected_matrix_impl.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/expected_values_aggregator.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/expected_values_aggregator_impl.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/expected_values.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/expected_values_impl.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/fdr_impl.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/k_merger_impl.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/mad_max_filter.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/mad_max_filter_impl.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/matrix_stats_impl.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/nchg.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/nchg_impl.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/observed_matrix.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/observed_matrix_impl.hpp"
 )
 
 target_include_directories(
-  libnchg
+  nchg_hypothesis_testing
   PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:include>"
 )
 
 target_link_libraries(
-  libnchg
+  nchg_hypothesis_testing
   PRIVATE
     nchg_project_options
     nchg_project_warnings
     fmt::fmt-header-only
     spdlog::spdlog_header_only
+    stocc
   PUBLIC
+    nchg::common
+    nchg::descriptive_stats
+    nchg::preproc
     hictk::libhictk
     phmap
-    stocc
-)
-
-set_target_properties(
-  libnchg
-  PROPERTIES
-    OUTPUT_NAME
-      libnchg
 )

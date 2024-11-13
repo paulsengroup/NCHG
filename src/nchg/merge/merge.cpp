@@ -43,21 +43,21 @@ NCHG_DISABLE_WARNING_POP
 #include <utility>
 #include <vector>
 
-#include "nchg/common.hpp"
 #include "nchg/k_merger.hpp"
 #include "nchg/nchg.hpp"
+#include "nchg/parquet_stats_file_reader.hpp"
+#include "nchg/parquet_stats_file_writer.hpp"
 #include "nchg/tools/common.hpp"
 #include "nchg/tools/config.hpp"
-#include "nchg/tools/io.hpp"
 #include "nchg/tools/tools.hpp"
 
 namespace nchg {
 
-[[nodiscard]] static std::pair<std::vector<ParquetStatsFile::iterator<NCHGResult>>,
-                               std::vector<ParquetStatsFile::iterator<NCHGResult>>>
+[[nodiscard]] static std::pair<std::vector<ParquetStatsFileReader::iterator<NCHGResult>>,
+                               std::vector<ParquetStatsFileReader::iterator<NCHGResult>>>
 init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference &chroms) {
-  std::vector<ParquetStatsFile::iterator<NCHGResult>> heads{};
-  std::vector<ParquetStatsFile::iterator<NCHGResult>> tails{};
+  std::vector<ParquetStatsFileReader::iterator<NCHGResult>> heads{};
+  std::vector<ParquetStatsFileReader::iterator<NCHGResult>> tails{};
 
   SPDLOG_INFO("enumerating chrom-chrom tables under prefix {}...", prefix);
   for (std::uint32_t chrom1_id = 0; chrom1_id < chroms.size(); ++chrom1_id) {
@@ -70,7 +70,7 @@ init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference 
       const auto path =
           fmt::format("{}.{}.{}.parquet", prefix.string(), chrom1.name(), chrom2.name());
       if (std::filesystem::exists(path)) {
-        ParquetStatsFile f(path, ParquetStatsFile::RecordType::NCHGCompute);
+        ParquetStatsFileReader f(path, ParquetStatsFileReader::RecordType::NCHGCompute);
         auto first = f.begin<NCHGResult>();
         auto last = f.end<NCHGResult>();
         if (first != last) [[likely]] {
@@ -128,15 +128,11 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
                                              const hictk::Reference &chromosomes,
                                              RecordQueue &queue, std::atomic<bool> &early_return) {
   try {
-    auto writer = init_parquet_file_writer<NCHGResult>(chromosomes, c.output_path, c.force,
-                                                       c.compression_method, c.compression_lvl,
-                                                       c.threads - 2);
+    ParquetStatsFileWriter writer(chromosomes, c.output_path, c.force, c.compression_method,
+                                  c.compression_lvl, c.threads - 2);
 
     std::size_t records_dequeued = 0;
     NCHGResult buffer{};
-
-    const std::size_t batch_size = 1'000'000;
-    RecordBatchBuilder builder(chromosomes);
 
     auto t1 = std::chrono::steady_clock::now();
     for (std::size_t i = 0; true; ++i) {
@@ -149,10 +145,7 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
         break;
       }
 
-      if (builder.size() == batch_size) [[unlikely]] {
-        builder.write(*writer);
-      }
-      builder.append(buffer);
+      writer.append(buffer);
       ++records_dequeued;
 
       if (i == 10'000'000) [[unlikely]] {
@@ -168,9 +161,7 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
       }
     }
 
-    if (builder.size() != 0) {
-      builder.write(*writer);
-    }
+    writer.finalize<NCHGResult>();
 
     return records_dequeued;
   } catch (const std::exception &e) {

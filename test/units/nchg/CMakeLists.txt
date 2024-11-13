@@ -30,7 +30,7 @@ target_link_libraries(
     nchg_project_warnings
     nchg_project_options
   PUBLIC
-    nchg::libnchg
+    nchg::hypothesis_testing
 )
 
 target_link_system_libraries(

@@ -16,7 +16,7 @@
 // with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-#include "nchg/parquet_stats_file.hpp"
+#include "nchg/parquet_stats_file_reader.hpp"
 
 // clang-format off
 #include "nchg/suppress_warnings.hpp"
@@ -128,8 +128,8 @@ namespace nchg {
 
 [[nodiscard]] static auto validate_record_type(const std::filesystem::path &path,
                                                const std::shared_ptr<arrow::io::ReadableFile> &fp,
-                                               ParquetStatsFile::RecordType expected_type)
-    -> ParquetStatsFile::RecordType {
+                                               ParquetStatsFileReader::RecordType expected_type)
+    -> ParquetStatsFileReader::RecordType {
   static constexpr auto expected_columns_nchg_compute = std::to_array<std::string_view>({
       "chrom1",
       "start1",
@@ -173,7 +173,7 @@ namespace nchg {
     };
 
     switch (expected_type) {
-      using enum ParquetStatsFile::RecordType;
+      using enum ParquetStatsFileReader::RecordType;
       case NCHGCompute: {
         if (file_has_nchg_compute_records()) {
           return NCHGCompute;
@@ -216,26 +216,27 @@ namespace nchg {
   }
 }
 
-ParquetStatsFile::ParquetStatsFile(const std::filesystem::path &path,
-                                   const std::shared_ptr<arrow::io::ReadableFile> &fp,
-                                   RecordType record_type, std::size_t buffer_size)
-    : ParquetStatsFile(path, fp, import_chromosomes_from_parquet(fp), record_type, buffer_size) {}
+ParquetStatsFileReader::ParquetStatsFileReader(const std::filesystem::path &path,
+                                               const std::shared_ptr<arrow::io::ReadableFile> &fp,
+                                               RecordType record_type, std::size_t buffer_size)
+    : ParquetStatsFileReader(path, fp, import_chromosomes_from_parquet(fp), record_type,
+                             buffer_size) {}
 
-ParquetStatsFile::ParquetStatsFile(const std::filesystem::path &path,
-                                   std::shared_ptr<arrow::io::ReadableFile> fp,
-                                   std::shared_ptr<const hictk::Reference> chromosomes,
-                                   RecordType record_type, std::size_t buffer_size)
+ParquetStatsFileReader::ParquetStatsFileReader(const std::filesystem::path &path,
+                                               std::shared_ptr<arrow::io::ReadableFile> fp,
+                                               std::shared_ptr<const hictk::Reference> chromosomes,
+                                               RecordType record_type, std::size_t buffer_size)
     : _type(validate_record_type(path, fp, record_type)),
       _chroms(std::move(chromosomes)),
       _sr(init_parquet_stream_reader(std::move(fp), buffer_size)) {}
 
-ParquetStatsFile::ParquetStatsFile(const std::filesystem::path &path, RecordType record_type,
-                                   std::size_t buffer_size)
-    : ParquetStatsFile(path, open_parquet_file(path), record_type, buffer_size) {}
+ParquetStatsFileReader::ParquetStatsFileReader(const std::filesystem::path &path,
+                                               RecordType record_type, std::size_t buffer_size)
+    : ParquetStatsFileReader(path, open_parquet_file(path), record_type, buffer_size) {}
 
-auto ParquetStatsFile::record_type() const noexcept -> RecordType { return _type; }
+auto ParquetStatsFileReader::record_type() const noexcept -> RecordType { return _type; }
 
-std::shared_ptr<const hictk::Reference> ParquetStatsFile::chromosomes() const noexcept {
+std::shared_ptr<const hictk::Reference> ParquetStatsFileReader::chromosomes() const noexcept {
   return _chroms;
 }
 

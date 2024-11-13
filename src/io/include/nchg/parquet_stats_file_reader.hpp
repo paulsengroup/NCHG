@@ -36,7 +36,7 @@ NCHG_DISABLE_WARNING_POP
 
 namespace nchg {
 
-class ParquetStatsFile {
+class ParquetStatsFileReader {
  public:
   enum class RecordType : std::uint_fast8_t { infer, NCHGCompute, NCHGFilter };
   template <typename Stats>
@@ -47,17 +47,18 @@ class ParquetStatsFile {
   std::shared_ptr<const hictk::Reference> _chroms{};
   std::shared_ptr<parquet::StreamReader> _sr{};
 
-  ParquetStatsFile(const std::filesystem::path &path,
-                   const std::shared_ptr<arrow::io::ReadableFile> &fp, RecordType record_type,
-                   std::size_t buffer_size);
-  ParquetStatsFile(const std::filesystem::path &path, std::shared_ptr<arrow::io::ReadableFile> fp,
-                   std::shared_ptr<const hictk::Reference> chromosomes, RecordType record_type,
-                   std::size_t buffer_size);
+  ParquetStatsFileReader(const std::filesystem::path &path,
+                         const std::shared_ptr<arrow::io::ReadableFile> &fp, RecordType record_type,
+                         std::size_t buffer_size);
+  ParquetStatsFileReader(const std::filesystem::path &path,
+                         std::shared_ptr<arrow::io::ReadableFile> fp,
+                         std::shared_ptr<const hictk::Reference> chromosomes,
+                         RecordType record_type, std::size_t buffer_size);
 
  public:
-  ParquetStatsFile() = default;
-  ParquetStatsFile(const std::filesystem::path &path, RecordType record_type,
-                   std::size_t buffer_size = 1'000'000);
+  ParquetStatsFileReader() = default;
+  ParquetStatsFileReader(const std::filesystem::path &path, RecordType record_type,
+                         std::size_t buffer_size = 1'000'000);
 
   [[nodiscard]] auto record_type() const noexcept -> RecordType;
 
@@ -103,4 +104,4 @@ class ParquetStatsFile {
 
 }  // namespace nchg
 
-#include "../../parquet_stats_file_impl.hpp"
+#include "../../parquet_stats_file_reader_impl.hpp"

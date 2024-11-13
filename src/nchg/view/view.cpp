@@ -23,7 +23,7 @@
 #include <hictk/genomic_interval.hpp>
 
 #include "nchg/nchg.hpp"
-#include "nchg/parquet_stats_file.hpp"
+#include "nchg/parquet_stats_file_reader.hpp"
 #include "nchg/tools/config.hpp"
 #include "nchg/tools/tools.hpp"
 
@@ -139,7 +139,7 @@ static void process_record(const NCHGFilterResult& record, bool filter_by_coords
 }
 
 template <typename T>
-[[nodiscard]] static int process_records(ParquetStatsFile& f, const ViewConfig& c) {
+[[nodiscard]] static int process_records(ParquetStatsFileReader& f, const ViewConfig& c) {
   const auto [chrom1, start1, end1] = hictk::GenomicInterval::parse_ucsc(c.range1);
   const auto [chrom2, start2, end2] = hictk::GenomicInterval::parse_ucsc(c.range2);
 
@@ -163,9 +163,9 @@ template <typename T>
 }
 
 int run_command(const ViewConfig& c) {
-  using enum ParquetStatsFile::RecordType;
+  using enum ParquetStatsFileReader::RecordType;
 
-  ParquetStatsFile f{c.input_path, infer};
+  ParquetStatsFileReader f{c.input_path, infer};
 
   if (f.record_type() == NCHGCompute) {
     return process_records<NCHGComputeResult>(f, c);

@@ -37,7 +37,7 @@ NCHG_DISABLE_WARNING_POP
 #include <utility>
 #include <vector>
 
-#include "nchg/parquet_stats_file.hpp"
+#include "nchg/parquet_stats_file_reader.hpp"
 
 namespace nchg {
 

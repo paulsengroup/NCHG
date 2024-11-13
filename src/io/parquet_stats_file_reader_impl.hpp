@@ -39,18 +39,18 @@ NCHG_DISABLE_WARNING_POP
 namespace nchg {
 
 template <typename Stats>
-inline auto ParquetStatsFile::begin() -> iterator<Stats> {
+inline auto ParquetStatsFileReader::begin() -> iterator<Stats> {
   return {_chroms, _sr, true};
 }
 template <typename Stats>
-inline auto ParquetStatsFile::end() -> iterator<Stats> {
+inline auto ParquetStatsFileReader::end() -> iterator<Stats> {
   return iterator<Stats>::at_end(_chroms, _sr);
 }
 
 template <typename Stats>
-inline ParquetStatsFile::iterator<Stats>::iterator(std::shared_ptr<const hictk::Reference> chroms,
-                                                   std::shared_ptr<parquet::StreamReader> sr,
-                                                   bool init_value)
+inline ParquetStatsFileReader::iterator<Stats>::iterator(
+    std::shared_ptr<const hictk::Reference> chroms, std::shared_ptr<parquet::StreamReader> sr,
+    bool init_value)
     : _chroms(std::move(chroms)), _sr(std::move(sr)), _buffer(std::make_shared<std::string>()) {
   if (init_value && _sr->current_row() != _sr->num_rows()) {
     if (_sr->eof()) {
@@ -62,7 +62,7 @@ inline ParquetStatsFile::iterator<Stats>::iterator(std::shared_ptr<const hictk::
 }
 
 template <typename Stats>
-inline auto ParquetStatsFile::iterator<Stats>::at_end(
+inline auto ParquetStatsFileReader::iterator<Stats>::at_end(
     std::shared_ptr<const hictk::Reference> chroms, std::shared_ptr<parquet::StreamReader> sr)
     -> iterator<Stats> {
   iterator it{std::move(chroms), std::move(sr), false};
@@ -72,27 +72,29 @@ inline auto ParquetStatsFile::iterator<Stats>::at_end(
 }
 
 template <typename Stats>
-inline bool ParquetStatsFile::iterator<Stats>::operator==(const iterator &other) const noexcept {
+inline bool ParquetStatsFileReader::iterator<Stats>::operator==(
+    const iterator &other) const noexcept {
   return _sr == other._sr && _offset == other._offset;
 }
 
 template <typename Stats>
-inline bool ParquetStatsFile::iterator<Stats>::operator!=(const iterator &other) const noexcept {
+inline bool ParquetStatsFileReader::iterator<Stats>::operator!=(
+    const iterator &other) const noexcept {
   return !(*this == other);
 }
 
 template <typename Stats>
-inline auto ParquetStatsFile::iterator<Stats>::operator*() const noexcept -> const_reference {
+inline auto ParquetStatsFileReader::iterator<Stats>::operator*() const noexcept -> const_reference {
   return _value;
 }
 
 template <typename Stats>
-inline auto ParquetStatsFile::iterator<Stats>::operator->() const noexcept -> const_pointer {
+inline auto ParquetStatsFileReader::iterator<Stats>::operator->() const noexcept -> const_pointer {
   return &_value;
 }
 
 template <typename Stats>
-inline auto ParquetStatsFile::iterator<Stats>::operator++() -> iterator & {
+inline auto ParquetStatsFileReader::iterator<Stats>::operator++() -> iterator & {
   if (_sr->eof()) [[unlikely]] {
     *this = at_end(_chroms, _sr);
     return *this;
@@ -103,7 +105,7 @@ inline auto ParquetStatsFile::iterator<Stats>::operator++() -> iterator & {
 }
 
 template <typename Stats>
-inline void ParquetStatsFile::iterator<Stats>::read_pixel() {
+inline void ParquetStatsFileReader::iterator<Stats>::read_pixel() {
   assert(!_sr->eof());
   std::uint32_t start1{};
   std::uint32_t end1{};

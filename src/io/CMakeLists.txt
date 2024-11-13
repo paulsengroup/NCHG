@@ -29,8 +29,8 @@ target_sources(
   PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/k_merger_impl.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_helpers.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_impl.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_reader.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_reader_impl.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/record_batch_builder.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/record_batch_builder_impl.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/text.cpp"

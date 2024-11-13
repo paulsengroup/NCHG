@@ -499,6 +499,66 @@ jobs:
           echo "DATA_DIR=$PWD/test/data/integration_tests" | tee -a "$GITHUB_ENV"
           echo "OUT_PREFIX=ENCFF447ERX.1000000" | tee -a "$GITHUB_ENV"
 
+      - name: Test NCHG cartesian-product (gw)
+        run: |
+          sudo -u devel                                        \
+          bin/NCHG cartesian-product                           \
+            test/data/ENCFF447ERX.1000000.compartments.bed     \
+            > "$OUT_PREFIX.bedpe"
+
+          test/scripts/validate_nchg_output.py cartesian-product \
+            "$OUT_PREFIX.bedpe"                                  \
+            "$DATA_DIR/cartesian_product/$OUT_PREFIX.gw-domains.bedpe"
+
+          rm "$OUT_PREFIX"*
+
+      - name: Test NCHG cartesian-product (cis)
+        run: |
+          sudo -u devel                                        \
+          bin/NCHG cartesian-product                           \
+            --cis-only                                         \
+            test/data/ENCFF447ERX.1000000.compartments.bed     \
+            > domains.bedpe
+
+          test/scripts/validate_nchg_output.py cartesian-product \
+            domains.bedpe                                        \
+            "$DATA_DIR/cartesian_product/$OUT_PREFIX.cis-domains.bedpe"
+
+          rm *.bedpe
+
+      - name: Test NCHG cartesian-product (trans)
+        run: |
+          sudo -u devel                                        \
+          bin/NCHG cartesian-product                           \
+            --cis-only                                         \
+            test/data/ENCFF447ERX.1000000.compartments.bed     \
+            > domains.bedpe
+
+          test/scripts/validate_nchg_output.py cartesian-product \
+            domains.bedpe                                        \
+            "$DATA_DIR/cartesian_product/$OUT_PREFIX.trans-domains.bedpe"
+
+          rm *.bedpe
+
+      - name: Test NCHG cartesian-product (chr1:chr3)
+        run: |
+          sudo -u devel                                        \
+          bin/NCHG cartesian-product                           \
+            --chrom1 chr1                                      \
+            --chrom1 chr3                                      \
+            test/data/ENCFF447ERX.1000000.compartments.bed     \
+            > domains.bedpe
+
+          grep -E '\bchr1\b.*\bchr3\b' \
+            "$DATA_DIR/cartesian_product/$OUT_PREFIX.trans-domains.bedpe" \
+            > expected.bedpe
+
+          test/scripts/validate_nchg_output.py cartesian-product \
+            domains.bedpe                                        \
+            expected.bedpe
+
+          rm *.bedpe
+
       - name: Test NCHG compute (mt)
         run: |
           sudo -u devel                                        \

@@ -50,6 +50,10 @@ target_link_libraries(
   PRIVATE
     nchg_project_options
     nchg_project_warnings
+    nchg::common
+    nchg::descriptive_stats
+    nchg::hypothesis_testing
+    nchg::io
     Boost::headers
     Boost::filesystem # Required by boost::process::v2
     bshoshany-thread-pool::bshoshany-thread-pool
@@ -59,7 +63,6 @@ target_link_libraries(
     readerwriterqueue::readerwriterqueue
     spdlog::spdlog_header_only
   PUBLIC
-    nchg::libnchg
     Arrow::arrow_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
     hictk::libhictk
     HighFive

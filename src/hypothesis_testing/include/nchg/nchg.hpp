@@ -84,7 +84,7 @@ class NCHG {
                    iterator<hictk::hic::PixelSelectorAll>>;
 
   using Params = ExpectedValues::Params;
-  static constexpr auto& DefaultParams = ExpectedValues::DefaultParams;
+  static constexpr auto DefaultParams = ExpectedValues::DefaultParams;
   explicit NCHG(std::shared_ptr<const hictk::File> f, const hictk::Chromosome& chrom1,
                 const hictk::Chromosome& chrom2, const Params& params);
   NCHG(std::shared_ptr<const hictk::File> f, const hictk::Chromosome& chrom1,

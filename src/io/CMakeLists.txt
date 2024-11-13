@@ -16,29 +16,24 @@
 # with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
-include(FetchContent)
+find_package(hictk REQUIRED)
 
-set(HICTK_ENABLE_TESTING OFF)
-set(HICTK_BUILD_EXAMPLES OFF)
-set(HICTK_BUILD_BENCHMARKS OFF)
-set(HICTK_WITH_EIGEN OFF)
-set(HICTK_BUILD_TOOLS OFF)
-set(HICTK_INSTALL OFF)
-set(HICTK_ENABLE_GIT_VERSION_TRACKING OFF)
+add_library(nchg_io INTERFACE)
+add_library(nchg::io ALIAS nchg_io)
 
-FetchContent_Declare(
-  hictk
-  GIT_REPOSITORY https://github.com/paulsengroup/hictk.git
-  GIT_TAG v2.0.1
-  EXCLUDE_FROM_ALL
-  OVERRIDE_FIND_PACKAGE
-  SYSTEM
+target_sources(nchg_io INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/k_merger_impl.hpp")
+
+target_include_directories(
+  nchg_io
+  INTERFACE
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    "$<INSTALL_INTERFACE:include>"
 )
 
-add_subdirectory(common)
-add_subdirectory(descriptive_stats)
-add_subdirectory(hypothesis_testing)
-add_subdirectory(io)
-add_subdirectory(preproc)
-
-add_subdirectory(nchg)
+target_link_libraries(
+  nchg_io
+  INTERFACE
+    nchg_project_options
+    nchg_project_warnings
+    hictk::libhictk
+)

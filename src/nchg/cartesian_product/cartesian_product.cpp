@@ -333,7 +333,7 @@ struct ChromIndex {
   for (std::size_t i = 0; i < domains.size(); ++i) {
     const auto& chrom = std::get<0>(domains[i]);
     const auto i0 = i;
-    auto i1 = i0;
+    auto i1 = i0 + 1;
     for (; i1 < domains.size(); ++i1) {
       if (chrom != std::get<0>(domains[i1])) {
         break;
@@ -344,7 +344,7 @@ struct ChromIndex {
 #else
     index.emplace_back(chrom, i0, i1);
 #endif
-    i = i1;
+    i = i1 - 1;
   }
 
   return index;

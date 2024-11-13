@@ -43,7 +43,7 @@ ENV CC="$C_COMPILER"
 ENV CXX="$CXX_COMPILER"
 
 # Install b2 using Conan
-RUN printf '[requires]\nb2/4.10.1\n[options]\nb2*:toolset=%s' \
+RUN printf '[requires]\nb2/5.2.1\n[options]\nb2*:toolset=%s' \
            "$(basename "$(which "$CC")")" | cut -f 1 -d - > /tmp/conanfile.txt
 
 RUN conan install /tmp/conanfile.txt                 \
@@ -92,6 +92,7 @@ RUN cmake -DCMAKE_BUILD_TYPE=Release            \
           -DCMAKE_PREFIX_PATH="$build_dir"      \
           -DENABLE_DEVELOPER_MODE=OFF           \
           -DCMAKE_INSTALL_PREFIX="$staging_dir" \
+          -DNCHG_ENABLE_TESTING=OFF             \
           -DGIT_RETRIEVED_STATE=true            \
           -DGIT_TAG="$GIT_TAG"                  \
           -DGIT_IS_DIRTY="$GIT_IS_DIRTY"        \
@@ -103,7 +104,7 @@ RUN cmake -DCMAKE_BUILD_TYPE=Release            \
 
 # Build and install project
 RUN cmake --build "$build_dir" -t NCHG -j "$(nproc)"  \
-&& cmake --install "$build_dir" --component Runtime \
+&& cmake --install "$build_dir" --component Runtime   \
 && rm -rf "$build_dir/include" "$build_dir/lib"
 
 ARG FINAL_BASE_IMAGE

@@ -24,19 +24,18 @@ NCHG_DISABLE_WARNING_PUSH
 NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include <arrow/builder.h>
 #include <arrow/record_batch.h>
-#include <arrow/type_fwd.h>
 #include <parquet/arrow/writer.h>
-#include <parallel_hashmap/phmap.h>
 NCHG_DISABLE_WARNING_POP
 // clang-format on
 
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <hictk/chromosome.hpp>
 #include <hictk/reference.hpp>
 #include <memory>
 #include <string_view>
-#include <type_traits>
+#include <vector>
 
 namespace nchg {
 
@@ -92,9 +91,6 @@ template <typename Record>
 [[nodiscard]] std::unique_ptr<parquet::arrow::FileWriter> init_parquet_file_writer(
     const hictk::Reference &chroms, const std::filesystem::path &path, bool force,
     std::string_view compression_method, std::uint8_t compression_lvl, std::size_t threads);
-
-[[nodiscard]] phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> parse_bin_mask(
-    const hictk::Reference &chroms, std::uint32_t bin_size, const std::filesystem::path &path);
 
 }  // namespace nchg
 

@@ -22,13 +22,12 @@
 #include "nchg/suppress_warnings.hpp"
 NCHG_DISABLE_WARNING_PUSH
 NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
-#include <arrow/array.h>
-#include <arrow/builder.h>
+#include <arrow/record_batch.h>
 #include <arrow/type.h>
 #include <arrow/io/file.h>
 #include <arrow/util/key_value_metadata.h>
 #include <parquet/arrow/reader.h>
-#include <parquet/properties.h>
+#include <parquet/file_reader.h>
 #include <parquet/stream_reader.h>
 NCHG_DISABLE_WARNING_POP
 // clang-format on
@@ -46,7 +45,6 @@ NCHG_DISABLE_WARNING_POP
 #include <hictk/reference.hpp>
 #include <memory>
 #include <stdexcept>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>

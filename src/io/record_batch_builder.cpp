@@ -22,45 +22,21 @@
 #include "nchg/suppress_warnings.hpp"
 NCHG_DISABLE_WARNING_PUSH
 NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
-#include <arrow/array.h>
+#include <arrow/array/array_base.h>
 #include <arrow/builder.h>
 #include <arrow/record_batch.h>
-#include <arrow/type.h>
-#include <arrow/io/file.h>
-#include <arrow/util/key_value_metadata.h>
-#include <parquet/arrow/reader.h>
-#include <parquet/arrow/writer.h>
-#include <parquet/encoding.h>
-#include <parquet/properties.h>
-#include <parquet/stream_reader.h>
-#include <parallel_hashmap/phmap.h>
 NCHG_DISABLE_WARNING_POP
 // clang-format on
 
-#include <fmt/format.h>
-#include <spdlog/spdlog.h>
-
-#include <algorithm>
-#include <array>
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <exception>
-#include <filesystem>
-#include <fstream>
-#include <hictk/genomic_interval.hpp>
-#include <hictk/numeric_utils.hpp>
 #include <hictk/reference.hpp>
-#include <iosfwd>
 #include <memory>
-#include <numeric>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
-#include "nchg/common.hpp"
 #include "nchg/parquet_stats_file.hpp"
 
 namespace nchg {

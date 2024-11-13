@@ -23,7 +23,6 @@ NCHG_DISABLE_WARNING_PUSH
 NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include <arrow/type.h>
 #include <arrow/util/key_value_metadata.h>
-#include <parallel_hashmap/phmap.h>
 #include <parquet/platform.h>
 NCHG_DISABLE_WARNING_POP
 // clang-format on

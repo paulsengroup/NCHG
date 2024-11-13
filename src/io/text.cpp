@@ -17,14 +17,15 @@
 // <https://www.gnu.org/licenses/>.
 
 // clang-format off
+
+#include "nchg/text.hpp"
+
 #include "nchg/suppress_warnings.hpp"
 NCHG_DISABLE_WARNING_PUSH
 NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include <parallel_hashmap/phmap.h>
 NCHG_DISABLE_WARNING_POP
 // clang-format on
-
-#include "nchg/text.hpp"
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>

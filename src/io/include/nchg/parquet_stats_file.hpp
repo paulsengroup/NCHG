@@ -22,12 +22,8 @@
 #include "nchg/suppress_warnings.hpp"
 NCHG_DISABLE_WARNING_PUSH
 NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
-#include <arrow/array/array_base.h>
-#include <arrow/builder.h>
-#include <arrow/record_batch.h>
-#include <arrow/type_fwd.h>
+#include <arrow/io/file.h>
 #include <parquet/stream_reader.h>
-#include <parallel_hashmap/phmap.h>
 NCHG_DISABLE_WARNING_POP
 // clang-format on
 
@@ -104,18 +100,6 @@ class ParquetStatsFile {
     void read_pixel();
   };
 };
-
-template <std::size_t NTOKS>
-[[nodiscard]] std::string_view truncate_record(std::string_view record, char sep = '\t');
-
-namespace internal {
-
-[[nodiscard]] std::shared_ptr<arrow::Schema> get_schema(const hictk::Reference &chroms);
-[[nodiscard]] std::shared_ptr<arrow::Schema> get_schema_padj(const hictk::Reference &chroms);
-
-[[nodiscard]] parquet::Compression::type parse_parquet_compression(std::string_view method);
-
-}  // namespace internal
 
 }  // namespace nchg
 

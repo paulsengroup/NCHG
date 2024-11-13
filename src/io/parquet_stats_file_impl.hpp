@@ -22,24 +22,16 @@
 #include "nchg/suppress_warnings.hpp"
 NCHG_DISABLE_WARNING_PUSH
 NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
-#include <arrow/array.h>
-#include <arrow/io/file.h>
-#include <arrow/util/thread_pool.h>
-#include <parquet/arrow/reader.h>
-#include <parquet/arrow/writer.h>
+#include <parquet/stream_reader.h>
 NCHG_DISABLE_WARNING_POP
 // clang-format on
 
-#include <cstddef>
+#include <cassert>
 #include <cstdint>
-#include <filesystem>
 #include <hictk/chromosome.hpp>
 #include <hictk/pixel.hpp>
 #include <hictk/reference.hpp>
 #include <memory>
-#include <stdexcept>
-#include <string>
-#include <string_view>
 #include <utility>
 
 #include "nchg/parquet_helpers.hpp"

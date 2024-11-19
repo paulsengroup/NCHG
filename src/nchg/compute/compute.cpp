@@ -862,7 +862,7 @@ static std::size_t process_queries_st(FileStore &file_store, const ChromosomePai
                                    : run_nchg_compute_worker(config, domains);
       tot_num_records += num_records;
 
-      file_store.register_file(c.output_path);
+      file_store.register_file(config.output_path);
 
       const auto t1 = std::chrono::steady_clock::now();
       SPDLOG_INFO("[{}:{}] processed {} records in {}!", chrom1.name(), chrom2.name(), num_records,
@@ -1077,7 +1077,8 @@ static void validate_expected_values(const ExpectedValues &expected_values,
                              f.resolution());
   }
 
-  const auto root_dir = c.output_prefix.parent_path();
+  const auto root_dir = c.output_prefix.has_parent_path() ? c.output_prefix.parent_path()
+                                                          : std::filesystem::current_path();
 
   if (!root_dir.empty() && !std::filesystem::exists(root_dir)) {
     std::filesystem::create_directories(root_dir);  // NOLINT

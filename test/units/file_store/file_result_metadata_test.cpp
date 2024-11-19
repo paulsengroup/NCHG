@@ -270,6 +270,8 @@ TEST_CASE("FileResultMetadata", "[short][io][file_store]") {
     CHECK_THROWS_WITH(NCHGResultMetadata::from_stream(ss, data_dir),
                       Catch::Matchers::ContainsSubstring("file size mismatch"));
   }
+
+  std::filesystem::current_path(cwd);
 }
 
 }  // namespace nchg::test

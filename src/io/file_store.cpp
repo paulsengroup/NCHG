@@ -149,7 +149,7 @@ void FileStore::register_file(const std::filesystem::path& path) {
 
   lck.lock();
   validate_path();
-  _metadata.add_record(std::move(path), XXH3Digest{std::move(digest)}, file_size);
+  _metadata.add_record(path, XXH3Digest{std::move(digest)}, file_size);
 }
 
 static void rename_file(const std::filesystem::path& src, const std::filesystem::path& dest) {

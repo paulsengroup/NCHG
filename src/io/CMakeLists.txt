@@ -18,8 +18,11 @@
 
 find_package(Arrow REQUIRED)
 find_package(FMT REQUIRED)
+find_package(glaze REQUIRED)
 find_package(hictk REQUIRED)
+find_package(phmap REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(xxHash REQUIRED)
 
 add_library(nchg_io STATIC)
 add_library(nchg::io ALIAS nchg_io)
@@ -27,6 +30,9 @@ add_library(nchg::io ALIAS nchg_io)
 target_sources(
   nchg_io
   PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/file_hashing.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/file_metadata.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/file_store.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/k_merger_impl.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_helpers.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_reader.cpp"
@@ -49,11 +55,14 @@ target_link_libraries(
   PRIVATE
     nchg_project_options
     nchg_project_warnings
-    nchg::common
     fmt::fmt-header-only
     spdlog::spdlog_header_only
   PUBLIC
+    nchg::common
     Arrow::arrow_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
+    glaze::glaze
     hictk::libhictk
     Parquet::parquet_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
+    phmap
+    xxHash::xxhash
 )

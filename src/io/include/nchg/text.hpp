@@ -26,6 +26,7 @@ NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
 NCHG_DISABLE_WARNING_POP
 // clang-format on
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -38,6 +39,10 @@ namespace nchg {
 
 template <std::size_t NTOKS>
 [[nodiscard]] constexpr std::string_view truncate_record(std::string_view record, char sep = '\t');
+
+template <std::size_t NTOKS>
+[[nodiscard]] constexpr std::array<std::string_view, NTOKS> tokenize_record(std::string_view record,
+                                                                            char sep = '\t');
 
 [[nodiscard]] phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> parse_bin_mask(
     const hictk::Reference &chroms, std::uint32_t bin_size, const std::filesystem::path &path);

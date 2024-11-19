@@ -46,6 +46,8 @@ NCHG_DISABLE_WARNING_POP
 #include <type_traits>
 #include <variant>
 
+#include "nchg/file_store.hpp"
+
 // clang-format off
 // As of HighFive 2.9.0, these headers must be included after HighFive/hictk,
 // otherwise this source file fails to compile with MSVC

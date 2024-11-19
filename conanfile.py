@@ -57,6 +57,7 @@ class NCHGConan(ConanFile):
         self.requires("concurrentqueue/1.0.4#1e48e1c712bcfd892087c9c622a51502")
         self.requires("fast_float/6.1.5#e067b96a6271d1b4c255858ca9805bdd")  # hictk
         self.requires("fmt/11.0.2#5c7438ef4d5d69ab106a41e460ce11f3", force=True)
+        self.requires("glaze/3.6.1#9653430ca52e71c1bc5d066b8dc45de1")
         self.requires("hdf5/1.14.5#51799cda2ba7acaa74c9651dea284ac4", force=True)
         # self.requires("hictk/0.0.12#8e413cd45528da38b5a41ccffee41d6d")
         self.requires("highfive/2.10.0#3d1bd25944a57fa1bc30a0a22923d528")
@@ -66,6 +67,7 @@ class NCHGConan(ConanFile):
         self.requires("span-lite/0.11.0#519fd49fff711674cfed8cd17d4ed422")  # hictk
         self.requires("spdlog/1.14.1#972bbf70be1da4bc57ea589af0efde03")
         self.requires("thrift/0.20.0#560fdab2e1636d4d8a0556fcf6470b89", force=True)
+        self.requires("xxhash/0.8.2#03fd1c9a839b3f9cdf5ea9742c312187")
         self.requires("zstd/1.5.6#afefe79a309bc2a7b9f56c2093504c8b", force=True)
 
     def validate(self):
@@ -137,4 +139,5 @@ class NCHGConan(ConanFile):
         self.options["spdlog"].header_only = True
         self.options["thrift"].with_libevent = False
         self.options["thrift"].with_openssl = False
+        self.options["xxhash"].utility = False
         self.options["zstd"].build_programs = False

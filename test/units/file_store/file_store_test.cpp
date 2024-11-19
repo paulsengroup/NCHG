@@ -20,6 +20,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 #include <filesystem>
+#include <glaze/glaze_exceptions.hpp>
 #include <nchg/file_store.hpp>
 #include <stdexcept>
 #include <string_view>
@@ -31,6 +32,16 @@ namespace nchg::test {
 
 static std::filesystem::path stage_file(const std::filesystem::path& src, const FileStore& store) {
   return stage_file(src, store.root());
+}
+
+static void validate_report_placeholder(const std::filesystem::path& path) {
+  std::string buffer{};
+  NCHGResultMetadata data{};
+  if (const auto ec = glz::read_file_json(data, path.c_str(), buffer); ec) {
+    throw std::runtime_error(glz::format_error(ec, buffer));
+  }
+
+  CHECK(data.digest() == "00000000000000000000000000000000");
 }
 
 TEST_CASE("FileStore", "[short][io][file_store]") {
@@ -163,6 +174,8 @@ TEST_CASE("FileStore", "[short][io][file_store]") {
     std::filesystem::create_directories(store_dir);  // NOLINT
 
     FileStore store(store_dir, false);
+
+    validate_report_placeholder(store.report_path());
 
     const auto path1 = stage_file(test_file1, store);
     const auto path2 = stage_file(test_file2, store);

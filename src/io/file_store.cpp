@@ -28,17 +28,13 @@ NCHG_DISABLE_WARNING_POP
 
 #include <fmt/chrono.h>
 #include <fmt/format.h>
-#include <fmt/ostream.h>
 #include <spdlog/spdlog.h>
-#include <xxh3.h>
 
 #include <algorithm>
 #include <cassert>
-#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <hictk/hic.hpp>
-#include <memory>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -67,7 +63,9 @@ FileStore::FileStore(const std::filesystem::path& folder, bool force,
                      const std::filesystem::path& report_name)
     : _metadata(NCHGResultMetadata::init_empty(sanitize_root_path(folder) /
                                                validate_report_name(report_name))),
-      _report_fs(init_report(_metadata, force)) {}
+      _report_fs(init_report(_metadata, force)) {
+  SPDLOG_INFO("initialized file store under prefix \"{}\"", root().string());
+}
 
 FileStore::~FileStore() noexcept {
   if (finalized()) {
@@ -111,6 +109,8 @@ void FileStore::register_file(const std::filesystem::path& path) {
           fmt::format("file \"{}\" has already been added to the file store!", path));
     }
   };
+
+  SPDLOG_DEBUG("FileStore: registering file \"{}\"...", path.string());
 
   if (!std::filesystem::is_regular_file(path)) {
     throw std::runtime_error(
@@ -179,6 +179,7 @@ std::ofstream FileStore::init_report(const NCHGResultMetadata& metadata, bool fo
   fs.exceptions(fs.exceptions() | std::ios::badbit | std::ios::failbit);
 
   try {
+    SPDLOG_DEBUG("initializing report file at \"{}\"...", metadata.path().string());
     if (force) {
       std::filesystem::remove(metadata.path());  // NOLINT
     } else if (std::filesystem::exists(metadata.path())) {
@@ -219,6 +220,7 @@ std::ofstream FileStore::init_report(const NCHGResultMetadata& metadata, bool fo
 
 void FileStore::finalize() {
   try {
+    SPDLOG_DEBUG("finalizing report file at \"{}\"...", path().string());
     [[maybe_unused]] const auto lck = std::scoped_lock{_mtx};
     if (_finalized) {
       throw std::runtime_error("FileStore::finalize() has already been called!");

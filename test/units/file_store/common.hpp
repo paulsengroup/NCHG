@@ -19,11 +19,12 @@
 #pragma once
 
 #include <algorithm>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/uniform_int_distribution.hpp>
 #include <cassert>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
-#include <random>
 
 namespace nchg::test {
 
@@ -38,7 +39,7 @@ inline std::filesystem::path stage_file(const std::filesystem::path& src,
 }
 
 [[nodiscard]] inline std::filesystem::path generate_random_file(std::filesystem::path dest,
-                                                                std::mt19937_64& rand_eng,
+                                                                boost::mt19937_64& rand_eng,
                                                                 std::size_t size) {
   assert(size > 0);
   if (dest.has_parent_path()) {
@@ -46,8 +47,9 @@ inline std::filesystem::path stage_file(const std::filesystem::path& src,
   }
 
   std::vector<std::int8_t> data(size);
-  std::ranges::generate(
-      data, [&]() { return std::uniform_int_distribution<std::int8_t>{-125, 125}(rand_eng); });
+  std::ranges::generate(data, [&]() {
+    return boost::random::uniform_int_distribution<std::int8_t>{-125, 125}(rand_eng);
+  });
 
   std::ofstream fs{};
   fs.exceptions(fs.exceptions() | std::ios::badbit | std::ios::failbit);

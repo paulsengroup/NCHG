@@ -17,13 +17,13 @@
 // <https://www.gnu.org/licenses/>.
 
 #include <algorithm>
+#include <boost/random/mersenne_twister.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <glaze/glaze_exceptions.hpp>
-#include <random>
 #include <sstream>
 #include <string_view>
 
@@ -34,7 +34,7 @@
 namespace nchg::test {
 
 TEST_CASE("FileResultMetadata", "[short][io][file_store]") {
-  std::mt19937_64 rand_eng{3294462971978216056ULL};  // NOLINT
+  boost::mt19937_64 rand_eng{3294462971978216056ULL};  // NOLINT
 
   const auto data_dir = testdir() / "file_result_metadata_001";
   std::filesystem::remove_all(data_dir);        // NOLINT

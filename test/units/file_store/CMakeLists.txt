@@ -16,6 +16,7 @@
 # License along with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
+find_package(Boost REQUIRED)
 find_package(Catch2 REQUIRED)
 find_package(glaze REQUIRED)
 include(CTest)
@@ -36,6 +37,7 @@ target_link_libraries(
     nchg_project_warnings
     nchg_project_options
   PUBLIC
+    Boost::headers
     glaze::glaze
     nchg::io
 )

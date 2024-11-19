@@ -25,7 +25,7 @@
 #include <hictk/file.hpp>
 #include <memory>
 
-#include "tmpdir.hpp"
+#include "nchg/test/tmpdir.hpp"
 
 namespace nchg::test {
 

@@ -26,7 +26,7 @@
 #include <hictk/genomic_interval.hpp>
 #include <memory>
 
-#include "tmpdir.hpp"
+#include "nchg/test/tmpdir.hpp"
 
 namespace nchg::test {
 

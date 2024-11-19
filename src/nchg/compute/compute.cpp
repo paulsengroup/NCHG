@@ -333,7 +333,9 @@ class BG2Domains {
     fs.exceptions(fs.exceptions() | std::ios::badbit | std::ios::failbit);
 
     try {
-      std::filesystem::create_directories(dest_dir);  // NOLINT
+      if (dest_dir.empty() && !std::filesystem::exists(dest)) {
+        std::filesystem::create_directories(dest_dir);  // NOLINT
+      }
 #ifdef __cpp_lib_ios_noreplace
       fs.open(dest, std::ios::out | std::ios::trunc | std::ios::noreplace);
 #else
@@ -1077,7 +1079,9 @@ static void validate_expected_values(const ExpectedValues &expected_values,
 
   const auto root_dir = c.output_prefix.parent_path();
 
-  std::filesystem::create_directories(root_dir);  // NOLINT
+  if (!root_dir.empty() && !std::filesystem::exists(root_dir)) {
+    std::filesystem::create_directories(root_dir);  // NOLINT
+  }
   plan.file_store = std::make_unique<FileStore>(
       root_dir, false, fmt::format("{}.json", c.output_prefix.filename().string()));
 

@@ -20,6 +20,7 @@
 
 
 import argparse
+import json
 import logging
 import pathlib
 import sys
@@ -215,6 +216,36 @@ def validate_columns(expected: pd.DataFrame, found: pd.DataFrame, path: pathlib.
         raise RuntimeError(f"column dtype mismatch: expected {expected.dtypes}, found {found.dtypes}")
 
     logging.debug("column validation for %s was successful", path)
+
+
+def validate_report(path: pathlib.Path):
+    logging.debug("validating report file %s", path)
+    try:
+        with path.open() as f:
+            report = json.load(f)
+
+        errors = []
+        mandatory_keys = [
+            "format",
+            "format-version",
+            "created-by",
+            "creation-time",
+            "digest",
+            "digest-algorithm",
+            "digest-sample-size",
+            "records",
+        ]
+        for key in mandatory_keys:
+            if key not in report:
+                errors.append(key)
+                continue
+
+        if len(errors) != 0:
+            raise RuntimeError(f"the following key(s) are missing:\n - {'\n - '.join(errors)}")
+    except Exception as e:
+        raise RuntimeError(f"failed to validate report file {path}: {e}")
+
+    logging.debug("validation of report file %s was successful", path)
 
 
 def validate_chrom_sizes(expected: pd.DataFrame, found: pd.DataFrame, path: pathlib.Path):
@@ -460,6 +491,8 @@ def validate_nchg_compute(test_prefix: pathlib.Path, ref_prefix: pathlib.Path) -
     logging.info(f"### NCHG compute: validating {test_prefix}...")
     if test_prefix == ref_prefix:
         raise RuntimeError(f"test-prefix and ref-prefix point to the same files: {ref_prefix}")
+
+    validate_report(pathlib.Path(f"{test_prefix}.json"))
 
     expected_chrom_sizes = import_chrom_sizes(pathlib.Path(f"{ref_prefix}.chrom.sizes"))
 

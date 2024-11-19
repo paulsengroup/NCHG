@@ -104,7 +104,7 @@ FileStore& FileStore::operator=(FileStore&& other) noexcept {
   return *this;
 }
 
-const std::filesystem::path& FileStore::path() const noexcept { return _metadata.path(); }
+const std::filesystem::path& FileStore::report_path() const noexcept { return _metadata.path(); }
 
 std::filesystem::path FileStore::root() const { return _metadata.path().parent_path(); }
 
@@ -241,7 +241,7 @@ std::ofstream FileStore::init_report(const NCHGResultMetadata& metadata, bool fo
 
 void FileStore::finalize() {
   try {
-    SPDLOG_DEBUG("finalizing report file at \"{}\"...", path().string());
+    SPDLOG_DEBUG("finalizing report file at \"{}\"...", report_path().string());
     [[maybe_unused]] const auto lck = std::scoped_lock{_mtx};
     if (_finalized) {
       throw std::runtime_error("FileStore::finalize() has already been called!");
@@ -264,15 +264,16 @@ void FileStore::finalize() {
     _report_fs.seekp(0, std::ios::beg);
     _report_fs.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
     _report_fs.flush();
-    assert(_report_fs.tellp() == static_cast<std::streamsize>(std::filesystem::file_size(path())));
+    assert(_report_fs.tellp() ==
+           static_cast<std::streamsize>(std::filesystem::file_size(report_path())));
 
     _finalized = true;
   } catch (const std::exception& e) {
     throw std::runtime_error(
-        fmt::format("failed to finalize report file \"{}\": {}", path(), e.what()));
+        fmt::format("failed to finalize report file \"{}\": {}", report_path(), e.what()));
   } catch (...) {
     throw std::runtime_error(
-        fmt::format("failed to finalize report file \"{}\": unknown error", path()));
+        fmt::format("failed to finalize report file \"{}\": unknown error", report_path()));
   }
 }
 

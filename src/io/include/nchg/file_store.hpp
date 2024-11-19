@@ -44,7 +44,7 @@ class FileStore {
   FileStore& operator=(const FileStore&) = delete;
   FileStore& operator=(FileStore&& other) noexcept;
 
-  [[nodiscard]] const std::filesystem::path& path() const noexcept;
+  [[nodiscard]] const std::filesystem::path& report_path() const noexcept;
   [[nodiscard]] std::filesystem::path root() const;
 
   [[nodiscard]] auto at(const std::filesystem::path& path) const

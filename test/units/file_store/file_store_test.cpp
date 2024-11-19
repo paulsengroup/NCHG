@@ -75,7 +75,7 @@ TEST_CASE("FileStore", "[short][io][file_store]") {
     const FileStore store(store_dir, false);
 
     CHECK(store.root() == store_dir);
-    CHECK(store.path() == store_dir / "report.json");
+    CHECK(store.report_path() == store_dir / "report.json");
     CHECK(store.get_registered_files().empty());
     CHECK_THROWS_AS(store.at("foo"), std::out_of_range);
     CHECK(!store.contains("foo"));
@@ -175,9 +175,9 @@ TEST_CASE("FileStore", "[short][io][file_store]") {
     store.finalize();
     REQUIRE(store.finalized());
 
-    const auto report = NCHGResultMetadata::from_file(store.path());
+    const auto report = NCHGResultMetadata::from_file(store.report_path());
 
-    CHECK(report.path() == store.path());
+    CHECK(report.path() == store.report_path());
     CHECK(report.records().size() == 2);
     CHECK(report.at(path1.filename()).digest() == test_hash1);
     CHECK(report.at(path2.filename()).digest() == test_hash2);

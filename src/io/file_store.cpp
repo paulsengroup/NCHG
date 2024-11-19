@@ -67,6 +67,11 @@ FileStore::FileStore(const std::filesystem::path& folder, bool force,
   SPDLOG_INFO("initialized file store under prefix \"{}\"", root().string());
 }
 
+FileStore::FileStore(FileStore&& other) noexcept
+    : _metadata(std::move(other._metadata)),
+      _report_fs(std::move(other._report_fs)),
+      _finalized(other._finalized) {}
+
 FileStore::~FileStore() noexcept {
   if (finalized()) {
     return;
@@ -81,6 +86,22 @@ FileStore::~FileStore() noexcept {
     SPDLOG_ERROR("files located under prefix \"{}\" are likely corrupted or incomplete!",
                  root().string());
   }
+}
+
+FileStore& FileStore::operator=(FileStore&& other) noexcept {
+  if (this == &other) {
+    return *this;
+  }
+
+  if (!finalized()) {
+    finalize();
+  }
+
+  _metadata = std::move(other._metadata);
+  _report_fs = std::move(other._report_fs);
+  _finalized = other._finalized;
+
+  return *this;
 }
 
 const std::filesystem::path& FileStore::path() const noexcept { return _metadata.path(); }

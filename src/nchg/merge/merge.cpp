@@ -156,9 +156,9 @@ struct FileIteratorPairs {
 
     const auto report_path = generate_report_name(c.input_prefix);
     auto its =
-        std::filesystem::exists(report_path)
-            ? init_file_iterator_pairs(NCHGResultMetadata::from_file(report_path), c.input_prefix)
-            : init_file_iterator_pairs(c.input_prefix, chroms);
+        c.ignore_report_file
+            ? init_file_iterator_pairs(c.input_prefix, chroms)
+            : init_file_iterator_pairs(NCHGResultMetadata::from_file(report_path), c.input_prefix);
 
     if (its.heads.empty()) {
       throw std::runtime_error("unable to find any non-empty table");
@@ -294,7 +294,9 @@ static void validate_input_files(const std::filesystem::path &input_prefix) {
 int run_command(const MergeConfig &c) {
   const auto t0 = std::chrono::steady_clock::now();
 
-  validate_input_files(c.input_prefix);
+  if (!c.ignore_report_file) {
+    validate_input_files(c.input_prefix);
+  }
   const auto chroms = import_chromosomes(c.input_prefix);
   const auto iterator_pairs = init_file_iterator_pairs(chroms, c);
 

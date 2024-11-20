@@ -123,6 +123,7 @@ struct MergeConfig {
   std::filesystem::path input_prefix{};
   std::filesystem::path output_path{};
   bool force{false};
+  bool ignore_report_file{false};
 
   std::size_t threads{2};
   std::string compression_method{"zstd"};

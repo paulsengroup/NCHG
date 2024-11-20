@@ -28,6 +28,7 @@ NCHG_DISABLE_WARNING_POP
 
 #include <compare>
 #include <cstddef>
+#include <exception>
 #include <filesystem>
 #include <glaze/glaze_exceptions.hpp>
 #include <istream>

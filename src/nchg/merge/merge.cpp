@@ -260,8 +260,67 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
   }
 }
 
-[[noreturn]] static void handle_incomplete_output() {
-  throw std::runtime_error(
+[[nodiscard]] static constexpr spdlog::level::level_enum extract_log_lvl(std::string_view msg) {
+  if (msg.contains(" [critical]: ")) [[unlikely]] {
+    return spdlog::level::critical;
+  }
+  if (msg.contains(" [error]: ")) [[unlikely]] {
+    return spdlog::level::err;
+  }
+  if (msg.contains(" [warning]: ")) [[unlikely]] {
+    return spdlog::level::warn;
+  }
+  return spdlog::level::info;
+}
+
+[[nodiscard]] static constexpr bool is_warning_replay_header(std::string_view msg) {
+  auto offset = msg.find(" [warning]: ");
+  if (offset == std::string_view::npos) [[likely]] {
+    return false;
+  }
+  offset = msg.find("replaying the last ", offset);
+  if (offset == std::string_view::npos) {
+    return false;
+  }
+  offset = msg.find("warning message(s)", offset);
+  return offset != std::string_view::npos;
+}
+
+[[nodiscard]] static std::vector<std::string> try_parse_nchg_compute_log_file(
+    const std::filesystem::path &path) {
+  if (!std::filesystem::exists(path)) {
+    return {};
+  }
+
+  std::vector<std::string> messages{};
+  std::ifstream fs{};
+  fs.exceptions(fs.exceptions() | std::ios::badbit | std::ios::failbit);
+
+  try {
+    fs.open(path);
+    std::string buffer{};
+    auto min_log_level = spdlog::level::warn;
+
+    for (std::size_t i = 1; std::getline(fs, buffer); ++i) {
+      const auto log_level = extract_log_lvl(buffer);
+      if (log_level >= min_log_level && is_warning_replay_header(buffer)) {
+        min_log_level = spdlog::level::err;
+      }
+
+      if (log_level >= min_log_level) {
+        messages.emplace_back(fmt::format("line {}: {}", i, buffer));
+      }
+    }
+  } catch (...) {
+    if (fs.eof()) {
+      return messages;
+    }
+  }
+  return {};
+}
+
+[[noreturn]] static void handle_incomplete_output(const std::filesystem::path &report_file) {
+  constexpr auto msg =
       "input files validation failed: detected incomplete and/or corrupted input file(s).\n"
       "This suggests that a previous run of NCHG compute did not complete successfully.\n"
       "Possible reasons are:\n"
@@ -272,7 +331,28 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
       "\n"
       "If you are sure that all files produced by NCHG compute are available and are not "
       "corrupted, you can pass --ignore-report-file to NCHG merge to disable input file "
-      "validation.");
+      "validation.";
+
+  auto log_file_name = report_file;
+  log_file_name.replace_extension(".log");
+  if (!std::filesystem::exists(log_file_name)) {
+    throw std::runtime_error(msg);
+  }
+  const auto log_entries_of_interest = try_parse_nchg_compute_log_file(log_file_name);
+
+  if (log_entries_of_interest.empty()) {
+    throw std::runtime_error(
+        fmt::format("{}\n"
+                    "An attempt was made to parse log file \"{}\" but the file does not seem to "
+                    "contain helpful information",
+                    msg, log_file_name.string()));
+  }
+
+  throw std::runtime_error(
+      fmt::format("{}\n"
+                  "Parsing log file \"{}\" identified the following log messages as potentially "
+                  "useful for further troubleshooting:\n{}",
+                  msg, log_file_name.string(), fmt::join(log_entries_of_interest, "\n")));
 }
 
 [[noreturn]] static void handle_invalid_report_file(
@@ -335,8 +415,8 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
 
   if (size_mismatch.size() + checksum_mismatch.size() != 0) {
     suggestions +=
-        "\n - Make sure that files with a different size or checksum have not been overwritten or "
-        "modified after their creation.\n"
+        "\n - Make sure that files with a different size or checksum have not been overwritten "
+        "or modified after their creation.\n"
         "   If you are sure that all files produced by NCHG compute are available and are not "
         "corrupted, you can pass --ignore-report-file to NCHG merge to disable input file "
         "validation.";
@@ -437,7 +517,7 @@ static void handle_validation_errors(const std::filesystem::path &path,
   }
 
   if (!res.successfully_finalized) {
-    handle_incomplete_output();
+    handle_incomplete_output(path);
   }
 
   if (!res.report_validation_failures.empty()) {

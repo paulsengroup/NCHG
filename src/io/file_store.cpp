@@ -93,8 +93,16 @@ FileStore& FileStore::operator=(FileStore&& other) noexcept {
     return *this;
   }
 
-  if (!finalized()) {
-    finalize();
+  try {
+    if (!finalized()) {
+      finalize();
+    }
+    // finalize() catches all exceptions and re-throws them as std::runtime_errors
+    // so this should handle all exception cases
+  } catch (const std::runtime_error& e) {
+    SPDLOG_ERROR(e.what());
+    SPDLOG_ERROR("files located under prefix \"{}\" are likely corrupted or incomplete!",
+                 root().string());
   }
 
   _metadata = std::move(other._metadata);

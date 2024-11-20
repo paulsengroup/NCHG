@@ -62,6 +62,19 @@ class NCHGResultMetadata {
     };
   };
 
+  struct ValidationResult {
+    bool successfully_finalized{};
+    std::string expected_checksum{};
+    std::string computed_checksum{};
+    std::vector<std::string> report_validation_failures{};
+    std::vector<std::pair<std::filesystem::path, std::string>> record_validation_failures{};
+    std::size_t num_records{};
+    std::exception_ptr unhandled_exception{};
+
+    explicit operator bool() const noexcept;
+    [[noreturn]] void throw_exception() const;
+  };
+
  private:
   struct FileMetadataCmp {
     using is_transparent = void;
@@ -89,11 +102,12 @@ class NCHGResultMetadata {
                      std::string creation_time_, std::string digest_, std::string digest_algorithm_,
                      std::size_t digest_sample_size_, const std::vector<FileMetadata>& records_);
   static NCHGResultMetadata init_empty(const std::filesystem::path& path_);
-  static NCHGResultMetadata from_file(const std::filesystem::path& path_);
-  static NCHGResultMetadata from_stream(std::istream& stream,
-                                        const std::filesystem::path& root_dir);
+  static NCHGResultMetadata from_file(const std::filesystem::path& path_, bool validate_ = true);
+  static NCHGResultMetadata from_stream(std::istream& stream, const std::filesystem::path& root_dir,
+                                        bool validate_ = true);
 
-  void validate() const;
+  [[nodiscard]] auto validate() const noexcept -> ValidationResult;
+  void validate_or_throw() const;
   [[nodiscard]] std::string checksum() const;
   [[nodiscard]] static std::string checksum(const std::filesystem::path& path_);
   [[nodiscard]] static std::string checksum(std::istream& stream);

@@ -128,110 +128,127 @@ TEST_CASE("FileResultMetadata", "[short][io][file_store]") {
 
   SECTION("invalid") {
     // clang-format off
-      const NCHGResultMetadata checksum_mismatch{
-        "",
-       "NCHG metadata",
-       "1.0",
-       "NCHG v0.0.2",
-       "2024-11-18T10:55:25",
-       "00000000000000000000000000000000",
-       "XXH3 (128 bits)",
-       512UL << 20UL,
-       {metadata1, metadata2}
-      };
+    const NCHGResultMetadata incomplete_report{
+      "",
+     "NCHG metadata",
+     "1.0",
+     "NCHG v0.0.2",
+     "2024-11-18T10:55:25",
+     "00000000000000000000000000000000",
+     "XXH3 (128 bits)",
+     512UL << 20UL,
+     {metadata1, metadata2}
+    };
 
-      const NCHGResultMetadata invalid_format{
-        "",
-        "abc",
-        "1.0",
-        "NCHG v0.0.2",
-        "2024-11-18T10:55:25",
-        "a0563c02213cc9c23c46a75f4097c4c0",
-        "XXH3 (128 bits)",
-        512UL << 20UL,
-        {metadata1, metadata2}
-      };
+    const NCHGResultMetadata checksum_mismatch{
+      "",
+     "NCHG metadata",
+     "1.0",
+     "NCHG v0.0.2",
+     "2024-11-18T10:55:25",
+     "9842da6b6a331c68899a524b7fd35e34",
+     "XXH3 (128 bits)",
+     512UL << 20UL,
+     {metadata1, metadata2}
+    };
 
-      const NCHGResultMetadata invalid_algorithm{
-        "",
-       "NCHG metadata",
-        "1.0",
-        "NCHG v0.0.2",
-        "2024-11-18T10:55:25",
-        "28adcb5a80d965246014d2a20522cbb3",
-        "SHA256",
-        512UL << 20UL,
-        {metadata1, metadata2}
-      };
+    const NCHGResultMetadata invalid_format{
+      "",
+      "abc",
+      "1.0",
+      "NCHG v0.0.2",
+      "2024-11-18T10:55:25",
+      "a0563c02213cc9c23c46a75f4097c4c0",
+      "XXH3 (128 bits)",
+      512UL << 20UL,
+      {metadata1, metadata2}
+    };
 
-      const NCHGResultMetadata invalid_sample_size{
-        "",
-        "NCHG metadata",
-        "1.0",
-        "NCHG v0.0.2",
-        "2024-11-18T10:55:25",
-        "a0563c02213cc9c23c46a75f4097c4c0",
-        "XXH3 (128 bits)",
-        0,
-        {metadata1, metadata2}
-      };
+    const NCHGResultMetadata invalid_algorithm{
+      "",
+     "NCHG metadata",
+      "1.0",
+      "NCHG v0.0.2",
+      "2024-11-18T10:55:25",
+      "28adcb5a80d965246014d2a20522cbb3",
+      "SHA256",
+      512UL << 20UL,
+      {metadata1, metadata2}
+    };
 
-      const NCHGResultMetadata::FileMetadata invalid_file1{
-        "not-a-file",
-        XXH3Digest{"99aa06d3014798d86001c324468d497f"},
-        0
-      };
+    const NCHGResultMetadata invalid_sample_size{
+      "",
+      "NCHG metadata",
+      "1.0",
+      "NCHG v0.0.2",
+      "2024-11-18T10:55:25",
+      "a0563c02213cc9c23c46a75f4097c4c0",
+      "XXH3 (128 bits)",
+      0,
+      {metadata1, metadata2}
+    };
 
-      const NCHGResultMetadata::FileMetadata invalid_file2{
-        path1,
-        XXH3Digest{checksum2},
-        size1
-      };
+    const NCHGResultMetadata::FileMetadata invalid_file1{
+      "not-a-file",
+      XXH3Digest{"99aa06d3014798d86001c324468d497f"},
+      0
+    };
 
-      const NCHGResultMetadata::FileMetadata invalid_file3{
-        path1,
-        XXH3Digest{checksum1},
-        123
-      };
+    const NCHGResultMetadata::FileMetadata invalid_file2{
+      path1,
+      XXH3Digest{checksum2},
+      size1
+    };
 
-      const NCHGResultMetadata invalid_files1{
-        "",
-        "NCHG metadata",
-        "1.0",
-        "NCHG v0.0.2",
-        "2024-11-18T10:55:25",
-        "0d997983eda168c050aaf68582ccc7a9",
-        "XXH3 (128 bits)",
-        512UL << 20UL,
-        {invalid_file1, metadata2}
-      };
+    const NCHGResultMetadata::FileMetadata invalid_file3{
+      path1,
+      XXH3Digest{checksum1},
+      123
+    };
 
-      const NCHGResultMetadata invalid_files2{
-        "",
-        "NCHG metadata",
-        "1.0",
-        "NCHG v0.0.2",
-        "2024-11-18T10:55:25",
-        "f6c6e84e2f40fcf37973f2d86649697f",
-        "XXH3 (128 bits)",
-        512UL << 20UL,
-        {invalid_file2, metadata2}
-      };
+    const NCHGResultMetadata invalid_files1{
+      "",
+      "NCHG metadata",
+      "1.0",
+      "NCHG v0.0.2",
+      "2024-11-18T10:55:25",
+      "0d997983eda168c050aaf68582ccc7a9",
+      "XXH3 (128 bits)",
+      512UL << 20UL,
+      {invalid_file1, metadata2}
+    };
 
-      const NCHGResultMetadata invalid_files3{
-        "",
-        "NCHG metadata",
-        "1.0",
-        "NCHG v0.0.2",
-        "2024-11-18T10:55:25",
-        "0f3ced7734232e6f1e95333fcac9670d",
-        "XXH3 (128 bits)",
-        512UL << 20UL,
-        {invalid_file3, metadata2}
-      };
+    const NCHGResultMetadata invalid_files2{
+      "",
+      "NCHG metadata",
+      "1.0",
+      "NCHG v0.0.2",
+      "2024-11-18T10:55:25",
+      "f6c6e84e2f40fcf37973f2d86649697f",
+      "XXH3 (128 bits)",
+      512UL << 20UL,
+      {invalid_file2, metadata2}
+    };
+
+    const NCHGResultMetadata invalid_files3{
+      "",
+      "NCHG metadata",
+      "1.0",
+      "NCHG v0.0.2",
+      "2024-11-18T10:55:25",
+      "0f3ced7734232e6f1e95333fcac9670d",
+      "XXH3 (128 bits)",
+      512UL << 20UL,
+      {invalid_file3, metadata2}
+    };
     // clang-format on
 
     std::stringstream ss;
+
+    ss.str(glz::write_json(incomplete_report).value_or("error"));
+    ss.clear();
+    CHECK_THROWS_WITH(NCHGResultMetadata::from_stream(ss, data_dir),
+                      Catch::Matchers::ContainsSubstring("report was never finalized"));
 
     ss.str(glz::write_json(checksum_mismatch).value_or("error"));
     ss.clear();
@@ -242,13 +259,11 @@ TEST_CASE("FileResultMetadata", "[short][io][file_store]") {
     ss.clear();
     CHECK_THROWS_WITH(NCHGResultMetadata::from_stream(ss, data_dir),
                       Catch::Matchers::ContainsSubstring("unrecognized format"));
-    ss.clear();
 
     ss.str(glz::write_json(invalid_algorithm).value_or("error"));
     ss.clear();
     CHECK_THROWS_WITH(NCHGResultMetadata::from_stream(ss, data_dir),
                       Catch::Matchers::ContainsSubstring("unrecognized digest-algorithm"));
-    ss.clear();
 
     ss.str(glz::write_json(invalid_sample_size).value_or("error"));
     ss.clear();

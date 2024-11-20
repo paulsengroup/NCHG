@@ -27,6 +27,7 @@ NCHG_DISABLE_WARNING_POP
 // clang-format on
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
 #include <cstddef>
 #include <filesystem>
@@ -108,6 +109,41 @@ void NCHGResultMetadata::FileMetadata::validate(std::string_view expected_digest
   }
 }
 
+NCHGResultMetadata::ValidationResult::operator bool() const noexcept {
+  return successfully_finalized && expected_checksum == computed_checksum &&
+         report_validation_failures.empty() && record_validation_failures.empty() &&
+         !unhandled_exception;
+}
+
+void NCHGResultMetadata::ValidationResult::throw_exception() const {
+  if (!successfully_finalized) {
+    throw std::runtime_error("report was never finalized");
+  }
+
+  if (!report_validation_failures.empty()) {
+    throw std::runtime_error(fmt::format(
+        "detected {} error(s) while parsing the report file:\n - {}",
+        report_validation_failures.size(), fmt::join(report_validation_failures, "\n - ")));
+  }
+
+  if (!record_validation_failures.empty()) {
+    throw std::runtime_error(
+        fmt::format("failed to validate {}/{} records from report file:\n - {}",
+                    record_validation_failures.size(), num_records,
+                    fmt::join(record_validation_failures, "\n - ")));
+  }
+
+  assert(unhandled_exception);
+  try {
+    std::rethrow_exception(unhandled_exception);
+  } catch (const std::exception& e) {
+    throw std::runtime_error(
+        fmt::format("failed to validate report file due to an unhandled exception: {}", e.what()));
+  } catch (...) {
+    throw std::runtime_error("failed to validate report file: unknown error");
+  }
+}
+
 NCHGResultMetadata::NCHGResultMetadata(const std::filesystem::path& path_, std::string format_,
                                        std::string format_version_, std::string created_by_,
                                        std::string creation_time_, std::string digest_,
@@ -136,10 +172,11 @@ NCHGResultMetadata NCHGResultMetadata::init_empty(const std::filesystem::path& p
   return metadata;
 }
 
-NCHGResultMetadata NCHGResultMetadata::from_file(const std::filesystem::path& path_) {
+NCHGResultMetadata NCHGResultMetadata::from_file(const std::filesystem::path& path_,
+                                                 bool validate_) {
   try {
     auto ifs = open_text_file_checked(path_);
-    auto metadata = from_stream(ifs, path_.parent_path());
+    auto metadata = from_stream(ifs, path_.parent_path(), validate_);
     metadata._path = normalize_path(path_);
     metadata._root_dir = metadata._path.parent_path();
     return metadata;
@@ -150,7 +187,8 @@ NCHGResultMetadata NCHGResultMetadata::from_file(const std::filesystem::path& pa
 }
 
 NCHGResultMetadata NCHGResultMetadata::from_stream(std::istream& stream,
-                                                   const std::filesystem::path& root_dir) {
+                                                   const std::filesystem::path& root_dir,
+                                                   bool validate_) {
   stream.seekg(0, std::ios::end);
   std::string strbuf{};
   strbuf.resize(static_cast<std::size_t>(stream.tellg()));
@@ -162,11 +200,13 @@ NCHGResultMetadata NCHGResultMetadata::from_stream(std::istream& stream,
   NCHGResultMetadata data{};
   if (const auto ec = glz::read<opts>(data, strbuf); ec) {
     throw std::runtime_error(
-        fmt::format("not a valid JSON file: {}", glz::format_error(ec, strbuf)));
+        fmt::format("not a valid JSON string:\n{}", glz::format_error(ec, strbuf)));
   }
 
   data._root_dir = root_dir;
-  data.validate();
+  if (validate_) {
+    data.validate_or_throw();
+  }
   return data;
 }
 
@@ -185,48 +225,77 @@ bool NCHGResultMetadata::FileMetadataCmp::operator()(const std::filesystem::path
   return lhs < rhs.name;
 }
 
-void NCHGResultMetadata::validate() const {
-  if (_format != "NCHG metadata") {
-    throw std::runtime_error(fmt::format("unrecognized format \"{}\"", _format));
-  }
-
-  if (_digest_algorithm != "XXH3 (128 bits)") {
-    throw std::runtime_error(
-        fmt::format("unrecognized digest-algorithm \"{}\"", _digest_algorithm));
-  }
-
-  if (_digest_sample_size == 0) {
-    throw std::runtime_error("digest-sample-size cannot be 0");
-  }
-
-  auto computed_digest = checksum();
-  if (computed_digest != _digest()) {
-    throw std::runtime_error(
-        fmt::format("checksum mismatch: expected {}, found {}", _digest(), computed_digest));
-  }
-
-  std::size_t i = 0;
-  auto first = _records.begin();
-  const auto last = _records.end();
-
-  if (first == last) {
-    return;
-  }
-
+auto NCHGResultMetadata::validate() const noexcept -> ValidationResult {
+  ValidationResult result{};
   try {
+    if (_format != "NCHG metadata") {
+      result.report_validation_failures.emplace_back(
+          fmt::format("unrecognized format \"{}\"", _format));
+    }
+
+    if (_digest_algorithm != "XXH3 (128 bits)") {
+      result.report_validation_failures.emplace_back(
+          fmt::format("unrecognized digest-algorithm \"{}\"", _digest_algorithm));
+    }
+
+    if (_digest_sample_size == 0) {
+      result.report_validation_failures.emplace_back("digest-sample-size cannot be 0");
+    }
+
+    result.successfully_finalized = _digest() != "00000000000000000000000000000000";
+    if (!result) {
+      return result;
+    }
+
+    result.expected_checksum = _digest();
+    result.computed_checksum = checksum();
+    if (result.computed_checksum != _digest()) {
+      result.report_validation_failures.emplace_back(fmt::format(
+          "checksum mismatch: expected {}, found {}", _digest(), result.computed_checksum));
+    }
+
+    std::size_t i = 0;
+    auto first = _records.begin();
+    const auto last = _records.end();
+    result.num_records = _records.size();
+
+    if (first == last) {
+      return result;
+    }
+
     while (first != last) {
       const auto path = _root_dir / first->name;
       if (!std::filesystem::exists(path)) {
-        throw std::runtime_error("file does not exist");
+        result.record_validation_failures.emplace_back(
+            path, fmt::format("failed to validate record #{} (file \"{}\"): file does not exist",
+                              i + 1, first->name.string()));
+        ++first;
+        continue;
       }
-      computed_digest = hash_file(path, static_cast<std::streamsize>(_digest_sample_size));
-      first->validate(computed_digest, _root_dir);
+      const auto computed_digest =
+          hash_file(path, static_cast<std::streamsize>(_digest_sample_size));
+      try {
+        first->validate(computed_digest, _root_dir);
+      } catch (const std::exception& e) {
+        result.record_validation_failures.emplace_back(
+            path, fmt::format("failed to validate record #{} (file \"{}\"): {}", i + 1,
+                              first->name.string(), e.what()));
+      }
       ++i;
       ++first;
     }
-  } catch (const std::exception& e) {
-    throw std::runtime_error(fmt::format("failed to validate record #{} (file \"{}\"): {}", i + 1,
-                                         first->name.string(), e.what()));
+  } catch (...) {
+    result.unhandled_exception = std::current_exception();
+    result.report_validation_failures.clear();
+    result.record_validation_failures.clear();
+  }
+  return result;
+}
+
+void NCHGResultMetadata::validate_or_throw() const {
+  const auto result = validate();
+  if (!result) {
+    result.throw_exception();
   }
 }
 
@@ -275,10 +344,10 @@ std::string NCHGResultMetadata::checksum(std::istream& stream) {
   NCHGResultMetadata data{};
   if (const auto ec = glz::read<opts>(data, strbuf); ec) {
     throw std::runtime_error(
-        fmt::format("not a valid JSON file: {}", glz::format_error(ec, strbuf)));
+        fmt::format("not a valid JSON string:\n{}", glz::format_error(ec, strbuf)));
   }
 
-  data.validate();
+  data.validate_or_throw();
   return data.checksum();
 }
 

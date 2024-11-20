@@ -56,7 +56,6 @@ NCHG_DISABLE_WARNING_POP
 #include "nchg/tools/tools.hpp"
 
 namespace nchg {
-
 using FileIteratorVect = std::vector<ParquetStatsFileReader::iterator<NCHGResult>>;
 struct FileIteratorPairs {
   FileIteratorVect heads;
@@ -136,12 +135,17 @@ struct FileIteratorPairs {
       const auto path =
           fmt::format("{}.{}.{}.parquet", input_prefix.string(), chrom1.name(), chrom2.name());
       if (std::filesystem::exists(path)) {
-        ParquetStatsFileReader f(path, ParquetStatsFileReader::RecordType::NCHGCompute);
-        auto first = f.begin<NCHGResult>();
-        auto last = f.end<NCHGResult>();
-        if (first != last) [[likely]] {
-          heads.emplace_back(std::move(first));
-          tails.emplace_back(std::move(last));
+        try {
+          ParquetStatsFileReader f(path, ParquetStatsFileReader::RecordType::NCHGCompute);
+          auto first = f.begin<NCHGResult>();
+          auto last = f.end<NCHGResult>();
+          if (first != last) [[likely]] {
+            heads.emplace_back(std::move(first));
+            tails.emplace_back(std::move(last));
+          }
+        } catch (const std::exception &e) {
+          throw std::runtime_error(
+              fmt::format("failed to initialize iterators for file \"{}\": {}", path, e.what()));
         }
       }
     }
@@ -256,6 +260,204 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
   }
 }
 
+[[noreturn]] static void handle_incomplete_output() {
+  throw std::runtime_error(
+      "input files validation failed: detected incomplete and/or corrupted input file(s).\n"
+      "This suggests that a previous run of NCHG compute did not complete successfully.\n"
+      "Possible reasons are:\n"
+      " - NCHG compute encountered an error\n"
+      " - NCHG compute was killed by the OS due to e.g. running out of memory\n"
+      " - NCHG compute was killed by a workflow manager, such as SLURM, due to e.g. running "
+      "out of time or resources\n"
+      "\n"
+      "If you are sure that all files produced by NCHG compute are available and are not "
+      "corrupted, you can pass --ignore-report-file to NCHG merge to disable input file "
+      "validation.");
+}
+
+[[noreturn]] static void handle_invalid_report_file(
+    const std::filesystem::path &path, const NCHGResultMetadata::ValidationResult &res) {
+  try {
+    res.throw_exception();
+  } catch (const std::runtime_error &e) {
+    throw std::runtime_error(fmt::format(
+        "input files validation failed: report file \"{}\" is corrupted or incomplete:\n{}",
+        path.string(), e.what()));
+  }
+}
+
+[[nodiscard]] static auto classify_invalid_records(
+    const NCHGResultMetadata::ValidationResult &res) {
+  struct InvalidRecordsReport {
+    std::vector<std::pair<std::filesystem::path, std::string>> missing_files{};
+    std::vector<std::pair<std::filesystem::path, std::string>> size_mismatch{};
+    std::vector<std::pair<std::filesystem::path, std::string>> checksum_mismatch{};
+    std::vector<std::pair<std::filesystem::path, std::string>> other_errors{};
+  };
+
+  InvalidRecordsReport result{};
+  for (const auto &[file, msg] : res.record_validation_failures) {
+    if (msg.contains("file does not exist")) {
+      result.missing_files.emplace_back(file, msg);
+    } else if (msg.contains("file size mismatch: ")) {
+      constexpr std::string_view query{"file size mismatch: "};
+      const auto offset = msg.find(query) + query.size();
+      result.size_mismatch.emplace_back(file, msg.substr(offset));
+    } else if (msg.contains("checksum mismatch: ")) {
+      constexpr std::string_view query{"checksum mismatch: "};
+      const auto offset = msg.find(query) + query.size();
+      result.checksum_mismatch.emplace_back(file, msg.substr(offset));
+    } else {
+      result.other_errors.emplace_back(file, msg);
+    }
+  }
+
+  return result;
+}
+
+[[nodiscard]] static std::string generate_suggestions(
+    const std::filesystem::path &path,
+    const std::vector<std::pair<std::filesystem::path, std::string>> &missing_files,
+    const std::vector<std::pair<std::filesystem::path, std::string>> &size_mismatch,
+    const std::vector<std::pair<std::filesystem::path, std::string>> &checksum_mismatch) {
+  if (missing_files.empty() && size_mismatch.empty() && checksum_mismatch.empty()) {
+    return "";
+  }
+
+  std::string suggestions{"Suggestions:"};
+  if (!missing_files.empty()) {
+    suggestions += fmt::format(
+        "\n - Make sure no file has been deleted or renamed.\n"
+        "   If files have been move to a different folder, please make sure that all files "
+        "listed in \"{}\" have been moved to the new location.",
+        std::filesystem::canonical(path).string());
+  }
+
+  if (size_mismatch.size() + checksum_mismatch.size() != 0) {
+    suggestions +=
+        "\n - Make sure that files with a different size or checksum have not been overwritten or "
+        "modified after their creation.\n"
+        "   If you are sure that all files produced by NCHG compute are available and are not "
+        "corrupted, you can pass --ignore-report-file to NCHG merge to disable input file "
+        "validation.";
+  }
+
+  return suggestions;
+}
+
+[[nodiscard]] static std::string report_missing_files(
+    const std::vector<std::pair<std::filesystem::path, std::string>> &missing_files) {
+  assert(!missing_files.empty());
+  constexpr std::string_view prefix = "\n    - ";
+  std::vector<std::string> buffer{};
+  std::ranges::transform(missing_files, std::back_inserter(buffer),
+                         [](const auto &kv) { return kv.first.string(); });
+
+  return fmt::format("\n - Missing file(s):{}{}", prefix, fmt::join(buffer, prefix));
+}
+
+[[nodiscard]] static std::string report_size_mismatch(
+    const std::vector<std::pair<std::filesystem::path, std::string>> &size_mismatch) {
+  assert(!size_mismatch.empty());
+  constexpr std::string_view prefix = "\n    - ";
+  std::vector<std::string> buffer{};
+  std::ranges::transform(size_mismatch, std::back_inserter(buffer), [](const auto &kv) {
+    return fmt::format("{}: {}", kv.first.string(), kv.second);
+  });
+  return fmt::format("\n - File size mismatch:{}{}", prefix, fmt::join(buffer, prefix));
+}
+
+[[nodiscard]] static std::string report_checksum_mismatch(
+    const std::vector<std::pair<std::filesystem::path, std::string>> &checksum_mismatch) {
+  assert(!checksum_mismatch.empty());
+  constexpr std::string_view prefix = "\n    - ";
+  std::vector<std::string> buffer{};
+  std::ranges::transform(checksum_mismatch, std::back_inserter(buffer), [](const auto &kv) {
+    return fmt::format("{}: {}", kv.first.string(), kv.second);
+  });
+
+  return fmt::format("\n - File checksum mismatch:{}{}", prefix, fmt::join(buffer, prefix));
+}
+
+[[nodiscard]] static std::string report_other_errors(
+    const std::vector<std::pair<std::filesystem::path, std::string>> &other_errors) {
+  assert(!other_errors.empty());
+  constexpr std::string_view prefix = "\n    - ";
+  std::vector<std::string> buffer{};
+  std::ranges::transform(other_errors, std::back_inserter(buffer), [](const auto &kv) {
+    return fmt::format("{}: {}", kv.first.string(), kv.second);
+  });
+
+  return fmt::format("\n - Other errors:{}{}", prefix, fmt::join(buffer, prefix));
+}
+
+[[noreturn]] static void handle_invalid_records(const std::filesystem::path &path,
+                                                const NCHGResultMetadata::ValidationResult &res) {
+  const auto [missing_files, size_mismatch, checksum_mismatch, other_errors] =
+      classify_invalid_records(res);
+
+  std::string msg{"input files validation failed:"};
+
+  if (!missing_files.empty()) {
+    msg += report_missing_files(missing_files);
+  }
+
+  if (!size_mismatch.empty()) {
+    msg += report_size_mismatch(size_mismatch);
+  }
+
+  if (!checksum_mismatch.empty()) {
+    msg += report_checksum_mismatch(checksum_mismatch);
+  }
+
+  if (!other_errors.empty()) {
+    msg += report_other_errors(other_errors);
+  }
+
+  const auto suggestions =
+      generate_suggestions(path, missing_files, size_mismatch, checksum_mismatch);
+
+  std::string summary{"Summary:"};
+  if (!missing_files.empty()) {
+    summary += fmt::format("\n - {} record(s) refer to non-existing files", missing_files.size());
+  }
+  if (!size_mismatch.empty() || !checksum_mismatch.empty()) {
+    summary += fmt::format("\n - {} file(s) have changed after their creation",
+                           size_mismatch.size() + checksum_mismatch.size());
+  }
+
+  throw std::runtime_error(
+      fmt::format("{}{}{}\n{}", msg, suggestions.empty() ? "" : "\n", suggestions, summary));
+}
+
+static void handle_validation_errors(const std::filesystem::path &path,
+                                     const NCHGResultMetadata::ValidationResult &res) {
+  if (!!res) [[likely]] {
+    return;
+  }
+
+  if (!res.successfully_finalized) {
+    handle_incomplete_output();
+  }
+
+  if (!res.report_validation_failures.empty()) {
+    handle_invalid_report_file(path, res);
+  }
+
+  if (!res.record_validation_failures.empty()) {
+    handle_invalid_records(path, res);
+  }
+
+  try {
+    res.throw_exception();
+  } catch (const std::runtime_error &e) {
+    throw std::runtime_error(
+        fmt::format("input files validation failed: an unhandled exception occurred while parsing "
+                    "report file \"{}\": {}",
+                    path.string(), e.what()));
+  }
+}
+
 static void validate_input_files(const std::filesystem::path &input_prefix) {
   const auto path_to_report = generate_report_name(input_prefix);
   SPDLOG_INFO("using \"{}\" to validate input files...", path_to_report);
@@ -266,16 +468,13 @@ static void validate_input_files(const std::filesystem::path &input_prefix) {
                     path_to_report));
   }
 
-  try {
-    const auto t0 = std::chrono::steady_clock::now();
-    const auto metadata = NCHGResultMetadata::from_file(path_to_report);
-    metadata.validate();
-    const auto t1 = std::chrono::steady_clock::now();
-    SPDLOG_INFO("SUCCESS! Validated {} files in {}", metadata.records().size(),
-                format_duration(t1 - t0));
-  } catch (const std::exception &e) {
-    throw std::runtime_error(fmt::format("input files validation failed: {}", e.what()));
-  }
+  const auto t0 = std::chrono::steady_clock::now();
+  const auto metadata = NCHGResultMetadata::from_file(path_to_report, false);
+  const auto validation_result = metadata.validate();
+  handle_validation_errors(path_to_report, validation_result);
+  const auto t1 = std::chrono::steady_clock::now();
+  SPDLOG_INFO("SUCCESS! Validated {} files in {}", metadata.records().size(),
+              format_duration(t1 - t0));
 }
 
 [[nodiscard]] static hictk::Reference import_chromosomes(

@@ -151,26 +151,22 @@ NCHGResultMetadata NCHGResultMetadata::from_file(const std::filesystem::path& pa
 
 NCHGResultMetadata NCHGResultMetadata::from_stream(std::istream& stream,
                                                    const std::filesystem::path& root_dir) {
-  try {
-    stream.seekg(0, std::ios::end);
-    std::string strbuf{};
-    strbuf.resize(static_cast<std::size_t>(stream.tellg()));
-    stream.seekg(0, std::ios::beg);
-    stream.read(strbuf.data(), static_cast<std::streamoff>(strbuf.size()));
+  stream.seekg(0, std::ios::end);
+  std::string strbuf{};
+  strbuf.resize(static_cast<std::size_t>(stream.tellg()));
+  stream.seekg(0, std::ios::beg);
+  stream.read(strbuf.data(), static_cast<std::streamoff>(strbuf.size()));
 
-    constexpr glz::opts opts{.error_on_missing_keys = true};
+  constexpr glz::opts opts{.error_on_missing_keys = true};
 
-    NCHGResultMetadata data{};
-    if (const auto ec = glz::read<opts>(data, strbuf); ec) {
-      throw std::runtime_error(glz::format_error(ec, strbuf));
-    }
-
-    data._root_dir = root_dir;
-    data.validate();
-    return data;
-  } catch (const std::exception& e) {
-    throw std::runtime_error(fmt::format("failed to import metadata: {}", e.what()));
+  NCHGResultMetadata data{};
+  if (const auto ec = glz::read<opts>(data, strbuf); ec) {
+    throw std::runtime_error(glz::format_error(ec, strbuf));
   }
+
+  data._root_dir = root_dir;
+  data.validate();
+  return data;
 }
 
 bool NCHGResultMetadata::FileMetadataCmp::operator()(const FileMetadata& lhs,

@@ -40,6 +40,12 @@ struct CartesianProductConfig {
   std::uint8_t verbosity{3};
 };
 
+struct ChecksumConfig {
+  std::vector<std::filesystem::path> files{};
+
+  std::uint8_t verbosity{3};
+};
+
 struct ComputePvalConfig {
   std::filesystem::path exec{};
   std::filesystem::path path_to_hic{};
@@ -150,6 +156,7 @@ struct ViewConfig {
 using Config = std::variant<
     std::monostate,
     CartesianProductConfig,
+    ChecksumConfig,
     ComputePvalConfig,
     ExpectedConfig,
     FilterConfig,

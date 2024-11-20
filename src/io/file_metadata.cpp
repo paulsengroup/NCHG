@@ -218,12 +218,12 @@ void NCHGResultMetadata::validate() const {
 
   try {
     while (first != last) {
-      if (std::filesystem::exists(first->name)) {
-        computed_digest = hash_file(first->name, static_cast<std::streamsize>(_digest_sample_size));
-        first->validate(computed_digest, _root_dir);
-      } else {
-        first->validate("", _root_dir);
+      const auto path = _root_dir / first->name;
+      if (!std::filesystem::exists(path)) {
+        throw std::runtime_error("file does not exist");
       }
+      computed_digest = hash_file(path, static_cast<std::streamsize>(_digest_sample_size));
+      first->validate(computed_digest, _root_dir);
       ++i;
       ++first;
     }

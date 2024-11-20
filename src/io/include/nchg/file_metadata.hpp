@@ -26,6 +26,7 @@ NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
 NCHG_DISABLE_WARNING_POP
 // clang-format on
 
+#include <BS_thread_pool.hpp>
 #include <compare>
 #include <cstddef>
 #include <exception>
@@ -107,7 +108,7 @@ class NCHGResultMetadata {
   static NCHGResultMetadata from_stream(std::istream& stream, const std::filesystem::path& root_dir,
                                         bool validate_ = true);
 
-  [[nodiscard]] auto validate() const noexcept -> ValidationResult;
+  [[nodiscard]] auto validate(BS::thread_pool* tpool = nullptr) const noexcept -> ValidationResult;
   void validate_or_throw() const;
   [[nodiscard]] std::string checksum() const;
   [[nodiscard]] static std::string checksum(const std::filesystem::path& path_);

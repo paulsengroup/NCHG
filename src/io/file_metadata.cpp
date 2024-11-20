@@ -29,10 +29,13 @@ NCHG_DISABLE_WARNING_POP
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 
+#include <BS_thread_pool.hpp>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <glaze/glaze_exceptions.hpp>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -225,7 +228,30 @@ bool NCHGResultMetadata::FileMetadataCmp::operator()(const std::filesystem::path
   return lhs < rhs.name;
 }
 
-auto NCHGResultMetadata::validate() const noexcept -> ValidationResult {
+static void checksum_file(const NCHGResultMetadata::FileMetadata& record, std::size_t i,
+                          const std::filesystem::path& root_dir, std::size_t sample_size,
+                          NCHGResultMetadata::ValidationResult& result, std::mutex& mtx) {
+  const auto path = root_dir / record.name;
+  if (!std::filesystem::exists(path)) {
+    [[maybe_unused]] const auto lck = std::scoped_lock(mtx);
+    result.record_validation_failures.emplace_back(
+        path, fmt::format("failed to validate record #{} (file \"{}\"): file does not exist", i + 1,
+                          record.name.string()));
+    return;
+  }
+
+  const auto computed_digest = hash_file(path, static_cast<std::streamsize>(sample_size));
+  try {
+    record.validate(computed_digest, root_dir);
+  } catch (const std::exception& e) {
+    [[maybe_unused]] const auto lck = std::scoped_lock(mtx);
+    result.record_validation_failures.emplace_back(
+        path, fmt::format("failed to validate record #{} (file \"{}\"): {}", i + 1,
+                          record.name.string(), e.what()));
+  }
+}
+
+auto NCHGResultMetadata::validate(BS::thread_pool* tpool) const noexcept -> ValidationResult {
   ValidationResult result{};
   try {
     if (_format != "NCHG metadata") {
@@ -254,7 +280,6 @@ auto NCHGResultMetadata::validate() const noexcept -> ValidationResult {
           "checksum mismatch: expected {}, found {}", _digest(), result.computed_checksum));
     }
 
-    std::size_t i = 0;
     auto first = _records.begin();
     const auto last = _records.end();
     result.num_records = _records.size();
@@ -263,27 +288,27 @@ auto NCHGResultMetadata::validate() const noexcept -> ValidationResult {
       return result;
     }
 
-    while (first != last) {
-      const auto path = _root_dir / first->name;
-      if (!std::filesystem::exists(path)) {
-        result.record_validation_failures.emplace_back(
-            path, fmt::format("failed to validate record #{} (file \"{}\"): file does not exist",
-                              i + 1, first->name.string()));
-        ++first;
-        continue;
+    std::vector<std::future<void>> results{};
+    if (tpool) {
+      results.reserve(_records.size());
+    }
+
+    std::mutex mtx;
+    for (std::size_t i = 0; first != last; ++i) {
+      if (tpool) {
+        results.emplace_back(tpool->submit_task([this, i, record = *first, &result, &mtx]() {
+          checksum_file(record, i, _root_dir, _digest_sample_size, result, mtx);
+        }));
+      } else {
+        checksum_file(*first, i, _root_dir, _digest_sample_size, result, mtx);
       }
-      const auto computed_digest =
-          hash_file(path, static_cast<std::streamsize>(_digest_sample_size));
-      try {
-        first->validate(computed_digest, _root_dir);
-      } catch (const std::exception& e) {
-        result.record_validation_failures.emplace_back(
-            path, fmt::format("failed to validate record #{} (file \"{}\"): {}", i + 1,
-                              first->name.string(), e.what()));
-      }
-      ++i;
       ++first;
     }
+
+    for (auto& res : results) {
+      res.get();
+    }
+
   } catch (...) {
     result.unhandled_exception = std::current_exception();
     result.report_validation_failures.clear();

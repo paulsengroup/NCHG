@@ -31,6 +31,7 @@ NCHG_DISABLE_WARNING_POP
 #include <moodycamel/blockingconcurrentqueue.h>
 #include <spdlog/spdlog.h>
 
+#include <BS_thread_pool.hpp>
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -538,7 +539,7 @@ static void handle_validation_errors(const std::filesystem::path &path,
   }
 }
 
-static void validate_input_files(const std::filesystem::path &input_prefix) {
+static void validate_input_files(const std::filesystem::path &input_prefix, std::size_t threads) {
   const auto path_to_report = generate_report_name(input_prefix);
   SPDLOG_INFO("using \"{}\" to validate input files...", path_to_report);
   if (!std::filesystem::exists(path_to_report)) {
@@ -550,7 +551,10 @@ static void validate_input_files(const std::filesystem::path &input_prefix) {
 
   const auto t0 = std::chrono::steady_clock::now();
   const auto metadata = NCHGResultMetadata::from_file(path_to_report, false);
-  const auto validation_result = metadata.validate();
+  std::unique_ptr<BS::thread_pool> tpool =
+      threads > 1 ? std::make_unique<BS::thread_pool>(static_cast<BS::concurrency_t>(threads))
+                  : nullptr;
+  const auto validation_result = metadata.validate(tpool.get());
   handle_validation_errors(path_to_report, validation_result);
   const auto t1 = std::chrono::steady_clock::now();
   SPDLOG_INFO("SUCCESS! Validated {} files in {}", metadata.records().size(),
@@ -575,7 +579,7 @@ int run_command(const MergeConfig &c) {
   const auto t0 = std::chrono::steady_clock::now();
 
   if (!c.ignore_report_file) {
-    validate_input_files(c.input_prefix);
+    validate_input_files(c.input_prefix, c.threads);
   }
   const auto chroms = import_chromosomes(c.input_prefix);
   const auto iterator_pairs = init_file_iterator_pairs(chroms, c);

@@ -17,11 +17,13 @@
 # <https://www.gnu.org/licenses/>.
 
 find_package(Arrow REQUIRED)
+find_package(bshoshany-thread-pool REQUIRED)
 find_package(FMT REQUIRED)
 find_package(glaze REQUIRED)
 find_package(hictk REQUIRED)
 find_package(phmap REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(Threads REQUIRED)
 find_package(xxHash REQUIRED)
 
 add_library(nchg_io STATIC)
@@ -60,9 +62,11 @@ target_link_libraries(
   PUBLIC
     nchg::common
     Arrow::arrow_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
+    bshoshany-thread-pool::bshoshany-thread-pool
     glaze::glaze
     hictk::libhictk
     Parquet::parquet_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
     phmap
+    Threads::Threads
     xxHash::xxhash
 )

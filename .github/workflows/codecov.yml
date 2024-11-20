@@ -491,15 +491,34 @@ jobs:
 
           rm "$OUT_PREFIX"*
 
-      - name: Test NCHG merge
+      - name: Test NCHG merge w/ input validation
         run: |
-          LLVM_PROFILE_FILE="$PWD/nchg.merge.profraw"
+          LLVM_PROFILE_FILE="$PWD/nchg.merge.with-validation.profraw"
 
           sudo -u devel                                        \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
           build/src/nchg/NCHG merge                            \
             "$DATA_DIR/compute/$OUT_PREFIX"                    \
             "$OUT_PREFIX.parquet"                              \
+            --use-report-file                                  \
+            --threads "$(nproc)"
+
+          test/scripts/validate_nchg_output.py merge \
+            "$OUT_PREFIX.parquet"                    \
+            "$DATA_DIR/merge/$OUT_PREFIX.parquet"
+
+          rm "$OUT_PREFIX"*
+
+      - name: Test NCHG merge wo/ input validation
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.merge.without-validation.profraw"
+
+          sudo -u devel                                        \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG merge                            \
+            "$DATA_DIR/compute/$OUT_PREFIX"                    \
+            "$OUT_PREFIX.parquet"                              \
+            --ignore-report-file                               \
             --threads "$(nproc)"
 
           test/scripts/validate_nchg_output.py merge \

@@ -218,6 +218,11 @@ def validate_columns(expected: pd.DataFrame, found: pd.DataFrame, path: pathlib.
     logging.debug("column validation for %s was successful", path)
 
 
+def validate_log_file(path: pathlib.Path):
+    if not path.exists():
+        raise RuntimeError(f"log file {path} does not exist")
+
+
 def validate_report(path: pathlib.Path):
     logging.debug("validating report file %s", path)
     try:
@@ -492,6 +497,7 @@ def validate_nchg_compute(test_prefix: pathlib.Path, ref_prefix: pathlib.Path) -
     if test_prefix == ref_prefix:
         raise RuntimeError(f"test-prefix and ref-prefix point to the same files: {ref_prefix}")
 
+    validate_log_file(pathlib.Path(f"{test_prefix}.log"))
     validate_report(pathlib.Path(f"{test_prefix}.json"))
 
     expected_chrom_sizes = import_chrom_sizes(pathlib.Path(f"{ref_prefix}.chrom.sizes"))

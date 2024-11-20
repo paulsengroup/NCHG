@@ -33,16 +33,20 @@ NCHG_DISABLE_WARNING_POP
 
 #include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <filesystem>
 #include <future>
+#include <hictk/reference.hpp>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
+#include "nchg/file_metadata.hpp"
 #include "nchg/k_merger.hpp"
 #include "nchg/nchg.hpp"
 #include "nchg/parquet_stats_file_reader.hpp"
@@ -53,22 +57,84 @@ NCHG_DISABLE_WARNING_POP
 
 namespace nchg {
 
-[[nodiscard]] static std::pair<std::vector<ParquetStatsFileReader::iterator<NCHGResult>>,
-                               std::vector<ParquetStatsFileReader::iterator<NCHGResult>>>
-init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference &chroms) {
-  std::vector<ParquetStatsFileReader::iterator<NCHGResult>> heads{};
-  std::vector<ParquetStatsFileReader::iterator<NCHGResult>> tails{};
+using FileIteratorVect = std::vector<ParquetStatsFileReader::iterator<NCHGResult>>;
+struct FileIteratorPairs {
+  FileIteratorVect heads;
+  FileIteratorVect tails;
+};
 
-  SPDLOG_INFO("enumerating chrom-chrom tables under prefix {}...", prefix);
+[[nodiscard]] static std::string generate_chrom_sizes_name(
+    const std::filesystem::path &input_prefix) {
+  return fmt::format("{}.chrom.sizes", input_prefix.string());
+}
+
+[[nodiscard]] static std::string generate_report_name(const std::filesystem::path &input_prefix) {
+  return fmt::format("{}.json", input_prefix);
+}
+
+[[nodiscard]] static FileIteratorPairs init_file_iterator_pairs(
+    const NCHGResultMetadata &metadata, const std::filesystem::path &input_prefix) {
+  try {
+    assert(!metadata.records().empty());
+
+    SPDLOG_INFO("enumerating tables based on file(s) listed in report file \"{}\"...",
+                generate_report_name(input_prefix));
+
+    const auto root_folder = input_prefix.has_parent_path() ? input_prefix.parent_path()
+                                                            : std::filesystem::current_path();
+
+    FileIteratorPairs result;
+    auto &[heads, tails] = result;
+    heads.reserve(metadata.records().size() - 1);
+    tails.reserve(metadata.records().size() - 1);
+
+    for (const auto &record : metadata.records()) {
+      if (record.name.extension() != ".parquet") {
+        continue;
+      }
+
+      try {
+        ParquetStatsFileReader f(root_folder / record.name,
+                                 ParquetStatsFileReader::RecordType::NCHGCompute);
+        auto first = f.begin<NCHGResult>();
+        auto last = f.end<NCHGResult>();
+        if (first != last) [[likely]] {
+          heads.emplace_back(std::move(first));
+          tails.emplace_back(std::move(last));
+        }
+      } catch (const std::exception &e) {
+        throw std::runtime_error(fmt::format("failed to initialize iterators for file \"{}\": {}",
+                                             root_folder / record.name, e.what()));
+      }
+    }
+
+    return result;
+  } catch (const std::exception &e) {
+    throw std::runtime_error(
+        fmt::format("failed to enumerate tables under prefix \"{}\": {}", input_prefix, e.what()));
+  }
+}
+
+[[nodiscard]] static FileIteratorPairs init_file_iterator_pairs(
+    const std::filesystem::path &input_prefix, const hictk::Reference &chroms) {
+  SPDLOG_INFO("enumerating table based on chromosome(s) listed in \"{}\"...",
+              generate_chrom_sizes_name(input_prefix));
+  FileIteratorPairs result;
+  auto &[heads, tails] = result;
+
   for (std::uint32_t chrom1_id = 0; chrom1_id < chroms.size(); ++chrom1_id) {
     const auto &chrom1 = chroms.at(chrom1_id);
     if (chrom1.is_all()) [[unlikely]] {
-      break;
+      continue;
     }
     for (std::uint32_t chrom2_id = chrom1_id; chrom2_id < chroms.size(); ++chrom2_id) {
       const auto &chrom2 = chroms.at(chrom2_id);
+      if (chrom2.is_all()) [[unlikely]] {
+        continue;
+      }
+
       const auto path =
-          fmt::format("{}.{}.{}.parquet", prefix.string(), chrom1.name(), chrom2.name());
+          fmt::format("{}.{}.{}.parquet", input_prefix.string(), chrom1.name(), chrom2.name());
       if (std::filesystem::exists(path)) {
         ParquetStatsFileReader f(path, ParquetStatsFileReader::RecordType::NCHGCompute);
         auto first = f.begin<NCHGResult>();
@@ -80,25 +146,41 @@ init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference 
       }
     }
   }
+  return result;
+}
 
-  if (heads.empty()) {
-    throw std::runtime_error(fmt::format("unable to find any table under prefix {}", prefix));
+[[nodiscard]] static FileIteratorPairs init_file_iterator_pairs(const hictk::Reference &chroms,
+                                                                const MergeConfig &c) {
+  try {
+    const auto t0 = std::chrono::steady_clock::now();
+
+    const auto report_path = generate_report_name(c.input_prefix);
+    auto its =
+        std::filesystem::exists(report_path)
+            ? init_file_iterator_pairs(NCHGResultMetadata::from_file(report_path), c.input_prefix)
+            : init_file_iterator_pairs(c.input_prefix, chroms);
+
+    if (its.heads.empty()) {
+      throw std::runtime_error("unable to find any non-empty table");
+    }
+
+    const auto t1 = std::chrono::steady_clock::now();
+    SPDLOG_INFO("enumerated {} non-empty table(s) in {}", its.heads.size(),
+                format_duration(t1 - t0));
+    return its;
+  } catch (const std::exception &e) {
+    throw std::runtime_error(fmt::format("failed to enumerate tables under prefix \"{}\": {}",
+                                         c.input_prefix.string(), e.what()));
   }
-
-  SPDLOG_INFO("enumerated {} non-empty tables", heads.size());
-
-  return {heads, tails};
 }
 
 using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
 
-[[nodiscard]] static std::size_t producer_fx(const hictk::Reference &chromosomes,
-                                             const std::filesystem::path &input_prefix,
+[[nodiscard]] static std::size_t producer_fx(const FileIteratorPairs &iterator_pairs,
                                              RecordQueue &queue, std::atomic<bool> &early_return) {
   try {
     std::size_t records_enqueued{};
-    auto [heads, tails] = init_file_iterators(input_prefix, chromosomes);
-    const KMerger merger(heads, tails);
+    const KMerger merger(iterator_pairs.heads, iterator_pairs.tails);
 
     for (const auto &s : merger) {
       while (!queue.try_enqueue(s)) [[unlikely]] {
@@ -174,21 +256,54 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
   }
 }
 
+static void validate_input_files(const std::filesystem::path &input_prefix) {
+  const auto path_to_report = generate_report_name(input_prefix);
+  SPDLOG_INFO("using \"{}\" to validate input files...", path_to_report);
+  if (!std::filesystem::exists(path_to_report)) {
+    throw std::runtime_error(fmt::format(
+        "unable to verify file integrity: file \"{}\" is missing: no such file or directory",
+        path_to_report));
+  }
+
+  try {
+    const auto t0 = std::chrono::steady_clock::now();
+    const auto metadata = NCHGResultMetadata::from_file(path_to_report);
+    metadata.validate();
+    const auto t1 = std::chrono::steady_clock::now();
+    SPDLOG_INFO("SUCCESS! Validated {} files in {}", metadata.records().size(),
+                format_duration(t1 - t0));
+  } catch (const std::exception &e) {
+    throw std::runtime_error(fmt::format("input files validation failed: {}", e.what()));
+  }
+}
+
+[[nodiscard]] static hictk::Reference import_chromosomes(
+    const std::filesystem::path &input_prefix) {
+  try {
+    const auto path_to_chrom_sizes = generate_chrom_sizes_name(input_prefix);
+    SPDLOG_INFO("reading chromosomes from \"{}\"...", path_to_chrom_sizes);
+    auto chroms = hictk::Reference::from_chrom_sizes(path_to_chrom_sizes);
+    SPDLOG_INFO("read {} chromosomes!", chroms.size());
+    return chroms;
+  } catch (const std::exception &e) {
+    throw std::runtime_error(
+        fmt::format("failed to read chromosomes from \"{}\": {}", input_prefix, e.what()));
+  }
+}
+
 int run_command(const MergeConfig &c) {
   const auto t0 = std::chrono::steady_clock::now();
 
-  const auto path_to_chrom_sizes = fmt::format("{}.chrom.sizes", c.input_prefix.string());
-
-  SPDLOG_INFO("reading chromosomes from \"{}\"...", path_to_chrom_sizes);
-  const auto chroms = hictk::Reference::from_chrom_sizes(path_to_chrom_sizes);
-  SPDLOG_INFO("read {} chromosomes!", chroms.size());
+  validate_input_files(c.input_prefix);
+  const auto chroms = import_chromosomes(c.input_prefix);
+  const auto iterator_pairs = init_file_iterator_pairs(chroms, c);
 
   moodycamel::BlockingConcurrentQueue<NCHGResult> queue(64 * 1024);
   std::atomic<bool> early_return{false};
 
   auto producer = std::async(std::launch::deferred, [&] {
     SPDLOG_DEBUG("spawning producer thread...");
-    return producer_fx(chroms, c.input_prefix, queue, early_return);
+    return producer_fx(iterator_pairs, queue, early_return);
   });
 
   auto consumer = std::async(std::launch::async, [&] {

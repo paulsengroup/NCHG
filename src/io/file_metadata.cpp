@@ -161,7 +161,8 @@ NCHGResultMetadata NCHGResultMetadata::from_stream(std::istream& stream,
 
   NCHGResultMetadata data{};
   if (const auto ec = glz::read<opts>(data, strbuf); ec) {
-    throw std::runtime_error(glz::format_error(ec, strbuf));
+    throw std::runtime_error(
+        fmt::format("not a valid JSON file: {}", glz::format_error(ec, strbuf)));
   }
 
   data._root_dir = root_dir;
@@ -273,7 +274,8 @@ std::string NCHGResultMetadata::checksum(std::istream& stream) {
   constexpr glz::opts opts{.error_on_missing_keys = true};
   NCHGResultMetadata data{};
   if (const auto ec = glz::read<opts>(data, strbuf); ec) {
-    throw std::runtime_error(glz::format_error(ec, strbuf));
+    throw std::runtime_error(
+        fmt::format("not a valid JSON file: {}", glz::format_error(ec, strbuf)));
   }
 
   data.validate();

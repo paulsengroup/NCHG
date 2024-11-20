@@ -260,9 +260,10 @@ static void validate_input_files(const std::filesystem::path &input_prefix) {
   const auto path_to_report = generate_report_name(input_prefix);
   SPDLOG_INFO("using \"{}\" to validate input files...", path_to_report);
   if (!std::filesystem::exists(path_to_report)) {
-    throw std::runtime_error(fmt::format(
-        "unable to verify file integrity: file \"{}\" is missing: no such file or directory",
-        path_to_report));
+    throw std::runtime_error(
+        fmt::format("unable to verify input file(s) integrity: file \"{}\" is missing: no such "
+                    "file or directory",
+                    path_to_report));
   }
 
   try {

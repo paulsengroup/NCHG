@@ -51,7 +51,7 @@ def duration(s: str) -> float:
     raise RuntimeError(f'"{s}" is not a valid duration')
 
 
-def non_zero_int(s: str) -> int:
+def positive_int(s: str) -> int:
     try:
         n = int(s)
         if n > 0:
@@ -79,9 +79,16 @@ def add_common_flags(parser):
 
     parser.add_argument(
         "--nproc",
-        type=non_zero_int,
+        type=positive_int,
         default=1,
         help="Maximum number of parallel processes to spawn.",
+    )
+
+    parser.add_argument(
+        "--compression-lvl",
+        type=positive_int,
+        default=12,
+        help="Compression level used to generate .parquet files.",
     )
 
     parser.add_argument(
@@ -382,10 +389,12 @@ def run_nchg_compute(
     out_prefix: pathlib.Path,
     domains: pathlib.Path | None,
     nproc: int,
+    compression_lvl: int,
     force: bool,
     timeout: float,
 ) -> pathlib.Path:
-    args = [uri, out_prefix, "--threads", nproc]
+    assert 0 <= compression_lvl <= 22
+    args = [uri, out_prefix, "--threads", nproc, "--compression-level", compression_lvl]
     if domains is not None:
         args.extend(("--domains", domains))
 
@@ -400,13 +409,20 @@ def run_nchg_compute(
 
 
 def run_nchg_merge(
-    nchg_bin: pathlib.Path, input_prefix: pathlib.Path, output_path: pathlib.Path, force: bool, timeout: float
+    nchg_bin: pathlib.Path,
+    input_prefix: pathlib.Path,
+    output_path: pathlib.Path,
+    nproc: int,
+    compression_lvl: int,
+    force: bool,
+    timeout: float,
 ) -> pathlib.Path:
+    assert 0 <= compression_lvl <= 22
+    args = [input_prefix, output_path, "--threads", nproc, "--compression-level", compression_lvl]
     run_nchg_command(
         nchg_bin,
         "merge",
-        input_prefix,
-        output_path,
+        *args,
         force=force,
         timeout=timeout,
     )
@@ -415,13 +431,21 @@ def run_nchg_merge(
 
 
 def run_nchg_filter(
-    nchg_bin: pathlib.Path, input_parquet: pathlib.Path, output_parquet: pathlib.Path, force: bool, timeout: float
+    nchg_bin: pathlib.Path,
+    input_parquet: pathlib.Path,
+    output_parquet: pathlib.Path,
+    nproc: int,
+    compression_lvl: int,
+    force: bool,
+    timeout: float,
 ) -> pathlib.Path:
+    assert 0 <= compression_lvl <= 22
+    args = [input_parquet, output_parquet, "--threads", nproc, "--compression-level", compression_lvl]
+
     run_nchg_command(
         nchg_bin,
         "filter",
-        input_parquet,
-        output_parquet,
+        *args,
         force=force,
         timeout=timeout,
     )
@@ -500,6 +524,7 @@ def generate_all_files(nchg_bin: pathlib.Path, force: bool, timeout: float, args
         outprefix,
         domains,
         args["nproc"],
+        args["compression_lvl"],
         force,
         timeout,
     )
@@ -511,6 +536,7 @@ def generate_all_files(nchg_bin: pathlib.Path, force: bool, timeout: float, args
         outprefix,
         None,
         args["nproc"],
+        args["compression_lvl"],
         force,
         timeout,
     )
@@ -521,6 +547,8 @@ def generate_all_files(nchg_bin: pathlib.Path, force: bool, timeout: float, args
         nchg_bin,
         outprefix,
         output,
+        args["nproc"],
+        args["compression_lvl"],
         force,
         timeout,
     )
@@ -532,6 +560,8 @@ def generate_all_files(nchg_bin: pathlib.Path, force: bool, timeout: float, args
         nchg_bin,
         input,
         output,
+        args["nproc"],
+        args["compression_lvl"],
         force,
         timeout,
     )
@@ -599,6 +629,7 @@ def main():
             args["out-prefix"],
             args["domains"],
             args["nproc"],
+            args["compression_lvl"],
             force,
             timeout,
         )
@@ -607,6 +638,8 @@ def main():
             nchg_bin,
             args["input-prefix"],
             args["output-parquet"],
+            args["nproc"],
+            args["compression_lvl"],
             force,
             timeout,
         )
@@ -615,6 +648,8 @@ def main():
             nchg_bin,
             args["input-parquet"],
             args["output-parquet"],
+            args["nproc"],
+            args["compression_lvl"],
             force,
             timeout,
         )

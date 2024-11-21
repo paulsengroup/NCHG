@@ -345,7 +345,7 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
     throw std::runtime_error(
         fmt::format("{}\n"
                     "An attempt was made to parse log file \"{}\" but the file does not seem to "
-                    "contain helpful information",
+                    "contain helpful information.",
                     msg, log_file_name.string()));
   }
 

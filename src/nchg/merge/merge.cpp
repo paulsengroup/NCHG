@@ -41,9 +41,12 @@ NCHG_DISABLE_WARNING_POP
 #include <exception>
 #include <filesystem>
 #include <future>
+#include <hictk/chromosome.hpp>
 #include <hictk/reference.hpp>
+#include <queue>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -57,10 +60,98 @@ NCHG_DISABLE_WARNING_POP
 #include "nchg/tools/tools.hpp"
 
 namespace nchg {
-using FileIteratorVect = std::vector<ParquetStatsFileReader::iterator<NCHGResult>>;
-struct FileIteratorPairs {
-  FileIteratorVect heads;
-  FileIteratorVect tails;
+
+class ParquetFileMerger {
+  using RecordIterator = ParquetStatsFileReader::iterator<NCHGResult>;
+  using Record = std::tuple<hictk::Chromosome, hictk::Chromosome, std::filesystem::path>;
+
+  std::queue<Record> _files;
+  hictk::Chromosome _chrom1{};
+
+ public:
+  ParquetFileMerger(const hictk::Reference &chroms, std::vector<std::filesystem::path> files)
+      : _files(init_file_queue(chroms, files)) {}
+
+  auto next_chunk() -> std::optional<KMerger<RecordIterator>> {
+    if (_files.empty()) {
+      _chrom1 = {};
+      return {};
+    }
+
+    _chrom1 = std::get<0>(_files.front());
+    std::vector<std::string_view> chroms{};
+    SPDLOG_DEBUG("ParquetFileMerger: processing chunk for {}", _chrom1.name());
+
+    std::vector<RecordIterator> heads{};
+    std::vector<RecordIterator> tails{};
+    while (std::get<0>(_files.front()) == _chrom1) {
+      const auto &[_, chrom2, path] = _files.front();
+      chroms.emplace_back(chrom2.name());
+      auto [first, last] = get_iterators_from_file(path);
+      _files.pop();
+      heads.emplace_back(std::move(first));
+      tails.emplace_back(std::move(last));
+    }
+
+    SPDLOG_DEBUG("ParquetFileMerger: merging {} chunks for {}...", heads.size(), _chrom1.name());
+    return KMerger{heads, tails};
+  }
+
+ private:
+  [[nodiscard]] static std::size_t find_dot_or_throw(std::string_view str, std::size_t offset) {
+    const auto pos = str.rfind('.', offset);
+    if (pos != std::string::npos) {
+      return pos;
+    }
+
+    throw std::runtime_error(fmt::format(
+        "invalid file name \"{}\": file names should be like prefix.chrA.chrB.parquet", str));
+  }
+
+  [[nodiscard]] static hictk::Chromosome fetch_chrom_or_throw(const hictk::Reference &chroms,
+                                                              std::string_view chrom_name) {
+    try {
+      return chroms.at(chrom_name);
+    } catch (const std::out_of_range &) {
+      throw std::out_of_range(
+          fmt::format("unable to find chromosome \"{}\": chromosome not found in "
+                      "reference assembly",
+                      chrom_name));
+    }
+  }
+
+  static auto init_file_queue(const hictk::Reference &chroms,
+                              std::vector<std::filesystem::path> &files) -> std::queue<Record> {
+    std::vector<Record> records(files.size());
+    std::ranges::transform(
+        std::ranges::views::as_rvalue(files), records.begin(), [&](std::filesystem::path &&file) {
+          const auto name = file.stem().string();
+
+          const auto offset2 = find_dot_or_throw(name, name.size());
+          const auto offset1 = find_dot_or_throw(name, offset2 - 1);
+
+          return Record{
+              fetch_chrom_or_throw(chroms, name.substr(offset1 + 1, offset2 - (offset1 + 1))),
+              fetch_chrom_or_throw(chroms, name.substr(offset2 + 1)), std::move(file)};
+        });
+
+    std::ranges::sort(records);
+    return {std::make_move_iterator(records.begin()), std::make_move_iterator(records.end())};
+  }
+
+  static auto get_iterators_from_file(const std::filesystem::path &path)
+      -> std::pair<RecordIterator, RecordIterator> {
+    try {
+      ParquetStatsFileReader f(path, ParquetStatsFileReader::RecordType::NCHGCompute);
+      auto first = f.begin<NCHGResult>();
+      auto last = f.end<NCHGResult>();
+      assert(first != last);
+      return std::make_pair(std::move(first), std::move(last));
+    } catch (const std::exception &e) {
+      throw std::runtime_error(
+          fmt::format("failed to initialize iterators for file \"{}\": {}", path, e.what()));
+    }
+  }
 };
 
 [[nodiscard]] static std::string generate_chrom_sizes_name(
@@ -72,55 +163,39 @@ struct FileIteratorPairs {
   return fmt::format("{}.json", input_prefix);
 }
 
-[[nodiscard]] static FileIteratorPairs init_file_iterator_pairs(
+[[nodiscard]] static std::vector<std::filesystem::path> enumerate_parquet_tables(
     const NCHGResultMetadata &metadata, const std::filesystem::path &input_prefix) {
-  try {
-    assert(!metadata.records().empty());
+  assert(!metadata.records().empty());
 
-    SPDLOG_INFO("enumerating tables based on file(s) listed in report file \"{}\"...",
-                generate_report_name(input_prefix));
+  SPDLOG_INFO("enumerating tables based on file(s) listed in report file \"{}\"...",
+              generate_report_name(input_prefix));
 
-    const auto root_folder = input_prefix.has_parent_path() ? input_prefix.parent_path()
-                                                            : std::filesystem::current_path();
+  const auto root_folder =
+      input_prefix.has_parent_path() ? input_prefix.parent_path() : std::filesystem::current_path();
 
-    FileIteratorPairs result;
-    auto &[heads, tails] = result;
-    heads.reserve(metadata.records().size() - 1);
-    tails.reserve(metadata.records().size() - 1);
+  std::vector<std::filesystem::path> files;
+  files.reserve(metadata.records().size() - 1);
 
-    for (const auto &record : metadata.records()) {
-      if (record.name.extension() != ".parquet") {
-        continue;
-      }
-
-      try {
-        ParquetStatsFileReader f(root_folder / record.name,
-                                 ParquetStatsFileReader::RecordType::NCHGCompute);
-        auto first = f.begin<NCHGResult>();
-        auto last = f.end<NCHGResult>();
-        if (first != last) [[likely]] {
-          heads.emplace_back(std::move(first));
-          tails.emplace_back(std::move(last));
-        }
-      } catch (const std::exception &e) {
-        throw std::runtime_error(fmt::format("failed to initialize iterators for file \"{}\": {}",
-                                             root_folder / record.name, e.what()));
-      }
+  for (const auto &record : metadata.records()) {
+    if (record.name.extension() != ".parquet") {
+      continue;
     }
 
-    return result;
-  } catch (const std::exception &e) {
-    throw std::runtime_error(
-        fmt::format("failed to enumerate tables under prefix \"{}\": {}", input_prefix, e.what()));
+    auto path = root_folder / record.name;
+    ParquetStatsFileReader f(path, ParquetStatsFileReader::RecordType::NCHGCompute);
+    if (f.begin<NCHGResult>() != f.end<NCHGResult>()) {
+      files.emplace_back(std::move(path));
+    }
   }
+
+  return files;
 }
 
-[[nodiscard]] static FileIteratorPairs init_file_iterator_pairs(
+[[nodiscard]] static std::vector<std::filesystem::path> enumerate_parquet_tables(
     const std::filesystem::path &input_prefix, const hictk::Reference &chroms) {
   SPDLOG_INFO("enumerating table based on chromosome(s) listed in \"{}\"...",
               generate_chrom_sizes_name(input_prefix));
-  FileIteratorPairs result;
-  auto &[heads, tails] = result;
+  std::vector<std::filesystem::path> files;
 
   for (std::uint32_t chrom1_id = 0; chrom1_id < chroms.size(); ++chrom1_id) {
     const auto &chrom1 = chroms.at(chrom1_id);
@@ -133,46 +208,37 @@ struct FileIteratorPairs {
         continue;
       }
 
-      const auto path =
+      std::filesystem::path path =
           fmt::format("{}.{}.{}.parquet", input_prefix.string(), chrom1.name(), chrom2.name());
       if (std::filesystem::exists(path)) {
-        try {
-          ParquetStatsFileReader f(path, ParquetStatsFileReader::RecordType::NCHGCompute);
-          auto first = f.begin<NCHGResult>();
-          auto last = f.end<NCHGResult>();
-          if (first != last) [[likely]] {
-            heads.emplace_back(std::move(first));
-            tails.emplace_back(std::move(last));
-          }
-        } catch (const std::exception &e) {
-          throw std::runtime_error(
-              fmt::format("failed to initialize iterators for file \"{}\": {}", path, e.what()));
+        ParquetStatsFileReader f(path, ParquetStatsFileReader::RecordType::NCHGCompute);
+        if (f.begin<NCHGResult>() != f.end<NCHGResult>()) {
+          files.emplace_back(std::move(path));
         }
       }
     }
   }
-  return result;
+  return files;
 }
 
-[[nodiscard]] static FileIteratorPairs init_file_iterator_pairs(const hictk::Reference &chroms,
-                                                                const MergeConfig &c) {
+[[nodiscard]] static std::vector<std::filesystem::path> enumerate_parquet_tables(
+    const hictk::Reference &chroms, const MergeConfig &c) {
   try {
     const auto t0 = std::chrono::steady_clock::now();
 
     const auto report_path = generate_report_name(c.input_prefix);
-    auto its =
+    auto files =
         c.ignore_report_file
-            ? init_file_iterator_pairs(c.input_prefix, chroms)
-            : init_file_iterator_pairs(NCHGResultMetadata::from_file(report_path), c.input_prefix);
+            ? enumerate_parquet_tables(c.input_prefix, chroms)
+            : enumerate_parquet_tables(NCHGResultMetadata::from_file(report_path), c.input_prefix);
 
-    if (its.heads.empty()) {
+    if (files.empty()) {
       throw std::runtime_error("unable to find any non-empty table");
     }
 
     const auto t1 = std::chrono::steady_clock::now();
-    SPDLOG_INFO("enumerated {} non-empty table(s) in {}", its.heads.size(),
-                format_duration(t1 - t0));
-    return its;
+    SPDLOG_INFO("enumerated {} non-empty table(s) in {}", files.size(), format_duration(t1 - t0));
+    return files;
   } catch (const std::exception &e) {
     throw std::runtime_error(fmt::format("failed to enumerate tables under prefix \"{}\": {}",
                                          c.input_prefix.string(), e.what()));
@@ -181,19 +247,27 @@ struct FileIteratorPairs {
 
 using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
 
-[[nodiscard]] static std::size_t producer_fx(const FileIteratorPairs &iterator_pairs,
-                                             RecordQueue &queue, std::atomic<bool> &early_return) {
+[[nodiscard]] static std::size_t producer_fx(
+    const hictk::Reference &chroms, const std::vector<std::filesystem::path> &parquet_files,
+    RecordQueue &queue, std::atomic<bool> &early_return) {
   try {
     std::size_t records_enqueued{};
-    const KMerger merger(iterator_pairs.heads, iterator_pairs.tails);
+    ParquetFileMerger file_merger(chroms, parquet_files);
 
-    for (const auto &s : merger) {
-      while (!queue.try_enqueue(s)) [[unlikely]] {
-        if (early_return) [[unlikely]] {
-          return records_enqueued;
-        }
+    while (true) {
+      auto chunk_merger = file_merger.next_chunk();
+      if (!chunk_merger.has_value()) {
+        break;
       }
-      ++records_enqueued;
+
+      for (const auto &s : *chunk_merger) {
+        while (!queue.try_enqueue(s)) [[unlikely]] {
+          if (early_return) [[unlikely]] {
+            return records_enqueued;
+          }
+        }
+        ++records_enqueued;
+      }
     }
 
     NCHGResult s{};
@@ -582,14 +656,14 @@ int run_command(const MergeConfig &c) {
     validate_input_files(c.input_prefix, c.threads);
   }
   const auto chroms = import_chromosomes(c.input_prefix);
-  const auto iterator_pairs = init_file_iterator_pairs(chroms, c);
+  const auto parquet_files = enumerate_parquet_tables(chroms, c);
 
   moodycamel::BlockingConcurrentQueue<NCHGResult> queue(64 * 1024);
   std::atomic<bool> early_return{false};
 
   auto producer = std::async(std::launch::deferred, [&] {
     SPDLOG_DEBUG("spawning producer thread...");
-    return producer_fx(iterator_pairs, queue, early_return);
+    return producer_fx(chroms, parquet_files, queue, early_return);
   });
 
   auto consumer = std::async(std::launch::async, [&] {

@@ -31,18 +31,23 @@ NCHG_DISABLE_WARNING_POP
 #include <moodycamel/blockingconcurrentqueue.h>
 #include <spdlog/spdlog.h>
 
+#include <BS_thread_pool.hpp>
 #include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <filesystem>
 #include <future>
+#include <hictk/reference.hpp>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
+#include "nchg/file_metadata.hpp"
 #include "nchg/k_merger.hpp"
 #include "nchg/nchg.hpp"
 #include "nchg/parquet_stats_file_reader.hpp"
@@ -52,53 +57,135 @@ NCHG_DISABLE_WARNING_POP
 #include "nchg/tools/tools.hpp"
 
 namespace nchg {
+using FileIteratorVect = std::vector<ParquetStatsFileReader::iterator<NCHGResult>>;
+struct FileIteratorPairs {
+  FileIteratorVect heads;
+  FileIteratorVect tails;
+};
 
-[[nodiscard]] static std::pair<std::vector<ParquetStatsFileReader::iterator<NCHGResult>>,
-                               std::vector<ParquetStatsFileReader::iterator<NCHGResult>>>
-init_file_iterators(const std::filesystem::path &prefix, const hictk::Reference &chroms) {
-  std::vector<ParquetStatsFileReader::iterator<NCHGResult>> heads{};
-  std::vector<ParquetStatsFileReader::iterator<NCHGResult>> tails{};
+[[nodiscard]] static std::string generate_chrom_sizes_name(
+    const std::filesystem::path &input_prefix) {
+  return fmt::format("{}.chrom.sizes", input_prefix.string());
+}
 
-  SPDLOG_INFO("enumerating chrom-chrom tables under prefix {}...", prefix);
-  for (std::uint32_t chrom1_id = 0; chrom1_id < chroms.size(); ++chrom1_id) {
-    const auto &chrom1 = chroms.at(chrom1_id);
-    if (chrom1.is_all()) [[unlikely]] {
-      break;
-    }
-    for (std::uint32_t chrom2_id = chrom1_id; chrom2_id < chroms.size(); ++chrom2_id) {
-      const auto &chrom2 = chroms.at(chrom2_id);
-      const auto path =
-          fmt::format("{}.{}.{}.parquet", prefix.string(), chrom1.name(), chrom2.name());
-      if (std::filesystem::exists(path)) {
-        ParquetStatsFileReader f(path, ParquetStatsFileReader::RecordType::NCHGCompute);
+[[nodiscard]] static std::string generate_report_name(const std::filesystem::path &input_prefix) {
+  return fmt::format("{}.json", input_prefix);
+}
+
+[[nodiscard]] static FileIteratorPairs init_file_iterator_pairs(
+    const NCHGResultMetadata &metadata, const std::filesystem::path &input_prefix) {
+  try {
+    assert(!metadata.records().empty());
+
+    SPDLOG_INFO("enumerating tables based on file(s) listed in report file \"{}\"...",
+                generate_report_name(input_prefix));
+
+    const auto root_folder = input_prefix.has_parent_path() ? input_prefix.parent_path()
+                                                            : std::filesystem::current_path();
+
+    FileIteratorPairs result;
+    auto &[heads, tails] = result;
+    heads.reserve(metadata.records().size() - 1);
+    tails.reserve(metadata.records().size() - 1);
+
+    for (const auto &record : metadata.records()) {
+      if (record.name.extension() != ".parquet") {
+        continue;
+      }
+
+      try {
+        ParquetStatsFileReader f(root_folder / record.name,
+                                 ParquetStatsFileReader::RecordType::NCHGCompute);
         auto first = f.begin<NCHGResult>();
         auto last = f.end<NCHGResult>();
         if (first != last) [[likely]] {
           heads.emplace_back(std::move(first));
           tails.emplace_back(std::move(last));
         }
+      } catch (const std::exception &e) {
+        throw std::runtime_error(fmt::format("failed to initialize iterators for file \"{}\": {}",
+                                             root_folder / record.name, e.what()));
+      }
+    }
+
+    return result;
+  } catch (const std::exception &e) {
+    throw std::runtime_error(
+        fmt::format("failed to enumerate tables under prefix \"{}\": {}", input_prefix, e.what()));
+  }
+}
+
+[[nodiscard]] static FileIteratorPairs init_file_iterator_pairs(
+    const std::filesystem::path &input_prefix, const hictk::Reference &chroms) {
+  SPDLOG_INFO("enumerating table based on chromosome(s) listed in \"{}\"...",
+              generate_chrom_sizes_name(input_prefix));
+  FileIteratorPairs result;
+  auto &[heads, tails] = result;
+
+  for (std::uint32_t chrom1_id = 0; chrom1_id < chroms.size(); ++chrom1_id) {
+    const auto &chrom1 = chroms.at(chrom1_id);
+    if (chrom1.is_all()) [[unlikely]] {
+      continue;
+    }
+    for (std::uint32_t chrom2_id = chrom1_id; chrom2_id < chroms.size(); ++chrom2_id) {
+      const auto &chrom2 = chroms.at(chrom2_id);
+      if (chrom2.is_all()) [[unlikely]] {
+        continue;
+      }
+
+      const auto path =
+          fmt::format("{}.{}.{}.parquet", input_prefix.string(), chrom1.name(), chrom2.name());
+      if (std::filesystem::exists(path)) {
+        try {
+          ParquetStatsFileReader f(path, ParquetStatsFileReader::RecordType::NCHGCompute);
+          auto first = f.begin<NCHGResult>();
+          auto last = f.end<NCHGResult>();
+          if (first != last) [[likely]] {
+            heads.emplace_back(std::move(first));
+            tails.emplace_back(std::move(last));
+          }
+        } catch (const std::exception &e) {
+          throw std::runtime_error(
+              fmt::format("failed to initialize iterators for file \"{}\": {}", path, e.what()));
+        }
       }
     }
   }
+  return result;
+}
 
-  if (heads.empty()) {
-    throw std::runtime_error(fmt::format("unable to find any table under prefix {}", prefix));
+[[nodiscard]] static FileIteratorPairs init_file_iterator_pairs(const hictk::Reference &chroms,
+                                                                const MergeConfig &c) {
+  try {
+    const auto t0 = std::chrono::steady_clock::now();
+
+    const auto report_path = generate_report_name(c.input_prefix);
+    auto its =
+        c.ignore_report_file
+            ? init_file_iterator_pairs(c.input_prefix, chroms)
+            : init_file_iterator_pairs(NCHGResultMetadata::from_file(report_path), c.input_prefix);
+
+    if (its.heads.empty()) {
+      throw std::runtime_error("unable to find any non-empty table");
+    }
+
+    const auto t1 = std::chrono::steady_clock::now();
+    SPDLOG_INFO("enumerated {} non-empty table(s) in {}", its.heads.size(),
+                format_duration(t1 - t0));
+    return its;
+  } catch (const std::exception &e) {
+    throw std::runtime_error(fmt::format("failed to enumerate tables under prefix \"{}\": {}",
+                                         c.input_prefix.string(), e.what()));
   }
-
-  SPDLOG_INFO("enumerated {} non-empty tables", heads.size());
-
-  return {heads, tails};
 }
 
 using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
 
-[[nodiscard]] static std::size_t producer_fx(const hictk::Reference &chromosomes,
-                                             const std::filesystem::path &input_prefix,
+[[nodiscard]] static std::size_t producer_fx(const FileIteratorPairs &iterator_pairs,
                                              RecordQueue &queue, std::atomic<bool> &early_return) {
   try {
     std::size_t records_enqueued{};
-    auto [heads, tails] = init_file_iterators(input_prefix, chromosomes);
-    const KMerger merger(heads, tails);
+    const KMerger merger(iterator_pairs.heads, iterator_pairs.tails);
 
     for (const auto &s : merger) {
       while (!queue.try_enqueue(s)) [[unlikely]] {
@@ -174,21 +261,335 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
   }
 }
 
+[[nodiscard]] static constexpr spdlog::level::level_enum extract_log_lvl(std::string_view msg) {
+  if (msg.contains(" [critical]: ")) [[unlikely]] {
+    return spdlog::level::critical;
+  }
+  if (msg.contains(" [error]: ")) [[unlikely]] {
+    return spdlog::level::err;
+  }
+  if (msg.contains(" [warning]: ")) [[unlikely]] {
+    return spdlog::level::warn;
+  }
+  return spdlog::level::info;
+}
+
+[[nodiscard]] static constexpr bool is_warning_replay_header(std::string_view msg) {
+  auto offset = msg.find(" [warning]: ");
+  if (offset == std::string_view::npos) [[likely]] {
+    return false;
+  }
+  offset = msg.find("replaying the last ", offset);
+  if (offset == std::string_view::npos) {
+    return false;
+  }
+  offset = msg.find("warning message(s)", offset);
+  return offset != std::string_view::npos;
+}
+
+[[nodiscard]] static std::vector<std::string> try_parse_nchg_compute_log_file(
+    const std::filesystem::path &path) {
+  if (!std::filesystem::exists(path)) {
+    return {};
+  }
+
+  std::vector<std::string> messages{};
+  std::ifstream fs{};
+  fs.exceptions(fs.exceptions() | std::ios::badbit | std::ios::failbit);
+
+  try {
+    fs.open(path);
+    std::string buffer{};
+    auto min_log_level = spdlog::level::warn;
+
+    for (std::size_t i = 1; std::getline(fs, buffer); ++i) {
+      const auto log_level = extract_log_lvl(buffer);
+      if (log_level >= min_log_level && is_warning_replay_header(buffer)) {
+        min_log_level = spdlog::level::err;
+      }
+
+      if (log_level >= min_log_level) {
+        messages.emplace_back(fmt::format("line {}: {}", i, buffer));
+      }
+    }
+  } catch (...) {
+    if (fs.eof()) {
+      return messages;
+    }
+  }
+  return {};
+}
+
+[[noreturn]] static void handle_incomplete_output(const std::filesystem::path &report_file) {
+  constexpr auto msg =
+      "input files validation failed: detected incomplete and/or corrupted input file(s).\n"
+      "This suggests that a previous run of NCHG compute did not complete successfully.\n"
+      "Possible reasons are:\n"
+      " - NCHG compute encountered an error\n"
+      " - NCHG compute was killed by the OS due to e.g. running out of memory\n"
+      " - NCHG compute was killed by a workflow manager, such as SLURM, due to e.g. running "
+      "out of time or resources\n"
+      "\n"
+      "If you are sure that all files produced by NCHG compute are available and are not "
+      "corrupted, you can pass --ignore-report-file to NCHG merge to disable input file "
+      "validation.";
+
+  auto log_file_name = report_file;
+  log_file_name.replace_extension(".log");
+  if (!std::filesystem::exists(log_file_name)) {
+    throw std::runtime_error(msg);
+  }
+  const auto log_entries_of_interest = try_parse_nchg_compute_log_file(log_file_name);
+
+  if (log_entries_of_interest.empty()) {
+    throw std::runtime_error(
+        fmt::format("{}\n"
+                    "An attempt was made to parse log file \"{}\" but the file does not seem to "
+                    "contain helpful information.",
+                    msg, log_file_name.string()));
+  }
+
+  throw std::runtime_error(
+      fmt::format("{}\n"
+                  "Parsing log file \"{}\" identified the following log messages as potentially "
+                  "useful for further troubleshooting:\n{}",
+                  msg, log_file_name.string(), fmt::join(log_entries_of_interest, "\n")));
+}
+
+[[noreturn]] static void handle_invalid_report_file(
+    const std::filesystem::path &path, const NCHGResultMetadata::ValidationResult &res) {
+  try {
+    res.throw_exception();
+  } catch (const std::runtime_error &e) {
+    throw std::runtime_error(fmt::format(
+        "input files validation failed: report file \"{}\" is corrupted or incomplete:\n{}",
+        path.string(), e.what()));
+  }
+}
+
+[[nodiscard]] static auto classify_invalid_records(
+    const NCHGResultMetadata::ValidationResult &res) {
+  struct InvalidRecordsReport {
+    std::vector<std::pair<std::filesystem::path, std::string>> missing_files{};
+    std::vector<std::pair<std::filesystem::path, std::string>> size_mismatch{};
+    std::vector<std::pair<std::filesystem::path, std::string>> checksum_mismatch{};
+    std::vector<std::pair<std::filesystem::path, std::string>> other_errors{};
+  };
+
+  InvalidRecordsReport result{};
+  for (const auto &[file, msg] : res.record_validation_failures) {
+    if (msg.contains("file does not exist")) {
+      result.missing_files.emplace_back(file, msg);
+    } else if (msg.contains("file size mismatch: ")) {
+      constexpr std::string_view query{"file size mismatch: "};
+      const auto offset = msg.find(query) + query.size();
+      result.size_mismatch.emplace_back(file, msg.substr(offset));
+    } else if (msg.contains("checksum mismatch: ")) {
+      constexpr std::string_view query{"checksum mismatch: "};
+      const auto offset = msg.find(query) + query.size();
+      result.checksum_mismatch.emplace_back(file, msg.substr(offset));
+    } else {
+      result.other_errors.emplace_back(file, msg);
+    }
+  }
+
+  return result;
+}
+
+[[nodiscard]] static std::string generate_suggestions(
+    const std::filesystem::path &path,
+    const std::vector<std::pair<std::filesystem::path, std::string>> &missing_files,
+    const std::vector<std::pair<std::filesystem::path, std::string>> &size_mismatch,
+    const std::vector<std::pair<std::filesystem::path, std::string>> &checksum_mismatch) {
+  if (missing_files.empty() && size_mismatch.empty() && checksum_mismatch.empty()) {
+    return "";
+  }
+
+  std::string suggestions{"Suggestions:"};
+  if (!missing_files.empty()) {
+    suggestions += fmt::format(
+        "\n - Make sure no file has been deleted or renamed.\n"
+        "   If files have been move to a different folder, please make sure that all files "
+        "listed in \"{}\" have been moved to the new location.",
+        std::filesystem::canonical(path).string());
+  }
+
+  if (size_mismatch.size() + checksum_mismatch.size() != 0) {
+    suggestions +=
+        "\n - Make sure that files with a different size or checksum have not been overwritten "
+        "or modified after their creation.\n"
+        "   If you are sure that all files produced by NCHG compute are available and are not "
+        "corrupted, you can pass --ignore-report-file to NCHG merge to disable input file "
+        "validation.";
+  }
+
+  return suggestions;
+}
+
+[[nodiscard]] static std::string report_missing_files(
+    const std::vector<std::pair<std::filesystem::path, std::string>> &missing_files) {
+  assert(!missing_files.empty());
+  constexpr std::string_view prefix = "\n    - ";
+  std::vector<std::string> buffer{};
+  std::ranges::transform(missing_files, std::back_inserter(buffer),
+                         [](const auto &kv) { return kv.first.string(); });
+
+  return fmt::format("\n - Missing file(s):{}{}", prefix, fmt::join(buffer, prefix));
+}
+
+[[nodiscard]] static std::string report_size_mismatch(
+    const std::vector<std::pair<std::filesystem::path, std::string>> &size_mismatch) {
+  assert(!size_mismatch.empty());
+  constexpr std::string_view prefix = "\n    - ";
+  std::vector<std::string> buffer{};
+  std::ranges::transform(size_mismatch, std::back_inserter(buffer), [](const auto &kv) {
+    return fmt::format("{}: {}", kv.first.string(), kv.second);
+  });
+  return fmt::format("\n - File size mismatch:{}{}", prefix, fmt::join(buffer, prefix));
+}
+
+[[nodiscard]] static std::string report_checksum_mismatch(
+    const std::vector<std::pair<std::filesystem::path, std::string>> &checksum_mismatch) {
+  assert(!checksum_mismatch.empty());
+  constexpr std::string_view prefix = "\n    - ";
+  std::vector<std::string> buffer{};
+  std::ranges::transform(checksum_mismatch, std::back_inserter(buffer), [](const auto &kv) {
+    return fmt::format("{}: {}", kv.first.string(), kv.second);
+  });
+
+  return fmt::format("\n - File checksum mismatch:{}{}", prefix, fmt::join(buffer, prefix));
+}
+
+[[nodiscard]] static std::string report_other_errors(
+    const std::vector<std::pair<std::filesystem::path, std::string>> &other_errors) {
+  assert(!other_errors.empty());
+  constexpr std::string_view prefix = "\n    - ";
+  std::vector<std::string> buffer{};
+  std::ranges::transform(other_errors, std::back_inserter(buffer), [](const auto &kv) {
+    return fmt::format("{}: {}", kv.first.string(), kv.second);
+  });
+
+  return fmt::format("\n - Other errors:{}{}", prefix, fmt::join(buffer, prefix));
+}
+
+[[noreturn]] static void handle_invalid_records(const std::filesystem::path &path,
+                                                const NCHGResultMetadata::ValidationResult &res) {
+  const auto [missing_files, size_mismatch, checksum_mismatch, other_errors] =
+      classify_invalid_records(res);
+
+  std::string msg{"input files validation failed:"};
+
+  if (!missing_files.empty()) {
+    msg += report_missing_files(missing_files);
+  }
+
+  if (!size_mismatch.empty()) {
+    msg += report_size_mismatch(size_mismatch);
+  }
+
+  if (!checksum_mismatch.empty()) {
+    msg += report_checksum_mismatch(checksum_mismatch);
+  }
+
+  if (!other_errors.empty()) {
+    msg += report_other_errors(other_errors);
+  }
+
+  const auto suggestions =
+      generate_suggestions(path, missing_files, size_mismatch, checksum_mismatch);
+
+  std::string summary{"Summary:"};
+  if (!missing_files.empty()) {
+    summary += fmt::format("\n - {} record(s) refer to non-existing files", missing_files.size());
+  }
+  if (!size_mismatch.empty() || !checksum_mismatch.empty()) {
+    summary += fmt::format("\n - {} file(s) have changed after their creation",
+                           size_mismatch.size() + checksum_mismatch.size());
+  }
+
+  throw std::runtime_error(
+      fmt::format("{}{}{}\n{}", msg, suggestions.empty() ? "" : "\n", suggestions, summary));
+}
+
+static void handle_validation_errors(const std::filesystem::path &path,
+                                     const NCHGResultMetadata::ValidationResult &res) {
+  if (!!res) [[likely]] {
+    return;
+  }
+
+  if (!res.successfully_finalized) {
+    handle_incomplete_output(path);
+  }
+
+  if (!res.report_validation_failures.empty()) {
+    handle_invalid_report_file(path, res);
+  }
+
+  if (!res.record_validation_failures.empty()) {
+    handle_invalid_records(path, res);
+  }
+
+  try {
+    res.throw_exception();
+  } catch (const std::runtime_error &e) {
+    throw std::runtime_error(
+        fmt::format("input files validation failed: an unhandled exception occurred while parsing "
+                    "report file \"{}\": {}",
+                    path.string(), e.what()));
+  }
+}
+
+static void validate_input_files(const std::filesystem::path &input_prefix, std::size_t threads) {
+  const auto path_to_report = generate_report_name(input_prefix);
+  SPDLOG_INFO("using \"{}\" to validate input files...", path_to_report);
+  if (!std::filesystem::exists(path_to_report)) {
+    throw std::runtime_error(
+        fmt::format("unable to verify input file(s) integrity: file \"{}\" is missing: no such "
+                    "file or directory",
+                    path_to_report));
+  }
+
+  const auto t0 = std::chrono::steady_clock::now();
+  const auto metadata = NCHGResultMetadata::from_file(path_to_report, false);
+  std::unique_ptr<BS::thread_pool> tpool =
+      threads > 1 ? std::make_unique<BS::thread_pool>(static_cast<BS::concurrency_t>(threads))
+                  : nullptr;
+  const auto validation_result = metadata.validate(tpool.get());
+  handle_validation_errors(path_to_report, validation_result);
+  const auto t1 = std::chrono::steady_clock::now();
+  SPDLOG_INFO("SUCCESS! Validated {} files in {}", metadata.records().size(),
+              format_duration(t1 - t0));
+}
+
+[[nodiscard]] static hictk::Reference import_chromosomes(
+    const std::filesystem::path &input_prefix) {
+  try {
+    const auto path_to_chrom_sizes = generate_chrom_sizes_name(input_prefix);
+    SPDLOG_INFO("reading chromosomes from \"{}\"...", path_to_chrom_sizes);
+    auto chroms = hictk::Reference::from_chrom_sizes(path_to_chrom_sizes);
+    SPDLOG_INFO("read {} chromosomes!", chroms.size());
+    return chroms;
+  } catch (const std::exception &e) {
+    throw std::runtime_error(
+        fmt::format("failed to read chromosomes from \"{}\": {}", input_prefix, e.what()));
+  }
+}
+
 int run_command(const MergeConfig &c) {
   const auto t0 = std::chrono::steady_clock::now();
 
-  const auto path_to_chrom_sizes = fmt::format("{}.chrom.sizes", c.input_prefix.string());
-
-  SPDLOG_INFO("reading chromosomes from \"{}\"...", path_to_chrom_sizes);
-  const auto chroms = hictk::Reference::from_chrom_sizes(path_to_chrom_sizes);
-  SPDLOG_INFO("read {} chromosomes!", chroms.size());
+  if (!c.ignore_report_file) {
+    validate_input_files(c.input_prefix, c.threads);
+  }
+  const auto chroms = import_chromosomes(c.input_prefix);
+  const auto iterator_pairs = init_file_iterator_pairs(chroms, c);
 
   moodycamel::BlockingConcurrentQueue<NCHGResult> queue(64 * 1024);
   std::atomic<bool> early_return{false};
 
   auto producer = std::async(std::launch::deferred, [&] {
     SPDLOG_DEBUG("spawning producer thread...");
-    return producer_fx(chroms, c.input_prefix, queue, early_return);
+    return producer_fx(iterator_pairs, queue, early_return);
   });
 
   auto consumer = std::async(std::launch::async, [&] {

@@ -548,11 +548,26 @@ jobs:
 
           rm "$OUT_PREFIX"*
 
-      - name: Test NCHG merge
+      - name: Test NCHG merge w/ input validation
         run: |
           bin/NCHG merge                                       \
             "$DATA_DIR/compute/$OUT_PREFIX"                    \
             "$OUT_PREFIX.parquet"                              \
+            --use-report-file                                  \
+            --threads "$NPROC"
+
+          test/scripts/validate_nchg_output.py merge \
+            "$OUT_PREFIX.parquet"                    \
+            "$DATA_DIR/merge/$OUT_PREFIX.parquet"
+
+          rm "$OUT_PREFIX"*
+
+      - name: Test NCHG merge w/o input validation
+        run: |
+          bin/NCHG merge                                       \
+            "$DATA_DIR/compute/$OUT_PREFIX"                    \
+            "$OUT_PREFIX.parquet"                              \
+            --ignore-report-file                               \
             --threads "$NPROC"
 
           test/scripts/validate_nchg_output.py merge \

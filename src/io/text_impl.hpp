@@ -20,6 +20,7 @@
 
 #include <fmt/format.h>
 
+#include <array>
 #include <cstddef>
 #include <stdexcept>
 #include <string_view>
@@ -41,6 +42,30 @@ constexpr std::string_view truncate_record(std::string_view record, char sep) {
   }
 
   return record.substr(0, offset);
+}
+
+template <std::size_t NTOKS>
+constexpr std::array<std::string_view, NTOKS> tokenize_record(std::string_view record, char sep) {
+  static_assert(NTOKS != 0);
+
+  std::array<std::string_view, NTOKS> toks{};
+  std::size_t offset{};
+  for (std::size_t i = 0; i < NTOKS; ++i) {
+    const auto pos = record.find(sep, offset);
+    if (pos == std::string_view::npos) [[unlikely]] {
+      if (i == NTOKS - 1) {
+        toks[i] = record.substr(offset);
+        return toks;
+      }
+      throw std::runtime_error(
+          fmt::format("invalid record, expected {} tokens, found {}", NTOKS, i));
+    }
+
+    toks[i] = record.substr(offset, pos - offset);
+    offset = pos + 1;
+  }
+
+  return toks;
 }
 
 }  // namespace nchg

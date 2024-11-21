@@ -33,6 +33,8 @@ NCHG_DISABLE_WARNING_POP
 #include <fmt/std.h>
 #include <parquet/stream_reader.h>
 #include <parquet/stream_writer.h>
+#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/spdlog.h>
 
 #include <BS_thread_pool.hpp>
 #include <algorithm>
@@ -56,6 +58,7 @@ NCHG_DISABLE_WARNING_POP
 
 #include "nchg/common.hpp"
 #include "nchg/concepts.hpp"
+#include "nchg/file_store.hpp"
 #include "nchg/nchg.hpp"
 #include "nchg/parquet_stats_file_writer.hpp"
 #include "nchg/text.hpp"
@@ -331,7 +334,9 @@ class BG2Domains {
     fs.exceptions(fs.exceptions() | std::ios::badbit | std::ios::failbit);
 
     try {
-      std::filesystem::create_directories(dest_dir);  // NOLINT
+      if (dest_dir.empty() && !std::filesystem::exists(dest)) {
+        std::filesystem::create_directories(dest_dir);  // NOLINT
+      }
 #ifdef __cpp_lib_ios_noreplace
       fs.open(dest, std::ios::out | std::ios::trunc | std::ios::noreplace);
 #else
@@ -684,6 +689,12 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
       fmt::format("failed to spawn worker process: {} {}", c.exec.string(), fmt::join(args, " ")));
 }
 
+[[nodiscard]] static std::filesystem::path generate_report_file_name(
+    const std::filesystem::path &output_prefix) {
+  assert(!output_prefix.empty());
+  return fmt::format("{}.json", output_prefix);
+}
+
 [[nodiscard]] static std::filesystem::path generate_chrom_sizes_file_name(
     const std::filesystem::path &output_prefix) {
   assert(!output_prefix.empty());
@@ -696,7 +707,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   return fmt::format("{}.{}.{}.parquet", output_prefix.string(), chrom1.name(), chrom2.name());
 }
 
-[[nodiscard]] static std::size_t worker_fx(const hictk::Chromosome &chrom1,
+[[nodiscard]] static std::size_t worker_fx(FileStore &file_store, const hictk::Chromosome &chrom1,
                                            const hictk::Chromosome &chrom2,
                                            std::optional<BG2Domains> &domains,
                                            const ComputePvalConfig &config,
@@ -740,6 +751,8 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
           fmt::format("child process terminated with code {}", proc.exit_code()));
     }
     SPDLOG_DEBUG("[{}:{}]: worker process returned with exit code 0", chrom1.name(), chrom2.name());
+
+    file_store.register_file(child_config.output_path);
 
     std::shared_ptr<arrow::io::ReadableFile> fp;
     PARQUET_ASSIGN_OR_THROW(fp, arrow::io::ReadableFile::Open(child_config.output_path));
@@ -793,7 +806,8 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   return base_config;
 }
 
-static std::size_t process_queries_mt(BS::thread_pool &tpool, const ChromosomePairs &chrom_pairs,
+static std::size_t process_queries_mt(BS::thread_pool &tpool, FileStore &file_store,
+                                      const ChromosomePairs &chrom_pairs,
                                       std::optional<BG2Domains> &domains,
                                       const std::optional<ExpectedValues> &expected_values,
                                       const ComputePvalConfig &c) {
@@ -809,8 +823,8 @@ static std::size_t process_queries_mt(BS::thread_pool &tpool, const ChromosomePa
       const auto &[chrom1, chrom2] = chrom_pair;
       SPDLOG_DEBUG("submitting task {}/{} ({}:{})...", i + 1, workers.size(), chrom1.name(),
                    chrom2.name());
-      return worker_fx(chrom1, chrom2, domains, base_config, user_provided_expected_values,
-                       early_return);
+      return worker_fx(file_store, chrom1, chrom2, domains, base_config,
+                       user_provided_expected_values, early_return);
     });
   }
 
@@ -822,7 +836,7 @@ static std::size_t process_queries_mt(BS::thread_pool &tpool, const ChromosomePa
   return num_records;
 }
 
-static std::size_t process_queries_st(const ChromosomePairs &chrom_pairs,
+static std::size_t process_queries_st(FileStore &file_store, const ChromosomePairs &chrom_pairs,
                                       std::optional<BG2Domains> &domains,
                                       const std::optional<ExpectedValues> &expected_values,
                                       const ComputePvalConfig &c) {
@@ -848,6 +862,8 @@ static std::size_t process_queries_st(const ChromosomePairs &chrom_pairs,
                                    ? run_nchg_compute_worker(config, domains, expected_values)
                                    : run_nchg_compute_worker(config, domains);
       tot_num_records += num_records;
+
+      file_store.register_file(config.output_path);
 
       const auto t1 = std::chrono::steady_clock::now();
       SPDLOG_INFO("[{}:{}] processed {} records in {}!", chrom1.name(), chrom2.name(), num_records,
@@ -888,12 +904,14 @@ static std::optional<ExpectedValues> init_cis_expected_values(const ComputePvalC
       bin_mask)};
 }
 
-static std::size_t process_queries(const ChromosomePairs &chrom_pairs,
+static std::size_t process_queries(FileStore &file_store, const ChromosomePairs &chrom_pairs,
                                    std::optional<BG2Domains> &domains,
                                    const std::optional<ExpectedValues> &expected_values,
                                    const ComputePvalConfig &c) {
+  const std::filesystem::path chrom_sizes_path{generate_chrom_sizes_file_name(c.output_prefix)};
   write_chrom_sizes_to_file(hictk::File(c.path_to_hic, c.resolution).chromosomes(),
-                            generate_chrom_sizes_file_name(c.output_prefix), c.force);
+                            chrom_sizes_path, c.force);
+  file_store.register_file(chrom_sizes_path);
 
   if (c.threads > 1) {
     auto num_threads = conditional_static_cast<BS::concurrency_t>(c.threads);
@@ -906,9 +924,9 @@ static std::size_t process_queries(const ChromosomePairs &chrom_pairs,
           num_threads);
     }
     BS::thread_pool tpool(num_threads);
-    return process_queries_mt(tpool, chrom_pairs, domains, expected_values, c);
+    return process_queries_mt(tpool, file_store, chrom_pairs, domains, expected_values, c);
   }
-  return process_queries_st(chrom_pairs, domains, expected_values, c);
+  return process_queries_st(file_store, chrom_pairs, domains, expected_values, c);
 }
 
 static void process_file_collisions(const std::filesystem::path &output_prefix,
@@ -917,6 +935,16 @@ static void process_file_collisions(const std::filesystem::path &output_prefix,
   std::size_t num_collisions = 0;
 
   constexpr std::size_t max_collisions_reported = 10;
+
+  if (const auto report_file = generate_report_file_name(output_prefix); force) {
+    const auto removed = std::filesystem::remove(report_file);  // NOLINT
+    if (removed) {
+      SPDLOG_DEBUG("file \"{}\" has been deleted", report_file.string());
+    }
+  } else if (std::filesystem::exists(report_file)) {
+    collisions.emplace_back(report_file.string());
+    ++num_collisions;
+  }
 
   if (const auto chrom_sizes = generate_chrom_sizes_file_name(output_prefix); force) {
     const auto removed = std::filesystem::remove(chrom_sizes);  // NOLINT
@@ -1009,6 +1037,7 @@ static void validate_expected_values(const ExpectedValues &expected_values,
 
 [[nodiscard]] static auto generate_execution_plan(const ComputePvalConfig &c) {
   struct Plan {
+    std::unique_ptr<FileStore> file_store;
     ChromosomePairs chrom_pairs{};
     std::optional<ExpectedValues> expected_values{};
     std::optional<BG2Domains> domains{};
@@ -1049,7 +1078,71 @@ static void validate_expected_values(const ExpectedValues &expected_values,
                              f.resolution());
   }
 
+  const auto root_dir = c.output_prefix.has_parent_path() ? c.output_prefix.parent_path()
+                                                          : std::filesystem::current_path();
+
+  if (!root_dir.empty() && !std::filesystem::exists(root_dir)) {
+    std::filesystem::create_directories(root_dir);  // NOLINT
+  }
+  plan.file_store = std::make_unique<FileStore>(
+      root_dir, false, fmt::format("{}.json", c.output_prefix.filename().string()));
+
   return plan;
+}
+
+template <typename... T>
+static void warn_or_print(fmt::format_string<T...> fmt, T &&...args) {
+  auto logger = spdlog::default_logger();
+  if (logger) {
+    SPDLOG_WARN(fmt, std::forward<T>(args)...);
+  } else {
+    fmt::print(stderr, fmt, std::forward<T>(args)...);
+  }
+}
+
+static bool setup_file_backed_logger(const std::filesystem::path &output_prefix, bool force) {
+  //                                  [2021-08-12 17:49:34.581] [info]: my log msg
+  static constexpr auto *log_pattern{"[%Y-%m-%d %T.%e] %^[%l]%$: %v"};
+
+  const auto log_file_path = fmt::format("{}.log", output_prefix.string());
+
+  try {
+    auto logger = spdlog::default_logger();
+    if (!logger) {
+      throw spdlog::spdlog_ex("application logger has not been properly setup");
+    }
+
+    if (!force && std::filesystem::exists(log_file_path)) {
+      throw std::runtime_error("refusing to overwrite existing file: pass --force to overwrite.");
+    }
+    std::filesystem::remove(log_file_path);  // NOLINT
+
+    if (output_prefix.has_parent_path()) {
+      std::filesystem::create_directories(output_prefix.parent_path());  // NOLINT
+    }
+
+    auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(log_file_path);
+    file_sink->set_level(spdlog::level::debug);
+    file_sink->set_pattern(log_pattern);
+
+    auto tmp_logger = std::make_shared<spdlog::logger>("tmp_logger", file_sink);
+    tmp_logger->set_level(spdlog::level::info);
+    tmp_logger->log(spdlog::level::info, "log file was generated by NCHG v0.0.2");  // TODO fixme
+
+    logger->sinks().emplace_back(std::move(file_sink));
+    logger->set_level(spdlog::level::debug);
+
+    return true;
+
+  } catch (const spdlog::spdlog_ex &e) {
+    warn_or_print("unable to initialize log file \"{}\": {}", log_file_path, e.what());
+  } catch (const std::exception &e) {
+    warn_or_print("unable to initialize log file \"{}\": {}", log_file_path, e.what());
+  } catch (...) {
+    warn_or_print("unable to initialize log file \"{}\": unknown error", log_file_path);
+  }
+
+  return false;
 }
 
 int run_command(const ComputePvalConfig &c) {
@@ -1070,9 +1163,13 @@ int run_command(const ComputePvalConfig &c) {
       return 0;
     }
 
-    auto [chrom_pairs, expected_values, domains] = generate_execution_plan(c);
+    const auto log_file_initialized = setup_file_backed_logger(c.output_prefix, c.force);
 
-    const auto interactions_processed = process_queries(chrom_pairs, domains, expected_values, c);
+    auto [file_store, chrom_pairs, expected_values, domains] = generate_execution_plan(c);
+
+    const auto interactions_processed =
+        process_queries(*file_store, chrom_pairs, domains, expected_values, c);
+    file_store->finalize();
     std::filesystem::remove_all(c.tmpdir);  // NOLINT
 
     const auto t1 = std::chrono::steady_clock::now();
@@ -1082,7 +1179,12 @@ int run_command(const ComputePvalConfig &c) {
       SPDLOG_INFO("processed {} records in {}!", interactions_processed, format_duration(t1 - t0));
     }
 
-    SPDLOG_INFO("{} new file(s) have been created under prefix \"{}\"", chrom_pairs.size() + 1,
+    auto files_created = chrom_pairs.size();
+    ++files_created;  // chrom.sizes file
+    ++files_created;  // report file
+    files_created += static_cast<std::size_t>(log_file_initialized);
+
+    SPDLOG_INFO("{} new file(s) have been created under prefix \"{}\"", files_created,
                 c.output_prefix);
 
     return 0;

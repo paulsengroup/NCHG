@@ -132,6 +132,8 @@ target_compile_features(nchg_project_options INTERFACE "cxx_std_${CMAKE_CXX_STAN
 target_compile_definitions(nchg_project_options INTERFACE FMT_HEADER_ONLY)
 # Tweak spdlog
 target_compile_definitions(nchg_project_options INTERFACE SPDLOG_FMT_EXTERNAL)
+# Tweak xxHash
+target_compile_definitions(nchg_project_options INTERFACE XXH_INLINE_ALL)
 
 if(WIN32)
   target_compile_definitions(

@@ -33,6 +33,7 @@ target_sources(
   NCHG
   PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/cartesian_product/cartesian_product.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/checksum/checksum.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/compute/compute.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/expected/expected.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/filter/filter.cpp"

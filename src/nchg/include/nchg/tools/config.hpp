@@ -40,6 +40,12 @@ struct CartesianProductConfig {
   std::uint8_t verbosity{3};
 };
 
+struct ChecksumConfig {
+  std::vector<std::filesystem::path> files{};
+
+  std::uint8_t verbosity{3};
+};
+
 struct ComputePvalConfig {
   std::filesystem::path exec{};
   std::filesystem::path path_to_hic{};
@@ -123,6 +129,7 @@ struct MergeConfig {
   std::filesystem::path input_prefix{};
   std::filesystem::path output_path{};
   bool force{false};
+  bool ignore_report_file{false};
 
   std::size_t threads{2};
   std::string compression_method{"zstd"};
@@ -149,6 +156,7 @@ struct ViewConfig {
 using Config = std::variant<
     std::monostate,
     CartesianProductConfig,
+    ChecksumConfig,
     ComputePvalConfig,
     ExpectedConfig,
     FilterConfig,

@@ -23,6 +23,7 @@
 namespace nchg {
 
 [[nodiscard]] int run_command(const CartesianProductConfig& c);
+[[nodiscard]] int run_command(const ChecksumConfig& c);
 [[nodiscard]] int run_command(const ComputePvalConfig& c);
 [[nodiscard]] int run_command(const ExpectedConfig& c);
 [[nodiscard]] int run_command(const FilterConfig& c);

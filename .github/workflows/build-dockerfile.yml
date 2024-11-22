@@ -166,10 +166,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
-          platforms: linux/amd64,linux/arm64
+          # TODO fixme: https://github.com/paulsengroup/NCHG/pull/51
+          # platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
 
+      # TODO fixme: https://github.com/paulsengroup/NCHG/pull/51
       - name: Set up QEMU
-        if: github.event_name != 'pull_request'
+        if: false #github.event_name != 'pull_request'
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
@@ -205,8 +208,9 @@ jobs:
       - name: Test Docker image (x86)
         run: utils/devel/test_docker_image.sh nchg:x86
 
+      # TODO fixme: https://github.com/paulsengroup/NCHG/pull/51
       - name: Build Docker image (arm64)
-        if: github.event_name != 'pull_request'
+        if: false #github.event_name != 'pull_request'
         uses: docker/build-push-action@v6
         with:
           context: ${{ github.workspace }}
@@ -240,7 +244,8 @@ jobs:
             type=registry,ref=${{ steps.build-args.outputs.CACHE_REGISTRY_X86 }}
             type=registry,ref=${{ steps.build-args.outputs.CACHE_REGISTRY_ARM64 }}
           tags: ${{ steps.meta.outputs.tags }}
-          platforms: linux/amd64,linux/arm64
+          # TODO fixme: https://github.com/paulsengroup/NCHG/pull/51
+          platforms: linux/amd64
           build-args: |
             C_COMPILER=${{ steps.build-args.outputs.C_COMPILER }}
             CXX_COMPILER=${{ steps.build-args.outputs.CXX_COMPILER }}

@@ -74,15 +74,13 @@ install(
   TARGETS
     stocc
     randomc
-    COMPONENT
-    Libraries
+  COMPONENT Libraries
 )
 
 install(
   TARGETS
     NCHG
-    COMPONENT
-    Runtime
+  COMPONENT Runtime
   LIBRARY
     DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE

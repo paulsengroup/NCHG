@@ -29,6 +29,7 @@ fi
 IMG="$1"
 
 tmpdir="$(mktemp -d)"
+# shellcheck disable=SC2064
 trap "rm -rf '$tmpdir'" EXIT
 
 cat > "$tmpdir/runme.sh" <<- 'EOM'

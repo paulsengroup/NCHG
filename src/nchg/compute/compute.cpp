@@ -619,8 +619,6 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
       std::string{chrom2.name()},
       "--threads",
       "1",
-      "--resolution",
-      fmt::to_string(c.resolution),
       "--bad-bin-fraction",
       fmt::to_string(c.bad_bin_fraction),
       "--compression-level",
@@ -632,6 +630,11 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
       c.path_to_hic.string(),
       c.output_path.string(),
   };
+
+  if (c.resolution.has_value()) {
+    args.emplace_back("--resolution");
+    args.emplace_back(fmt::to_string(*c.resolution));
+  }
 
   if (!c.path_to_domains.empty()) {
     args.emplace_back("--domains");

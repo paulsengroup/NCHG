@@ -49,33 +49,32 @@ class NCHGConan(ConanFile):
         return 23
 
     def requirements(self):
-        self.requires("arrow/17.0.0#81be2aa6c49800df8cc163adf4b99e9f")
-        self.requires("boost/1.86.0#cd839a2082585255010f9e82eea94c7f", force=True)
-        self.requires("bshoshany-thread-pool/4.1.0#be1802a8768416a6c9b1393cf0ce5e9c")
-        self.requires("catch2/3.7.1#431d772165ed0bc5adaabaa44a9f53ca")
-        self.requires("cli11/2.4.2#1b431bda2fb2cd3efed633899abcd8cc")
+        self.requires("arrow/19.0.1#f6937fd566ecbec1eab37b40e292dfec")
+        self.requires("boost/1.87.0#53c53f3d6eeb9db4a3d68573596db0e7", force=True)
+        self.requires("bshoshany-thread-pool/5.0.0#d94da300363f0c35b8f41b2c5490c94d")
+        self.requires("catch2/3.8.0#2c87b60d2c85f3c8509bb209f37cbf67")
+        self.requires("cli11/2.5.0#1b7c81ea2bff6279eb2150bbe06a200a")
         self.requires("concurrentqueue/1.0.4#1e48e1c712bcfd892087c9c622a51502")
-        self.requires("fast_float/6.1.5#e067b96a6271d1b4c255858ca9805bdd")  # hictk
-        self.requires("fmt/11.0.2#5c7438ef4d5d69ab106a41e460ce11f3", force=True)
-        self.requires("glaze/3.6.1#9653430ca52e71c1bc5d066b8dc45de1")
+        self.requires("fast_float/8.0.0#edda0315516b2f1e7835972fdf5fc5ca")  # hictk
+        self.requires("fmt/11.1.4#1fb24f082fabe20d28606d615ba93dfb", force=True)
+        self.requires("glaze/5.0.2#1f0dcbd3b22dd5f2385ebdf3a252ec3f")
         self.requires("hdf5/1.14.5#51799cda2ba7acaa74c9651dea284ac4", force=True)
-        # self.requires("hictk/0.0.12#8e413cd45528da38b5a41ccffee41d6d")
-        self.requires("highfive/2.10.0#3d1bd25944a57fa1bc30a0a22923d528")
-        self.requires("libdeflate/1.22#f95aebe763153ccbc4cc76c023e42e5a")  # hictk
-        self.requires("parallel-hashmap/1.37#ad1feb0b318d094645b696b7cbb0657e")
+        self.requires("highfive/2.10.0#c975a16d7fe3655c173f8a9aab16b416")
+        self.requires("libdeflate/1.23#4994bea7cf7e93789da161fac8e26a53")  # hictk
+        self.requires("parallel-hashmap/2.0.0#82acae64ffe2693fff5fb3f9df8e1746")
         self.requires("readerwriterqueue/1.0.6#aaa5ff6fac60c2aee591e9e51b063b83")
         self.requires("span-lite/0.11.0#519fd49fff711674cfed8cd17d4ed422")  # hictk
-        self.requires("spdlog/1.14.1#972bbf70be1da4bc57ea589af0efde03")
+        self.requires("spdlog/1.15.1#92e99f07f134481bce4b70c1a41060e7")
         self.requires("thrift/0.20.0#560fdab2e1636d4d8a0556fcf6470b89", force=True)
-        self.requires("xxhash/0.8.2#03fd1c9a839b3f9cdf5ea9742c312187")
-        self.requires("zstd/1.5.6#afefe79a309bc2a7b9f56c2093504c8b", force=True)
+        self.requires("xxhash/0.8.3#681d36a0a6111fc56e5e45ea182c19cc")
+        self.requires("zstd/1.5.7#fde461c0d847a22f16d3066774f61b11", force=True)
 
     def validate(self):
         if self.settings.get_safe("compiler.cppstd"):
             check_min_cppstd(self, self._min_cppstd)
 
     def configure(self):
-        if self.settings.compiler in ["clang", "gcc"]:
+        if self.settings.compiler in ["clang", "gcc"] and self.settings.os == "Linux":
             self.settings.compiler.libcxx = "libstdc++11"
 
         self.options["arrow"].parquet = True
@@ -96,10 +95,11 @@ class NCHGConan(ConanFile):
         self.options["boost"].without_chrono = True
         self.options["boost"].without_cobalt = True
         self.options["boost"].without_container = True
-        self.options["boost"].without_context = True
+        self.options["boost"].without_context = False
         self.options["boost"].without_contract = True
         self.options["boost"].without_coroutine = True
-        self.options["boost"].without_date_time = True
+        # without_date_time is set to False to workaround https://github.com/conan-io/conan-center-index/issues/26890
+        self.options["boost"].without_date_time = False
         self.options["boost"].without_exception = False
         self.options["boost"].without_fiber = True
         self.options["boost"].without_filesystem = False

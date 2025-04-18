@@ -325,8 +325,8 @@ jobs:
       #     docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
       #       $(printf '  ${{ steps.build-args.outputs.REPO_LOWERCASE }}@sha256:%s ' *)
 
-      - name: Inspect image (DockerHub)
-        run: docker buildx imagetools inspect ${{ steps.build-args.outputs.REPO_LOWERCASE }}
+      # - name: Inspect image (DockerHub)
+      #   run: docker buildx imagetools inspect ${{ steps.build-args.outputs.REPO_LOWERCASE }}
 
       - name: Create manifest list and push (GHRC.io)
         working-directory: ${{ runner.temp }}/digests

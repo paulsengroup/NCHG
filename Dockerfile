@@ -42,20 +42,6 @@ RUN if [ -z "$C_COMPILER" ]; then echo "Missing C_COMPILER --build-arg" && exit 
 ENV CC="$C_COMPILER"
 ENV CXX="$CXX_COMPILER"
 
-# Install build dependencies that are too heavy to be built on GHA arm64 emulated runners using Conan
-RUN apt-get update \
-&& apt-get install -y bison flex
-
-RUN printf '[platform_tool_requires]\nbison/%s\nflex/%s\n' \
-    "$(bison --version | head -n 1 | rev | cut -d ' ' -f 1 | rev)" \
-    "$(flex --version | head -n 1 | rev | cut -f 1 | rev)" | \
-    tee -a "$CONAN_DEFAULT_PROFILE_PATH"
-
-RUN printf '[replace_tool_requires]\nbison/*: bison/%s\nflex/*: flex/%s\n' \
-    "$(bison --version | head -n 1 | rev | cut -d ' ' -f 1 | rev)" \
-    "$(flex --version  | head -n 1 | rev | cut -d ' ' -f 1 | rev)" | \
-    tee -a "$CONAN_DEFAULT_PROFILE_PATH"
-
 # Install b2 using Conan
 RUN printf '[requires]\nb2/5.2.1\n[options]\nb2*:toolset=%s' \
            "$(basename "$(which "$CC")")" | cut -f 1 -d - > /tmp/conanfile.txt

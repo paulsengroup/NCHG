@@ -41,6 +41,7 @@ RUN if [ -z "$C_COMPILER" ]; then echo "Missing C_COMPILER --build-arg" && exit 
 
 ENV CC="$C_COMPILER"
 ENV CXX="$CXX_COMPILER"
+ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
 
 # Install build dependencies that are too heavy to be built on GHA arm64 emulated runners using Conan
 RUN apt-get update \

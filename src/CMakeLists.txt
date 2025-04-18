@@ -29,7 +29,7 @@ set(HICTK_ENABLE_GIT_VERSION_TRACKING OFF)
 FetchContent_Declare(
   hictk
   GIT_REPOSITORY https://github.com/paulsengroup/hictk.git
-  GIT_TAG v2.0.1
+  GIT_TAG v2.1.1
   EXCLUDE_FROM_ALL
   OVERRIDE_FIND_PACKAGE
   SYSTEM

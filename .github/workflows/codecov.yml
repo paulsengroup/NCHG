@@ -23,7 +23,7 @@ on:
     branches: [main]
     paths:
       - ".github/codecov.yml"
-      - ".github/workflows/build-conan-deps.yml"
+      - ".github/workflows/build-conan-deps-linux.yml"
       - ".github/workflows/cache-test-dataset.yml"
       - ".github/workflows/codecov.yml"
       - "cmake/**"
@@ -36,7 +36,7 @@ on:
   pull_request:
     paths:
       - ".github/codecov.yml"
-      - ".github/workflows/build-conan-deps.yml"
+      - ".github/workflows/build-conan-deps-linux.yml"
       - ".github/workflows/cache-test-dataset.yml"
       - ".github/workflows/codecov.yml"
       - "cmake/**"
@@ -58,13 +58,11 @@ defaults:
 jobs:
   cache-test-dataset:
     name: Cache test dataset
-    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@main
+    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@c5882f6f3ca0f8e53e1b3be9d3d20e1ee33afd5f
 
   build-conan-deps:
     name: Build Conan deps
-    uses: paulsengroup/nchg/.github/workflows/build-conan-deps.yml@main
-    with:
-      os: ubuntu-24.04
+    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@6f4a7255f70730e1f89ad1587b5bc52dd13c04bf
 
   build-project:
     name: Build project
@@ -106,14 +104,11 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           key: ${{ needs.build-conan-deps.outputs.conan-key }}
-          path: ${{ env.CONAN_HOME }}/p
-          fail-on-cache-miss: true
-
-      - name: Restore CMake configs
-        uses: actions/cache/restore@v4
-        with:
-          key: ${{ needs.build-conan-deps.outputs.cmake-prefix-relwithdebinfo-key }}
-          path: /tmp/cmake-prefix-rwdi.tar
+          path: |
+            ${{ env.CONAN_HOME }}/p
+            /tmp/cmake-prefix-dbg.tar
+            /tmp/cmake-prefix-rel.tar
+            /tmp/cmake-prefix-rwdi.tar
           fail-on-cache-miss: true
 
       - name: Extract CMake configs

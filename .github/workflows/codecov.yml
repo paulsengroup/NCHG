@@ -265,6 +265,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -q -y --no-install-recommends \
+            curl \
             gpg \
             gpg-agent \
             sudo \
@@ -304,7 +305,7 @@ jobs:
             "${binaries[@]}"
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # v5.4.0
         with:
           flags: "tests | unittests"
           fail_ci_if_error: true
@@ -353,6 +354,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -q -y --no-install-recommends \
+            curl \
             gpg \
             gpg-agent \
             sudo \
@@ -606,7 +608,7 @@ jobs:
             build/src/nchg/NCHG
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # v5.4.0
         with:
           flags: "tests | integration"
           fail_ci_if_error: true

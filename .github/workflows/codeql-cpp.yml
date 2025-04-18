@@ -1,0 +1,110 @@
+# Copyright (C) 2025 Roberto Rossini <roberros@uio.no>
+#
+# SPDX-License-Identifier: GPL-3.0
+#
+# This library is free software: you can redistribute it and/or
+# modify it under the terms of the GNU Public License as published
+# by the Free Software Foundation; either version 3 of the License,
+# or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Library General Public License for more details.
+#
+# You should have received a copy of the GNU Public License along
+# with this library.  If not, see
+# <https://www.gnu.org/licenses/>.
+
+name: Run CodeQL analysis (C++)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build-conan-deps-linux.yml"
+      - ".github/workflows/codeql-cpp.yml"
+      - "cmake/**"
+      - "src/**"
+      - "test/units/**"
+      - "CMakeLists.txt"
+  pull_request:
+    paths:
+      - ".github/workflows/codeql-cpp.yml"
+  schedule:
+    - cron: "0 5 1 * *" # run monthly at 05:00
+
+# https://stackoverflow.com/a/72408109
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-conan-deps:
+    name: Build Conan deps
+    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@6f4a7255f70730e1f89ad1587b5bc52dd13c04bf
+
+  analyze:
+    name: Analyze (C++)
+    runs-on: ubuntu-24.04
+    needs: [build-conan-deps]
+    permissions:
+      contents: read
+      security-events: write
+
+    env:
+      CCACHE_DISABLE: "1"
+      CONAN_HOME: "/opt/conan/"
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Symlink Conan home
+        run: |
+          mkdir -p /home/runner/opt/conan
+          ln -s /home/runner/opt/conan/ /opt/conan
+
+      - name: Restore Conan cache
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ needs.build-conan-deps.outputs.conan-key }}
+          path: |
+            ${{ env.CONAN_HOME }}/p
+            /tmp/cmake-prefix-dbg.tar
+            /tmp/cmake-prefix-rel.tar
+            /tmp/cmake-prefix-rwdi.tar
+          fail-on-cache-miss: true
+
+      - name: Extract CMake configs
+        run: |
+          mkdir conan-env
+          tar -xf /home/runner/tmp/cmake-prefix-dbg.tar -C conan-env/ --strip-components=1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@1b549b9259bda1cb5ddde3b41741a82a2d15a841 # v3.28.13
+        with:
+          languages: c-cpp
+          build-mode: manual
+
+      - name: Configure project
+        run: |
+          cmake -DCMAKE_BUILD_TYPE=Debug                \
+                -DCMAKE_PREFIX_PATH="$PWD/conan-env"    \
+                -DENABLE_DEVELOPER_MODE=OFF             \
+                -DNCHG_ENABLE_TESTING=ON                \
+                -DNCHG_DOWNLOAD_TEST_DATASET=OFF        \
+                -DCMAKE_INSTALL_PREFIX=dest             \
+                -S .                                    \
+                -B build
+
+      - name: Build project
+        run: cmake --build build -j $(nproc)
+
+      - name: Run Analysis
+        uses: github/codeql-action/analyze@1b549b9259bda1cb5ddde3b41741a82a2d15a841 # v3.28.13
+        with:
+          category: "/language:c-cpp"

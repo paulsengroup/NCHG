@@ -108,7 +108,8 @@ class NCHGResultMetadata {
   static NCHGResultMetadata from_stream(std::istream& stream, const std::filesystem::path& root_dir,
                                         bool validate_ = true);
 
-  [[nodiscard]] auto validate(BS::thread_pool* tpool = nullptr) const noexcept -> ValidationResult;
+  [[nodiscard]] auto validate(BS::light_thread_pool* tpool = nullptr) const noexcept
+      -> ValidationResult;
   void validate_or_throw() const;
   [[nodiscard]] std::string checksum() const;
   [[nodiscard]] static std::string checksum(const std::filesystem::path& path_);

@@ -625,9 +625,8 @@ static void validate_input_files(const std::filesystem::path &input_prefix, std:
 
   const auto t0 = std::chrono::steady_clock::now();
   const auto metadata = NCHGResultMetadata::from_file(path_to_report, false);
-  std::unique_ptr<BS::thread_pool> tpool =
-      threads > 1 ? std::make_unique<BS::thread_pool>(static_cast<BS::concurrency_t>(threads))
-                  : nullptr;
+  std::unique_ptr<BS::light_thread_pool> tpool =
+      threads > 1 ? std::make_unique<BS::light_thread_pool>(threads) : nullptr;
   const auto validation_result = metadata.validate(tpool.get());
   handle_validation_errors(path_to_report, validation_result);
   const auto t1 = std::chrono::steady_clock::now();

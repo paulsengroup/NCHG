@@ -54,7 +54,7 @@ struct ComputePvalConfig {
   std::filesystem::path tmpdir{};
   bool force{false};
 
-  std::uint32_t resolution{};
+  std::optional<std::uint32_t> resolution{};
   std::optional<std::string> chrom1{};
   std::optional<std::string> chrom2{};
   std::filesystem::path path_to_expected_values{};
@@ -102,7 +102,7 @@ struct FilterConfig {
 
 struct ExpectedConfig {
   std::filesystem::path input_path{};
-  std::uint32_t resolution{};
+  std::optional<std::uint32_t> resolution{};
 
   std::filesystem::path output_path{};
   bool force{false};

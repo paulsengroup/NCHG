@@ -68,25 +68,30 @@ namespace nchg {
   }
 }
 
+[[nodiscard]] static std::unique_ptr<parquet::arrow::FileReader> open_arrow_file(
+    const std::shared_ptr<arrow::io::ReadableFile> &fp) {
+  auto result = parquet::arrow::OpenFile(fp, arrow::default_memory_pool());
+  if (!result.ok()) {
+    throw std::runtime_error(result.status().ToString());
+  }
+
+  return result.MoveValueUnsafe();
+}
+
 [[nodiscard]] std::shared_ptr<arrow::Schema> get_file_schema(
     const std::shared_ptr<arrow::io::ReadableFile> &fp) {
   try {
     auto props = parquet::default_reader_properties();
     props.set_buffer_size(1);
 
-    std::unique_ptr<parquet::arrow::FileReader> reader;
-    auto status = parquet::arrow::OpenFile(fp, arrow::default_memory_pool(), &reader);
-    if (!status.ok()) {
-      throw std::runtime_error(status.ToString());
+    auto reader = open_arrow_file(fp);
+
+    auto result = reader->GetRecordBatchReader();
+    if (!result.ok()) {
+      throw std::runtime_error(result.status().ToString());
     }
 
-    std::unique_ptr<arrow::RecordBatchReader> batch_reader{};
-    status = reader->GetRecordBatchReader(&batch_reader);
-    if (!status.ok()) {
-      throw std::runtime_error(status.ToString());
-    }
-
-    return batch_reader->schema();
+    return result.ValueUnsafe()->schema();
   } catch (const std::exception &e) {
     throw std::runtime_error(fmt::format("failed to read file schema: {}", e.what()));
   } catch (...) {

@@ -48,8 +48,6 @@ fi
 
 if [ -z "$GIT_TAG" ]; then
   GIT_TAG="sha-$GIT_SHORT_HASH"
-else
-  GIT_TAG="$GIT_TAG"
 fi
 
 2>&1 echo "Building \"$IMAGE_NAME:$IMAGE_TAG\"..."

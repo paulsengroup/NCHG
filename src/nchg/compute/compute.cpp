@@ -806,7 +806,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   return base_config;
 }
 
-static std::size_t process_queries_mt(BS::thread_pool &tpool, FileStore &file_store,
+static std::size_t process_queries_mt(BS::light_thread_pool &tpool, FileStore &file_store,
                                       const ChromosomePairs &chrom_pairs,
                                       std::optional<BG2Domains> &domains,
                                       const std::optional<ExpectedValues> &expected_values,
@@ -909,21 +909,21 @@ static std::size_t process_queries(FileStore &file_store, const ChromosomePairs 
                                    const std::optional<ExpectedValues> &expected_values,
                                    const ComputePvalConfig &c) {
   const std::filesystem::path chrom_sizes_path{generate_chrom_sizes_file_name(c.output_prefix)};
-  write_chrom_sizes_to_file(hictk::File(c.path_to_hic, c.resolution).chromosomes(),
+  write_chrom_sizes_to_file(hictk::File(c.path_to_hic.string(), c.resolution).chromosomes(),
                             chrom_sizes_path, c.force);
   file_store.register_file(chrom_sizes_path);
 
   if (c.threads > 1) {
-    auto num_threads = conditional_static_cast<BS::concurrency_t>(c.threads);
+    auto num_threads = c.threads;
     if (c.threads > chrom_pairs.size()) {
-      num_threads = conditional_static_cast<BS::concurrency_t>(chrom_pairs.size());
+      num_threads = chrom_pairs.size();
       SPDLOG_WARN(
           "number of threads specified through --threads exceeds the number of chromosome pairs "
           "to "
           "be processed: limiting concurrency to {} thread(s)",
           num_threads);
     }
-    BS::thread_pool tpool(num_threads);
+    BS::light_thread_pool tpool(num_threads);
     return process_queries_mt(tpool, file_store, chrom_pairs, domains, expected_values, c);
   }
   return process_queries_st(file_store, chrom_pairs, domains, expected_values, c);

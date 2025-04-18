@@ -251,7 +251,7 @@ static void checksum_file(const NCHGResultMetadata::FileMetadata& record, std::s
   }
 }
 
-auto NCHGResultMetadata::validate(BS::thread_pool* tpool) const noexcept -> ValidationResult {
+auto NCHGResultMetadata::validate(BS::light_thread_pool* tpool) const noexcept -> ValidationResult {
   ValidationResult result{};
   try {
     if (_format != "NCHG metadata") {

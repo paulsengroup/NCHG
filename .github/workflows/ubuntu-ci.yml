@@ -22,7 +22,7 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/build-conan-deps.yml"
+      - ".github/workflows/build-conan-deps-linux.yml"
       - ".github/workflows/cache-test-dataset.yml"
       - ".github/workflows/ubuntu-ci.yml"
       - "cmake/**"
@@ -33,7 +33,7 @@ on:
 
   pull_request:
     paths:
-      - ".github/workflows/build-conan-deps.yml"
+      - ".github/workflows/build-conan-deps-linux.yml"
       - ".github/workflows/cache-test-dataset.yml"
       - ".github/workflows/ubuntu-ci.yml"
       - "cmake/**"
@@ -88,43 +88,41 @@ jobs:
             var includes = []
 
             // Debug builds (short CI)
-            includes.push({ compiler: 'gcc-13',    os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '3.30.*', build_type: 'Debug',   developer_mode: 'OFF' })
-            includes.push({ compiler: 'gcc-14',    os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '3.30.*', build_type: 'Debug',   developer_mode: 'ON'  })
-            includes.push({ compiler: 'clang-17',  os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '3.30.*', build_type: 'Debug',   developer_mode: 'OFF' })
-            includes.push({ compiler: 'clang-19',  os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '3.30.*', build_type: 'Debug',   developer_mode: 'ON'  })
+            includes.push({ compiler: 'gcc-13',    os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '4.0.*', build_type: 'Debug',   developer_mode: 'OFF' })
+            includes.push({ compiler: 'gcc-14',    os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '4.0.*', build_type: 'Debug',   developer_mode: 'ON'  })
+            includes.push({ compiler: 'clang-17',  os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '4.0.*', build_type: 'Debug',   developer_mode: 'OFF' })
+            includes.push({ compiler: 'clang-19',  os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '4.0.*', build_type: 'Debug',   developer_mode: 'ON'  })
 
             // Release builds (short CI)
-            includes.push({ compiler: 'gcc-14',    os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '3.30.*', build_type: 'Release', developer_mode: 'ON'  })
-            includes.push({ compiler: 'clang-19',  os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '3.30.*', build_type: 'Release', developer_mode: 'ON'  })
+            includes.push({ compiler: 'gcc-14',    os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '4.0.*', build_type: 'Release', developer_mode: 'ON'  })
+            includes.push({ compiler: 'clang-19',  os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '4.0.*', build_type: 'Release', developer_mode: 'ON'  })
 
             if (ci_short) {
               return { include: includes }
             }
 
             // Debug builds (long CI)
-            includes.push({ compiler: 'clang-18',  os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '3.30.*', build_type: 'Debug',   developer_mode: 'OFF' })
+            includes.push({ compiler: 'clang-18',  os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '4.0.*', build_type: 'Debug',   developer_mode: 'OFF' })
 
             // Release builds (long CI)
-            includes.push({ compiler: 'gcc-13',    os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '3.30.*', build_type: 'Release', developer_mode: 'OFF' })
-            includes.push({ compiler: 'clang-17',  os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '3.30.*', build_type: 'Release', developer_mode: 'OFF' })
-            includes.push({ compiler: 'clang-18',  os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '3.30.*', build_type: 'Release', developer_mode: 'OFF' })
+            includes.push({ compiler: 'gcc-13',    os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '4.0.*', build_type: 'Release', developer_mode: 'OFF' })
+            includes.push({ compiler: 'clang-17',  os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '4.0.*', build_type: 'Release', developer_mode: 'OFF' })
+            includes.push({ compiler: 'clang-18',  os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '4.0.*', build_type: 'Release', developer_mode: 'OFF' })
 
             // Make sure project builds with CMake 3.25
             includes.push({ compiler: 'clang-19',  os: 'ubuntu-24.04',  generator: 'Ninja', cmake: '3.25.2', build_type: 'Release', developer_mode: 'OFF' })
             // Make sure project builds with make
-            includes.push({ compiler: 'clang-19',  os: 'ubuntu-24.04',  generator: 'Unix Makefiles', cmake: '3.30.*', build_type: 'Release', developer_mode: 'OFF' })
+            includes.push({ compiler: 'clang-19',  os: 'ubuntu-24.04',  generator: 'Unix Makefiles', cmake: '4.0.*', build_type: 'Release', developer_mode: 'OFF' })
 
             return { include: includes }
 
   cache-test-dataset:
     name: Cache test dataset
-    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@main
+    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@c5882f6f3ca0f8e53e1b3be9d3d20e1ee33afd5f
 
   build-conan-deps:
     name: Build Conan deps
-    uses: paulsengroup/nchg/.github/workflows/build-conan-deps.yml@main
-    with:
-      os: ubuntu-24.04
+    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@6f4a7255f70730e1f89ad1587b5bc52dd13c04bf
 
   build-project:
     name: Build project
@@ -200,29 +198,24 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           key: ${{ needs.build-conan-deps.outputs.conan-key }}
-          path: ${{ env.CONAN_HOME }}/p
+          path: |
+            ${{ env.CONAN_HOME }}/p
+            /tmp/cmake-prefix-dbg.tar
+            /tmp/cmake-prefix-rel.tar
+            /tmp/cmake-prefix-rwdi.tar
           fail-on-cache-miss: true
 
-      - name: Restore CMake configs (Debug)
+      - name: Extract CMake configs (Debug)
         if: matrix.build_type == 'Debug'
-        uses: actions/cache/restore@v4
-        with:
-          key: ${{ needs.build-conan-deps.outputs.cmake-prefix-debug-key }}
-          path: /tmp/cmake-prefix-dbg.tar
-          fail-on-cache-miss: true
-
-      - name: Restore CMake configs (Release)
-        if: matrix.build_type == 'Release'
-        uses: actions/cache/restore@v4
-        with:
-          key: ${{ needs.build-conan-deps.outputs.cmake-prefix-release-key }}
-          path: /tmp/cmake-prefix-rel.tar
-          fail-on-cache-miss: true
-
-      - name: Extract CMake configs
         run: |
           mkdir conan-env
-          tar -xf /tmp/cmake-prefix-*.tar -C conan-env/ --strip-components=1
+          tar -xf /tmp/cmake-prefix-dbg.tar -C conan-env/ --strip-components=1
+
+      - name: Extract CMake configs (Release)
+        if: matrix.build_type == 'Release'
+        run: |
+          mkdir conan-env
+          tar -xf /tmp/cmake-prefix-rel.tar -C conan-env/ --strip-components=1
 
       - name: Restore Ccache folder
         id: cache-ccache

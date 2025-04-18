@@ -22,7 +22,7 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/build-conan-deps.yml"
+      - ".github/workflows/build-conan-deps-macos.yml"
       - ".github/workflows/cache-test-dataset.yml"
       - ".github/workflows/macos-ci.yml"
       - "cmake/**"
@@ -33,7 +33,7 @@ on:
 
   pull_request:
     paths:
-      - ".github/workflows/build-conan-deps.yml"
+      - ".github/workflows/build-conan-deps-macos.yml"
       - ".github/workflows/cache-test-dataset.yml"
       - ".github/workflows/macos-ci.yml"
       - "cmake/**"
@@ -76,28 +76,28 @@ jobs:
 
             var includes = []
 
-            includes.push({ compiler_name: 'apple-clang', compiler_version: '15', os: 'macos-13', cmake: '3.30.*', build_type: 'Release', developer_mode: 'OFF' })
-            includes.push({ compiler_name: 'apple-clang', compiler_version: '15', os: 'macos-14', cmake: '3.30.*', build_type: 'Release', developer_mode: 'OFF' })
-            includes.push({ compiler_name: 'apple-clang', compiler_version: '16', os: 'macos-15', cmake: '3.30.*', build_type: 'Release', developer_mode: 'OFF' })
-            includes.push({ compiler_name: 'apple-clang', compiler_version: '15', os: 'macos-13', cmake: '3.30.*', build_type: 'Debug',   developer_mode: 'OFF' })
-            includes.push({ compiler_name: 'apple-clang', compiler_version: '15', os: 'macos-14', cmake: '3.30.*', build_type: 'Debug',   developer_mode: 'OFF' })
-            includes.push({ compiler_name: 'apple-clang', compiler_version: '16', os: 'macos-15', cmake: '3.30.*', build_type: 'Debug',   developer_mode: 'OFF' })
+            includes.push({ compiler_name: 'apple-clang', compiler_version: '15', os: 'macos-13', cmake: '4.0.*', build_type: 'Release', developer_mode: 'OFF' })
+            includes.push({ compiler_name: 'apple-clang', compiler_version: '15', os: 'macos-14', cmake: '4.0.*', build_type: 'Release', developer_mode: 'OFF' })
+            includes.push({ compiler_name: 'apple-clang', compiler_version: '16', os: 'macos-15', cmake: '4.0.*', build_type: 'Release', developer_mode: 'OFF' })
+            includes.push({ compiler_name: 'apple-clang', compiler_version: '15', os: 'macos-13', cmake: '4.0.*', build_type: 'Debug',   developer_mode: 'OFF' })
+            includes.push({ compiler_name: 'apple-clang', compiler_version: '15', os: 'macos-14', cmake: '4.0.*', build_type: 'Debug',   developer_mode: 'OFF' })
+            includes.push({ compiler_name: 'apple-clang', compiler_version: '16', os: 'macos-15', cmake: '4.0.*', build_type: 'Debug',   developer_mode: 'OFF' })
 
             return { include: includes }
 
   cache-test-dataset:
     name: Cache test dataset
-    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@main
+    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@c5882f6f3ca0f8e53e1b3be9d3d20e1ee33afd5f
 
   build-conan-deps-x86:
     name: Build Conan deps
-    uses: paulsengroup/nchg/.github/workflows/build-conan-deps.yml@main
+    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-macos.yml@6f4a7255f70730e1f89ad1587b5bc52dd13c04bf
     with:
       os: macos-13
 
   build-conan-deps-arm64:
     name: Build Conan deps
-    uses: paulsengroup/nchg/.github/workflows/build-conan-deps.yml@main
+    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-macos.yml@6f4a7255f70730e1f89ad1587b5bc52dd13c04bf
     with:
       os: macos-14
 
@@ -128,7 +128,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
           cache: "pip"
 
       - name: Detect number available CPUs
@@ -170,7 +170,10 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           key: ${{ needs.build-conan-deps-x86.outputs.conan-key }}
-          path: ${{ env.CONAN_HOME }}/p
+          path: |
+            ${{ env.CONAN_HOME }}/p
+            /tmp/cmake-prefix-dbg.tar
+            /tmp/cmake-prefix-rel.tar
           fail-on-cache-miss: true
 
       - name: Restore Conan cache (arm64)
@@ -178,45 +181,23 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           key: ${{ needs.build-conan-deps-arm64.outputs.conan-key }}
-          path: ${{ env.CONAN_HOME }}/p
+          path: |
+            ${{ env.CONAN_HOME }}/p
+            /tmp/cmake-prefix-dbg.tar
+            /tmp/cmake-prefix-rel.tar
           fail-on-cache-miss: true
 
-      - name: Restore CMake configs (x86; Debug)
-        if: matrix.build_type == 'Debug' && matrix.os == 'macos-13'
-        uses: actions/cache/restore@v4
-        with:
-          key: ${{ needs.build-conan-deps-x86.outputs.cmake-prefix-debug-key }}
-          path: /tmp/cmake-prefix-dbg.tar
-          fail-on-cache-miss: true
-
-      - name: Restore CMake configs (x86; Release)
-        if: matrix.build_type == 'Release' && matrix.os == 'macos-13'
-        uses: actions/cache/restore@v4
-        with:
-          key: ${{ needs.build-conan-deps-x86.outputs.cmake-prefix-release-key }}
-          path: /tmp/cmake-prefix-rel.tar
-          fail-on-cache-miss: true
-
-      - name: Restore CMake configs (arm64; Debug)
-        if: matrix.build_type == 'Debug' && (matrix.os == 'macos-14' || matrix.os == 'macos-15')
-        uses: actions/cache/restore@v4
-        with:
-          key: ${{ needs.build-conan-deps-arm64.outputs.cmake-prefix-debug-key }}
-          path: /tmp/cmake-prefix-dbg.tar
-          fail-on-cache-miss: true
-
-      - name: Restore CMake configs (arm64; Release)
-        if: matrix.build_type == 'Release' && (matrix.os == 'macos-14' || matrix.os == 'macos-15')
-        uses: actions/cache/restore@v4
-        with:
-          key: ${{ needs.build-conan-deps-arm64.outputs.cmake-prefix-release-key }}
-          path: /tmp/cmake-prefix-rel.tar
-          fail-on-cache-miss: true
-
-      - name: Extract CMake configs
+      - name: Extract CMake configs (Debug)
+        if: matrix.build_type == 'Debug'
         run: |
           mkdir conan-env
-          tar -xf /tmp/cmake-prefix-*.tar -C conan-env/ --strip-components=1
+          tar -xf /tmp/cmake-prefix-dbg.tar -C conan-env/ --strip-components=1
+
+      - name: Extract CMake configs (Release)
+        if: matrix.build_type == 'Release'
+        run: |
+          mkdir conan-env
+          tar -xf /tmp/cmake-prefix-rel.tar -C conan-env/ --strip-components=1
 
       - name: Configure project
         run: |

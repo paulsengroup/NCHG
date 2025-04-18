@@ -235,6 +235,7 @@ jobs:
                 -DNCHG_ENABLE_TESTING=ON                             \
                 -DNCHG_DOWNLOAD_TEST_DATASET=OFF                     \
                 -DCMAKE_INSTALL_PREFIX=dest                          \
+                -G "${{ matrix.generator }}"                         \
                 -S .                                                 \
                 -B build
 

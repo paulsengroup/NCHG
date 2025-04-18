@@ -1,0 +1,61 @@
+# Copyright (C) 2025 Roberto Rossini <roberros@uio.no>
+#
+# SPDX-License-Identifier: GPL-3.0
+#
+# This library is free software: you can redistribute it and/or
+# modify it under the terms of the GNU Public License as published
+# by the Free Software Foundation; either version 3 of the License,
+# or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Library General Public License for more details.
+#
+# You should have received a copy of the GNU Public License along
+# with this library.  If not, see
+# <https://www.gnu.org/licenses/>.
+
+name: Run CodeQL analysis (actions)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/*.yml"
+  pull_request:
+    paths:
+      - ".github/workflows/*.yml"
+  schedule:
+    - cron: "0 5 1 * *" # run monthly at 05:00
+
+# https://stackoverflow.com/a/72408109
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (actions)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@1b549b9259bda1cb5ddde3b41741a82a2d15a841 # v3.28.13
+        with:
+          languages: actions
+          build-mode: none
+
+      - name: Run Analysis
+        uses: github/codeql-action/analyze@1b549b9259bda1cb5ddde3b41741a82a2d15a841 # v3.28.13
+        with:
+          category: "/language:actions"

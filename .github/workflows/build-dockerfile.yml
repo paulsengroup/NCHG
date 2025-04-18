@@ -59,6 +59,9 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  contents: read
+
 jobs:
   cache-test-dataset:
     uses: paulsengroup/hictk/.github/workflows/cache-test-dataset.yml@main

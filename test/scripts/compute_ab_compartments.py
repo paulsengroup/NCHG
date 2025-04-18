@@ -92,10 +92,10 @@ def download_hg38_fna(tmpdir: pathlib.Path) -> pd.DataFrame:
 
     logging.info("downloading hg38.fa.gz from %s...", url)
 
-    tmpfile = pathlib.Path(tempfile.mktemp(dir=tmpdir))
-    urlretrieve(url, tmpfile)
-
-    return read_ref_genome(decompress_gz(tmpfile))
+    with tempfile.NamedTemporaryFile(dir=tmpdir) as tmpfile:
+        path = pathlib.Path(tmpfile.name)
+        urlretrieve(url, path)
+        return read_ref_genome(decompress_gz(path))
 
 
 def get_ref_genome(path: pathlib.Path | None, tmpdir: pathlib.Path) -> pd.DataFrame:

@@ -21,6 +21,7 @@
 // clang-format off
 #include "nchg/suppress_warnings.hpp"
 NCHG_DISABLE_WARNING_PUSH
+NCHG_DISABLE_WARNING_MACRO_REDEFINED
 NCHG_DISABLE_WARNING_OLD_STYLE_CAST
 #include <xxh3.h>
 NCHG_DISABLE_WARNING_POP

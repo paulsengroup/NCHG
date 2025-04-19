@@ -16,10 +16,18 @@
 // with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
+// clang-format off
+#include "nchg/suppress_warnings.hpp"
+// clang-format on
+
 #include "nchg/file_hashing.hpp"
 
 #include <fmt/format.h>
+NCHG_DISABLE_WARNING_PUSH
+NCHG_DISABLE_WARNING_MACRO_REDEFINED
+NCHG_DISABLE_WARNING_OLD_STYLE_CAST
 #include <xxh3.h>
+NCHG_DISABLE_WARNING_POP
 
 #include <cassert>
 #include <exception>

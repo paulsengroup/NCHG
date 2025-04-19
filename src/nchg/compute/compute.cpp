@@ -40,6 +40,7 @@ NCHG_DISABLE_WARNING_POP
 #include <fstream>
 #include <hictk/fmt/pixel.hpp>
 #include <hictk/genomic_interval.hpp>
+#include <hictk/hash.hpp>
 #include <hictk/reference.hpp>
 #include <memory>
 #include <mutex>
@@ -687,23 +688,41 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
     args.emplace_back("--force");
   }
 
+  phmap::btree_set<std::string> errors{};
+
   for (std::size_t attempt = 0; attempt < 10; ++attempt) {
     auto [lck, asio_ctx] = ctx();
     assert(!!asio_ctx);
-    boost::process::process proc(*asio_ctx, c.exec.string(), args,
-                                 boost::process::process_stdio{nullptr, nullptr, {}});
-    if (proc.running() || proc.exit_code() == 0) {
-      SPDLOG_DEBUG("[{}:{}]: spawned worker process {}...", chrom1.name(), chrom2.name(),
-                   proc.id());
-      return proc;
+    try {
+      boost::process::process proc(*asio_ctx, c.exec.string(), args,
+                                   boost::process::process_stdio{nullptr, nullptr, {}});
+      if (proc.running() || proc.exit_code() == 0) {
+        SPDLOG_DEBUG("[{}:{}]: spawned worker process {}...", chrom1.name(), chrom2.name(),
+                     proc.id());
+        return proc;
+      }
+      SPDLOG_WARN("[{}:{}]: spawning worker process {} failed (attempt {}/10)...", chrom1.name(),
+                  chrom2.name(), proc.id(), attempt + 1);
+      proc.terminate();
+    } catch (const std::exception &e) {
+      SPDLOG_WARN("[{}:{}]: spawning worker process failed (attempt {}/10): {}", chrom1.name(),
+                  chrom2.name(), attempt + 1, e.what());
+      errors.emplace(e.what());
     }
-    SPDLOG_WARN("[{}:{}]: spawning worker process {} failed (attempt {}/10)...", chrom1.name(),
-                chrom2.name(), proc.id(), attempt + 1);
-    proc.terminate();
+    const std::chrono::milliseconds sleep_time{
+        std::clamp(hictk::internal::hash_combine(0, attempt, chrom1, chrom2) % std::size_t{250},
+                   std::size_t{50}, std::size_t{250})};
+    std::this_thread::sleep_for(sleep_time);
   }
 
+  if (errors.empty()) {
+    throw std::runtime_error(fmt::format("failed to spawn worker process: {} {}", c.exec.string(),
+                                         fmt::join(args, " ")));
+  }
   throw std::runtime_error(
-      fmt::format("failed to spawn worker process: {} {}", c.exec.string(), fmt::join(args, " ")));
+      fmt::format("failed to spawn worker process: {} {}\n"
+                  "Exception(s):\n - {}",
+                  c.exec.string(), fmt::join(args, " "), fmt::join(errors, "\n - ")));
 }
 
 [[nodiscard]] static std::filesystem::path generate_report_file_name(

@@ -787,6 +787,13 @@ void Cli::validate_compute_subcommand() const {
         "--resolution is a mandatory argument when the input file is in .hic or .mcool format.");
   }
 
+  if (c.output_prefix.parent_path().empty()) {
+    errors.emplace_back(
+        fmt::format("invalid output prefix \"{}\": the output prefix should have a folder "
+                    "component (e.g. \"output_folder/prefix\")",
+                    c.output_prefix));
+  }
+
   if (c.min_delta >= c.max_delta) {
     errors.emplace_back("--min-delta should be less than --max-delta.");
   }
@@ -944,10 +951,6 @@ void Cli::transform_args_compute_subcommand() {
   }
 
   c.exec = get_path_to_executable();
-
-  if (!c.output_prefix.empty()) {
-    c.tmpdir = c.output_prefix.parent_path() / "tmp/";
-  }
 
   if (c.compression_method == "lz4") {
     c.compression_lvl = std::min(c.compression_lvl, std::uint8_t{9});

@@ -499,38 +499,38 @@ jobs:
         run: |
           bin/NCHG compute                                     \
             test/data/ENCFF447ERX.1000000.cool                 \
-            "$OUT_PREFIX"                                      \
+            "out/$OUT_PREFIX"                                  \
             --threads "$NPROC"
 
           test/scripts/validate_nchg_output.py compute \
-            "$OUT_PREFIX"                              \
+            "out/$OUT_PREFIX"                          \
             "$DATA_DIR/compute/$OUT_PREFIX"
 
-          rm "$OUT_PREFIX"*
+          rm -r out
 
       - name: Test NCHG compute (st)
         run: |
           bin/NCHG compute                                     \
             test/data/ENCFF447ERX.1000000.cool                 \
-            "$OUT_PREFIX"                                      \
+            "out/$OUT_PREFIX"                                  \
             --cis-only                                         \
             --threads 1
 
-          rm "$OUT_PREFIX"*
+          rm -r out
 
       - name: Test NCHG compute (mt; w/ domain list)
         run: |
           bin/NCHG compute                                     \
             test/data/ENCFF447ERX.1000000.cool                 \
-            "$OUT_PREFIX"                                      \
-            --threads "$NPROC"                               \
+            "out/$OUT_PREFIX"                                  \
+            --threads "$NPROC"                                 \
             --domains "$DATA_DIR/cartesian_product/$OUT_PREFIX.gw-domains.bedpe"
 
           test/scripts/validate_nchg_output.py compute \
-            "$OUT_PREFIX"                              \
+            "out/$OUT_PREFIX"                          \
             "$DATA_DIR/compute_with_domains/$OUT_PREFIX"
 
-          rm "$OUT_PREFIX"*
+          rm -r out
 
       - name: Test NCHG merge w/ input validation
         run: |

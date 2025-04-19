@@ -51,7 +51,6 @@ struct ComputePvalConfig {
   std::filesystem::path path_to_hic{};
   std::filesystem::path output_prefix{};
   std::filesystem::path output_path{};
-  std::filesystem::path tmpdir{};
   bool force{false};
 
   std::optional<std::uint32_t> resolution{};

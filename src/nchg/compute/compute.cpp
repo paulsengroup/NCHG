@@ -17,9 +17,6 @@
 // <https://www.gnu.org/licenses/>.
 
 // clang-format off
-
-
-
 #include "nchg/suppress_warnings.hpp"
 NCHG_DISABLE_WARNING_PUSH
 NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
@@ -47,6 +44,8 @@ NCHG_DISABLE_WARNING_POP
 #include <memory>
 #include <type_traits>
 #include <variant>
+
+#include "nchg/tools/tmpdir.hpp"
 
 // clang-format off
 // As of HighFive 2.9.0, these headers must be included after HighFive/hictk,
@@ -712,7 +711,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 
 [[nodiscard]] static std::size_t worker_fx(FileStore &file_store, const hictk::Chromosome &chrom1,
                                            const hictk::Chromosome &chrom2,
-                                           std::optional<BG2Domains> &domains,
+                                           std::optional<BG2Domains> &domains, const TmpDir &tmpdir,
                                            const ComputePvalConfig &config,
                                            bool trans_expected_values_avail,
                                            std::atomic<bool> &early_return) {
@@ -730,8 +729,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 
     std::filesystem::path domain_file{};
     if (domains.has_value()) {
-      domain_file = domains->extact_and_write_to_file(child_config.tmpdir, chrom1, chrom2,
-                                                      child_config.force);
+      domain_file = domains->extact_and_write_to_file(tmpdir(), chrom1, chrom2, child_config.force);
       child_config.path_to_domains = domain_file;
     } else {
       assert(child_config.path_to_domains.empty());
@@ -780,20 +778,16 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 }
 
 [[nodiscard]] static ComputePvalConfig init_base_config(
-    const ComputePvalConfig &c, const std::optional<ExpectedValues> &expected_values) {
+    const ComputePvalConfig &c, const TmpDir &tmpdir,
+    const std::optional<ExpectedValues> &expected_values) {
   auto base_config = c;
   if (c.path_to_expected_values.empty() && expected_values.has_value()) {
     assert(!base_config.output_prefix.empty());
-    const auto tmpdir = base_config.output_prefix.parent_path() / "tmp/";
-    if (std::filesystem::exists(tmpdir) && !c.force) {
-      throw std::runtime_error(
-          fmt::format("refusing to overwrite existing temporary folder: \"{}\". "
-                      "Pass --force to overwrite.",
-                      tmpdir));
-    }
-
     base_config.path_to_expected_values =
-        tmpdir / fmt::format("{}_expected_values.h5", base_config.output_prefix.stem().string());
+        tmpdir() / fmt::format("{}_expected_values.h5", base_config.output_prefix.stem().string());
+
+    SPDLOG_DEBUG("writing expected values to temporary file \"{}\"...",
+                 base_config.path_to_expected_values);
 
     if (!base_config.force && std::filesystem::exists(base_config.path_to_expected_values)) {
       throw std::runtime_error(
@@ -801,7 +795,6 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
                       base_config.path_to_expected_values));
     }
 
-    std::filesystem::create_directories(tmpdir);
     std::filesystem::remove(base_config.path_to_expected_values);  // NOLINT
     expected_values->serialize(base_config.path_to_expected_values);
   }
@@ -813,11 +806,11 @@ static std::size_t process_queries_mt(BS::light_thread_pool &tpool, FileStore &f
                                       const ChromosomePairs &chrom_pairs,
                                       std::optional<BG2Domains> &domains,
                                       const std::optional<ExpectedValues> &expected_values,
-                                      const ComputePvalConfig &c) {
+                                      const TmpDir &tmpdir, const ComputePvalConfig &c) {
   std::atomic<bool> early_return{false};
 
   const auto user_provided_expected_values = !c.path_to_expected_values.empty();
-  const auto base_config = init_base_config(c, expected_values);
+  const auto base_config = init_base_config(c, tmpdir, expected_values);
 
   BS::multi_future<std::size_t> workers(chrom_pairs.size());
   auto it = chrom_pairs.begin();
@@ -826,7 +819,7 @@ static std::size_t process_queries_mt(BS::light_thread_pool &tpool, FileStore &f
       const auto &[chrom1, chrom2] = chrom_pair;
       SPDLOG_DEBUG("submitting task {}/{} ({}:{})...", i + 1, workers.size(), chrom1.name(),
                    chrom2.name());
-      return worker_fx(file_store, chrom1, chrom2, domains, base_config,
+      return worker_fx(file_store, chrom1, chrom2, domains, tmpdir, base_config,
                        user_provided_expected_values, early_return);
     });
   }
@@ -917,6 +910,10 @@ static std::size_t process_queries(FileStore &file_store, const ChromosomePairs 
   file_store.register_file(chrom_sizes_path);
 
   if (c.threads > 1) {
+    assert(!c.output_prefix.parent_path().empty());
+    const TmpDir tmpdir{c.output_prefix.parent_path(), true};
+    SPDLOG_INFO("writing temporary files under folder \"{}\"...", tmpdir());
+
     auto num_threads = c.threads;
     if (c.threads > chrom_pairs.size()) {
       num_threads = chrom_pairs.size();
@@ -927,7 +924,7 @@ static std::size_t process_queries(FileStore &file_store, const ChromosomePairs 
           num_threads);
     }
     BS::light_thread_pool tpool(num_threads);
-    return process_queries_mt(tpool, file_store, chrom_pairs, domains, expected_values, c);
+    return process_queries_mt(tpool, file_store, chrom_pairs, domains, expected_values, tmpdir, c);
   }
   return process_queries_st(file_store, chrom_pairs, domains, expected_values, c);
 }
@@ -1149,58 +1146,46 @@ static bool setup_file_backed_logger(const std::filesystem::path &output_prefix,
 }
 
 int run_command(const ComputePvalConfig &c) {
-  try {
-    const auto t0 = std::chrono::steady_clock::now();
+  const auto t0 = std::chrono::steady_clock::now();
 
-    if (c.chrom1.has_value()) {
-      assert(c.chrom2.has_value());
-      assert(!c.output_path.empty());
-      std::optional<BG2Domains> placeholder{};
-      const auto interactions_processed = run_nchg_compute_worker(c, placeholder);
-      const auto t1 = std::chrono::steady_clock::now();
-      SPDLOG_INFO("[{}:{}] processed {} records in {}!", *c.chrom1, *c.chrom2,
-                  interactions_processed, format_duration(t1 - t0));
-
-      SPDLOG_INFO("records for {}:{} have been written to file \"{}\"", *c.chrom1, *c.chrom2,
-                  c.output_path.string());
-      return 0;
-    }
-
-    const auto log_file_initialized = setup_file_backed_logger(c.output_prefix, c.force);
-
-    auto [file_store, chrom_pairs, expected_values, domains] = generate_execution_plan(c);
-
-    const auto interactions_processed =
-        process_queries(*file_store, chrom_pairs, domains, expected_values, c);
-    file_store->finalize();
-    std::filesystem::remove_all(c.tmpdir);  // NOLINT
-
+  if (c.chrom1.has_value()) {
+    assert(c.chrom2.has_value());
+    assert(!c.output_path.empty());
+    std::optional<BG2Domains> placeholder{};
+    const auto interactions_processed = run_nchg_compute_worker(c, placeholder);
     const auto t1 = std::chrono::steady_clock::now();
-    if (interactions_processed == 0) {
-      SPDLOG_WARN("no records have been processed. Is this intended?");
-    } else {
-      SPDLOG_INFO("processed {} records in {}!", interactions_processed, format_duration(t1 - t0));
-    }
+    SPDLOG_INFO("[{}:{}] processed {} records in {}!", *c.chrom1, *c.chrom2, interactions_processed,
+                format_duration(t1 - t0));
 
-    auto files_created = chrom_pairs.size();
-    ++files_created;  // chrom.sizes file
-    ++files_created;  // report file
-    files_created += static_cast<std::size_t>(log_file_initialized);
-
-    SPDLOG_INFO("{} new file(s) have been created under prefix \"{}\"", files_created,
-                c.output_prefix);
-
+    SPDLOG_INFO("records for {}:{} have been written to file \"{}\"", *c.chrom1, *c.chrom2,
+                c.output_path.string());
     return 0;
-  } catch (...) {
-    std::error_code ec{};
-    std::filesystem::remove_all(c.tmpdir, ec);  // NOLINT
-
-    if (!static_cast<bool>(ec) && std::filesystem::exists(c.tmpdir)) {
-      SPDLOG_WARN("failed to remove temporary folder \"{}\"! Please remove the folder manually",
-                  c.tmpdir.string());
-    }
-    throw;
   }
+
+  const auto log_file_initialized = setup_file_backed_logger(c.output_prefix, c.force);
+
+  auto [file_store, chrom_pairs, expected_values, domains] = generate_execution_plan(c);
+
+  const auto interactions_processed =
+      process_queries(*file_store, chrom_pairs, domains, expected_values, c);
+  file_store->finalize();
+
+  const auto t1 = std::chrono::steady_clock::now();
+  if (interactions_processed == 0) {
+    SPDLOG_WARN("no records have been processed. Is this intended?");
+  } else {
+    SPDLOG_INFO("processed {} records in {}!", interactions_processed, format_duration(t1 - t0));
+  }
+
+  auto files_created = chrom_pairs.size();
+  ++files_created;  // chrom.sizes file
+  ++files_created;  // report file
+  files_created += static_cast<std::size_t>(log_file_initialized);
+
+  SPDLOG_INFO("{} new file(s) have been created under prefix \"{}\"", files_created,
+              c.output_prefix);
+
+  return 0;
 }
 
 }  // namespace nchg

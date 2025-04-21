@@ -45,7 +45,7 @@ permissions:
 jobs:
   build-conan-deps:
     name: Build Conan deps
-    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@6f4a7255f70730e1f89ad1587b5bc52dd13c04bf
+    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@9a99918d70a5785fe2e5f2b084dfbaa0d02049ac
 
   analyze:
     name: Analyze (C++)
@@ -85,7 +85,7 @@ jobs:
           tar -xf /home/runner/tmp/cmake-prefix-dbg.tar -C conan-env/ --strip-components=1
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@1b549b9259bda1cb5ddde3b41741a82a2d15a841 # v3.28.13
+        uses: github/codeql-action/init@45775bd8235c68ba998cffa5171334d58593da47 # v3.28.15
         with:
           languages: c-cpp
           build-mode: manual
@@ -105,6 +105,6 @@ jobs:
         run: cmake --build build -j $(nproc)
 
       - name: Run Analysis
-        uses: github/codeql-action/analyze@1b549b9259bda1cb5ddde3b41741a82a2d15a841 # v3.28.13
+        uses: github/codeql-action/analyze@45775bd8235c68ba998cffa5171334d58593da47 # v3.28.15
         with:
           category: "/language:c-cpp"

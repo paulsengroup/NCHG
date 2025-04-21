@@ -61,11 +61,11 @@ permissions:
 jobs:
   cache-test-dataset:
     name: Cache test dataset
-    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@c5882f6f3ca0f8e53e1b3be9d3d20e1ee33afd5f
+    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@9a99918d70a5785fe2e5f2b084dfbaa0d02049ac
 
   build-conan-deps:
     name: Build Conan deps
-    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@6f4a7255f70730e1f89ad1587b5bc52dd13c04bf
+    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@9a99918d70a5785fe2e5f2b084dfbaa0d02049ac
 
   build-project:
     name: Build project
@@ -308,7 +308,7 @@ jobs:
             "${binaries[@]}"
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # v5.4.0
+        uses: codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d # v5.4.2
         with:
           flags: "tests | unittests"
           fail_ci_if_error: true
@@ -611,7 +611,7 @@ jobs:
             build/src/nchg/NCHG
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # v5.4.0
+        uses: codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d # v5.4.2
         with:
           flags: "tests | integration"
           fail_ci_if_error: true

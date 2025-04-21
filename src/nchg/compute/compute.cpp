@@ -40,8 +40,11 @@ NCHG_DISABLE_WARNING_POP
 #include <fstream>
 #include <hictk/fmt/pixel.hpp>
 #include <hictk/genomic_interval.hpp>
+#include <hictk/hash.hpp>
 #include <hictk/reference.hpp>
 #include <memory>
+#include <mutex>
+#include <thread>
 #include <type_traits>
 #include <variant>
 
@@ -50,9 +53,9 @@ NCHG_DISABLE_WARNING_POP
 // clang-format off
 // As of HighFive 2.9.0, these headers must be included after HighFive/hictk,
 // otherwise this source file fails to compile with MSVC
-#include <boost/process/child.hpp>
-#include <boost/process/pipe.hpp>
-#include <boost/process/io.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/process/v2/process.hpp>
+#include <boost/process/v2/stdio.hpp>
 // clang-format on
 
 #include "nchg/common.hpp"
@@ -378,6 +381,18 @@ class BG2Domains {
   }
 };
 
+class ProcessContext {
+  boost::asio::io_context _ctx{};
+  std::mutex _mtx{};
+
+ public:
+  ProcessContext() = default;
+
+  [[nodiscard]] std::pair<std::unique_lock<std::mutex>, boost::asio::io_context *> operator()() {
+    return std::make_pair(std::unique_lock{_mtx}, &_ctx);
+  }
+};
+
 [[nodiscard]] static NCHG init_nchg(const std::shared_ptr<const hictk::File> &f,
                                     const std::optional<ExpectedValues> &expected_values,
                                     const ComputePvalConfig &c) {
@@ -602,9 +617,9 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   return buffer;
 }
 
-[[nodiscard]] static boost::process::child spawn_compute_process(const ComputePvalConfig &c,
-                                                                 const hictk::Chromosome &chrom1,
-                                                                 const hictk::Chromosome &chrom2) {
+[[nodiscard]] static boost::process::process spawn_compute_process(
+    ProcessContext &ctx, const ComputePvalConfig &c, const hictk::Chromosome &chrom1,
+    const hictk::Chromosome &chrom2) {
   assert(c.output_prefix.empty());
   assert(!c.output_path.empty());
 
@@ -673,22 +688,41 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
     args.emplace_back("--force");
   }
 
+  phmap::btree_set<std::string> errors{};
+
   for (std::size_t attempt = 0; attempt < 10; ++attempt) {
-    boost::process::child proc(
-        c.exec.string(), args,
-        boost::process::std_in<boost::process::null, boost::process::std_out> boost::process::null);
-    if (proc.running() || proc.exit_code() == 0) {
-      SPDLOG_DEBUG("[{}:{}]: spawned worker process {}...", chrom1.name(), chrom2.name(),
-                   proc.id());
-      return proc;
+    auto [lck, asio_ctx] = ctx();
+    assert(!!asio_ctx);
+    try {
+      boost::process::process proc(*asio_ctx, c.exec.string(), args,
+                                   boost::process::process_stdio{nullptr, nullptr, {}});
+      if (proc.running() || proc.exit_code() == 0) {
+        SPDLOG_DEBUG("[{}:{}]: spawned worker process {}...", chrom1.name(), chrom2.name(),
+                     proc.id());
+        return proc;
+      }
+      SPDLOG_WARN("[{}:{}]: spawning worker process {} failed (attempt {}/10)...", chrom1.name(),
+                  chrom2.name(), proc.id(), attempt + 1);
+      proc.terminate();
+    } catch (const std::exception &e) {
+      SPDLOG_WARN("[{}:{}]: spawning worker process failed (attempt {}/10): {}", chrom1.name(),
+                  chrom2.name(), attempt + 1, e.what());
+      errors.emplace(e.what());
     }
-    SPDLOG_WARN("[{}:{}]: spawning worker process {} failed (attempt {}/10)...", chrom1.name(),
-                chrom2.name(), proc.id(), attempt + 1);
-    proc.terminate();
+    const std::chrono::milliseconds sleep_time{
+        std::clamp(hictk::internal::hash_combine(0, attempt, chrom1, chrom2) % std::size_t{250},
+                   std::size_t{50}, std::size_t{250})};
+    std::this_thread::sleep_for(sleep_time);
   }
 
+  if (errors.empty()) {
+    throw std::runtime_error(fmt::format("failed to spawn worker process: {} {}", c.exec.string(),
+                                         fmt::join(args, " ")));
+  }
   throw std::runtime_error(
-      fmt::format("failed to spawn worker process: {} {}", c.exec.string(), fmt::join(args, " ")));
+      fmt::format("failed to spawn worker process: {} {}\n"
+                  "Exception(s):\n - {}",
+                  c.exec.string(), fmt::join(args, " "), fmt::join(errors, "\n - ")));
 }
 
 [[nodiscard]] static std::filesystem::path generate_report_file_name(
@@ -712,7 +746,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 [[nodiscard]] static std::size_t worker_fx(FileStore &file_store, const hictk::Chromosome &chrom1,
                                            const hictk::Chromosome &chrom2,
                                            std::optional<BG2Domains> &domains, const TmpDir &tmpdir,
-                                           const ComputePvalConfig &config,
+                                           ProcessContext &ctx, const ComputePvalConfig &config,
                                            bool trans_expected_values_avail,
                                            std::atomic<bool> &early_return) {
   if (early_return) {
@@ -739,8 +773,16 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
       child_config.path_to_expected_values.clear();
     }
 
-    auto proc = spawn_compute_process(child_config, chrom1, chrom2);
-    proc.wait();
+    auto proc = spawn_compute_process(ctx, child_config, chrom1, chrom2);
+    try {
+      proc.wait();
+    } catch (const std::exception &e) {
+      const std::string_view msg{e.what()};
+      // Deal with processes that terminated almost instantaneously
+      if (msg.find("wait failed: No child processes") == std::string_view::npos) {
+        throw;
+      }
+    }
 
     if (!domain_file.empty()) {
       std::filesystem::remove(domain_file);  // NOLINT
@@ -812,6 +854,8 @@ static std::size_t process_queries_mt(BS::light_thread_pool &tpool, FileStore &f
   const auto user_provided_expected_values = !c.path_to_expected_values.empty();
   const auto base_config = init_base_config(c, tmpdir, expected_values);
 
+  ProcessContext ctx{};
+
   BS::multi_future<std::size_t> workers(chrom_pairs.size());
   auto it = chrom_pairs.begin();
   for (std::size_t i = 0; i < workers.size(); ++i) {
@@ -819,7 +863,7 @@ static std::size_t process_queries_mt(BS::light_thread_pool &tpool, FileStore &f
       const auto &[chrom1, chrom2] = chrom_pair;
       SPDLOG_DEBUG("submitting task {}/{} ({}:{})...", i + 1, workers.size(), chrom1.name(),
                    chrom2.name());
-      return worker_fx(file_store, chrom1, chrom2, domains, tmpdir, base_config,
+      return worker_fx(file_store, chrom1, chrom2, domains, tmpdir, ctx, base_config,
                        user_provided_expected_values, early_return);
     });
   }

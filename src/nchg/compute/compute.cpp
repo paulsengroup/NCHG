@@ -774,7 +774,15 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
     }
 
     auto proc = spawn_compute_process(ctx, child_config, chrom1, chrom2);
-    proc.wait();
+    try {
+      proc.wait();
+    } catch (const std::exception &e) {
+      const std::string_view msg{e.what()};
+      // Deal with processes that terminated almost instantaneously
+      if (msg.find("wait failed: No child processes") == std::string_view::npos) {
+        throw;
+      }
+    }
 
     if (!domain_file.empty()) {
       std::filesystem::remove(domain_file);  // NOLINT

@@ -94,6 +94,7 @@ RUN cmake -DCMAKE_BUILD_TYPE=Release            \
           -DENABLE_DEVELOPER_MODE=OFF           \
           -DCMAKE_INSTALL_PREFIX="$staging_dir" \
           -DNCHG_ENABLE_TESTING=OFF             \
+          -DNCHG_USE_PIDFD_OPEN=OFF             \
           -DGIT_RETRIEVED_STATE=true            \
           -DGIT_TAG="$GIT_TAG"                  \
           -DGIT_IS_DIRTY="$GIT_IS_DIRTY"        \

@@ -150,6 +150,7 @@ endif()
 
 option(BUILD_SHARED_LIBS "Build shared library" OFF)
 option(NCHG_ENABLE_TESTING "Build unit tests" ON)
+option(NCHG_USE_PIDFD_OPEN "Use pidfd_open() when available" ON)
 
 add_subdirectory(src)
 

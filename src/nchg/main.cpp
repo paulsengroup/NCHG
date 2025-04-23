@@ -41,7 +41,7 @@ using namespace nchg;
 
 template <std::size_t CAPACITY>
 class GlobalLogger {
-  //                                                 [2021-08-12 17:49:34.581] [info]: my log msg
+  //                                   [2021-08-12 17:49:34.581] [info]: my log msg
   static constexpr auto *_msg_pattern{"[%Y-%m-%d %T.%e] %^[%l]%$: %v"};
   using NCHGLogMsg = std::pair<spdlog::level::level_enum, std::string>;
   std::deque<NCHGLogMsg> _msg_buffer{};
@@ -193,6 +193,32 @@ static auto global_logger = std::make_unique<GlobalLogger<256>>();
 
 static auto acquire_global_logger() noexcept { return std::move(global_logger); }
 
+[[nodiscard]] static bool should_print_welcome_msg(Cli::subcommand subcmd, const Config &config) {
+  if (subcmd == Cli::subcommand::help) {
+    return false;
+  }
+
+  if (std::holds_alternative<ComputePvalConfig>(config)) {
+    return !std::get<ComputePvalConfig>(config).called_as_subprocess;
+  }
+
+  return true;
+}
+
+[[nodiscard]] static bool should_print_cli_warnings(const Config &config) {
+  const auto *c = std::get_if<ComputePvalConfig>(&config);
+
+  if (!c) {
+    return true;
+  }
+
+  if (c->called_as_subprocess) {
+    return false;
+  }
+
+  return true;
+}
+
 template <typename Logger>
 static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &cli,
                                                                            Logger &logger) {
@@ -205,7 +231,7 @@ static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &
           if constexpr (!std::is_same_v<T, std::monostate>) {
             if (logger.ok()) {
               logger.set_level(config_.verbosity);  // NOLINT
-              if (subcmd != Cli::subcommand::help) {
+              if (should_print_welcome_msg(subcmd, config)) {
                 logger.print_welcome_msg();
               }
             }
@@ -245,7 +271,9 @@ int main(int argc, char **argv) noexcept {
       return ec;
     }
 
-    cli->log_warnings();
+    if (should_print_cli_warnings(config)) {
+      cli->log_warnings();
+    }
 
     assert(!config.valueless_by_exception());
     return std::visit(

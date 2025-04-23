@@ -25,12 +25,14 @@ NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
 NCHG_DISABLE_WARNING_POP
 // clang-format on
 
+#include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 #include <fmt/std.h>
 #include <parquet/stream_reader.h>
 #include <parquet/stream_writer.h>
 #include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/callback_sink.h>
 #include <spdlog/spdlog.h>
 
 #include <BS_thread_pool.hpp>
@@ -38,6 +40,7 @@ NCHG_DISABLE_WARNING_POP
 #include <cassert>
 #include <cstdint>
 #include <fstream>
+#include <glaze/glaze_exceptions.hpp>
 #include <hictk/fmt/pixel.hpp>
 #include <hictk/genomic_interval.hpp>
 #include <hictk/hash.hpp>
@@ -54,6 +57,9 @@ NCHG_DISABLE_WARNING_POP
 // As of HighFive 2.9.0, these headers must be included after HighFive/hictk,
 // otherwise this source file fails to compile with MSVC
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/read_until.hpp>
+#include <boost/asio/readable_pipe.hpp>
+#include <boost/asio/streambuf.hpp>
 #include <boost/process/v2/process.hpp>
 #include <boost/process/v2/stdio.hpp>
 // clang-format on
@@ -67,6 +73,76 @@ NCHG_DISABLE_WARNING_POP
 #include "nchg/tools/common.hpp"
 #include "nchg/tools/config.hpp"
 #include "nchg/tools/tools.hpp"
+
+namespace glz {
+
+template <>
+struct from<BEVE, spdlog::log_clock::time_point> {
+  template <auto Opts>
+  static void op(spdlog::log_clock::time_point &timestamp, auto &&...args) {
+    using BuffT =
+        decltype(std::chrono::duration_cast<std::chrono::nanoseconds>(timestamp.time_since_epoch())
+                     .count());
+
+    BuffT buff{};
+    parse<BEVE>::op<Opts>(buff, args...);
+    timestamp = std::chrono::time_point<spdlog::log_clock>(std::chrono::nanoseconds{buff});
+  }
+};
+
+template <>
+struct from<BEVE, spdlog::level_t> {
+  template <auto Opts>
+  static void op(spdlog::level_t &level, auto &&...args) {
+    std::uint8_t buff{};
+    parse<BEVE>::op<Opts>(buff, args...);
+    level = static_cast<int>(buff);
+  }
+};
+
+template <>
+struct from<BEVE, spdlog::string_view_t> {
+  template <auto Opts>
+  static void op(spdlog::string_view_t &payload, auto &&...args) {
+    std::string_view buff{};
+    parse<BEVE>::op<Opts>(buff, args...);
+    payload = spdlog::string_view_t{buff.data(), buff.size()};
+  }
+};
+
+template <>
+struct to<BEVE, spdlog::log_clock::time_point> {
+  template <auto Opts>
+  static void op(const spdlog::log_clock::time_point &timestamp, auto &&...args) {
+    serialize<BEVE>::op<Opts>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(timestamp.time_since_epoch()).count(),
+        args...);
+  }
+};
+
+template <>
+struct to<BEVE, spdlog::level_t> {
+  template <auto Opts>
+  static void op(spdlog::level_t level, auto &&...args) {
+    serialize<BEVE>::op<Opts>(static_cast<std::uint8_t>(level.load()), args...);
+  }
+};
+
+template <>
+struct to<BEVE, spdlog::string_view_t> {
+  template <auto Opts>
+  static void op(spdlog::string_view_t s, auto &&...args) {
+    serialize<BEVE>::op<Opts>(std::string_view{s.data(), s.size()}, args...);
+  }
+};
+
+template <>
+struct meta<spdlog::details::log_msg> {
+  using T = spdlog::details::log_msg;
+  static constexpr auto value = object("t", &T::time, "l", &T::level, "p", &T::payload);
+};
+
+}  // namespace glz
 
 namespace nchg {
 
@@ -617,9 +693,65 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   return buffer;
 }
 
-[[nodiscard]] static boost::process::process spawn_compute_process(
-    ProcessContext &ctx, const ComputePvalConfig &c, const hictk::Chromosome &chrom1,
-    const hictk::Chromosome &chrom2) {
+class Process {
+  boost::process::process _proc;
+  boost::asio::readable_pipe _pipe;
+  std::string_view _chrom1;
+  std::string_view _chrom2;
+
+ public:
+  Process() = delete;
+  Process(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
+          boost::process::process &&proc, boost::asio::readable_pipe &&pipe)
+      : _proc(std::move(proc)),
+        _pipe(std::move(pipe)),
+        _chrom1(chrom1.name()),
+        _chrom2(chrom2.name()) {}
+
+  void communicate() {
+    boost::asio::streambuf buff;
+    std::istream is(&buff);
+    std::string line;
+    spdlog::details::log_msg msg{};
+    boost::system::error_code ec;
+    bool parse_as_beve{false};
+    for (std::size_t i = 0; true; ++i) {
+      boost::asio::read_until(_pipe, buff, '\n', ec);
+      if (ec) {
+        if (ec == boost::asio::error::eof) {
+          SPDLOG_DEBUG(
+              "[{}:{}]: reached EOF while reading stderr for process PID={} (records processed: "
+              "{})",
+              _chrom1, _chrom2, _proc.id(), i);
+          return;
+        }
+        throw std::runtime_error(fmt::format(
+            "an error occurred while reading process PID={} stderr: {}", _proc.id(), ec.message()));
+      }
+      std::getline(is, line);
+      if (!parse_as_beve && line == "### Begin BEVE encoded log messages ###") [[unlikely]] {
+        parse_as_beve = true;
+        continue;
+      }
+
+      if (!parse_as_beve) {
+        SPDLOG_ERROR("{}", line);
+      } else if (!glz::read_beve(msg, line)) [[likely]] {
+        spdlog::default_logger_raw()->log(
+            msg.time, msg.source,
+            msg.level != spdlog::level::info ? msg.level : spdlog::level::debug, msg.payload);
+      }
+    }
+  }
+
+  int wait() { return _proc.wait(); }
+
+  int exit_code() const noexcept { return _proc.exit_code(); }
+};
+
+[[nodiscard]] static Process spawn_compute_process(ProcessContext &ctx, const ComputePvalConfig &c,
+                                                   const hictk::Chromosome &chrom1,
+                                                   const hictk::Chromosome &chrom2) {
   assert(c.output_prefix.empty());
   assert(!c.output_path.empty());
 
@@ -627,6 +759,8 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 
   std::vector<std::string> args{
       "compute",
+      c.path_to_hic.string(),
+      c.output_path.string(),
       "--chrom1",
       std::string{chrom1.name()},
       "--chrom2",
@@ -639,10 +773,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
       fmt::to_string(c.compression_lvl),
       "--compression-method",
       c.compression_method,
-      "--verbosity",
-      "2",
-      c.path_to_hic.string(),
-      c.output_path.string(),
+      "--as-subprocess",
   };
 
   if (c.resolution.has_value()) {
@@ -694,12 +825,13 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
     auto [lck, asio_ctx] = ctx();
     assert(!!asio_ctx);
     try {
+      boost::asio::readable_pipe stderr_pipe{*asio_ctx};
       boost::process::process proc(*asio_ctx, c.exec.string(), args,
-                                   boost::process::process_stdio{nullptr, nullptr, {}});
+                                   boost::process::process_stdio{nullptr, nullptr, stderr_pipe});
       if (proc.running() || proc.exit_code() == 0) {
         SPDLOG_DEBUG("[{}:{}]: spawned worker process {}...", chrom1.name(), chrom2.name(),
                      proc.id());
-        return proc;
+        return {chrom1, chrom2, std::move(proc), std::move(stderr_pipe)};
       }
       SPDLOG_WARN("[{}:{}]: spawning worker process {} failed (attempt {}/10)...", chrom1.name(),
                   chrom2.name(), proc.id(), attempt + 1);
@@ -775,6 +907,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 
     auto proc = spawn_compute_process(ctx, child_config, chrom1, chrom2);
     try {
+      proc.communicate();
       proc.wait();
     } catch (const std::exception &e) {
       const std::string_view msg{e.what()};
@@ -827,9 +960,6 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
     assert(!base_config.output_prefix.empty());
     base_config.path_to_expected_values =
         tmpdir() / fmt::format("{}_expected_values.h5", base_config.output_prefix.stem().string());
-
-    SPDLOG_DEBUG("writing expected values to temporary file \"{}\"...",
-                 base_config.path_to_expected_values);
 
     if (!base_config.force && std::filesystem::exists(base_config.path_to_expected_values)) {
       throw std::runtime_error(
@@ -1189,8 +1319,38 @@ static bool setup_file_backed_logger(const std::filesystem::path &output_prefix,
   return false;
 }
 
+static void setup_beve_logger() {
+  auto logger = spdlog::default_logger();
+  if (!logger) {
+    return;
+  }
+
+  auto callback_sink =
+      std::make_shared<spdlog::sinks::callback_sink_mt>([](const spdlog::details::log_msg &msg) {
+        static std::mutex mtx;
+        static std::string buff{};
+
+        [[maybe_unused]] const std::scoped_lock lock(mtx);
+        if (!glz::write_beve(msg, buff)) [[likely]] {
+          fmt::println(stderr, "{}", buff);
+        }
+      });
+
+  callback_sink->set_level(spdlog::level::debug);
+
+  logger->sinks().clear();
+  logger->sinks().emplace_back(std::move(callback_sink));
+  logger->set_level(spdlog::level::debug);
+
+  fmt::println(stderr, "### Begin BEVE encoded log messages ###");
+}
+
 int run_command(const ComputePvalConfig &c) {
   const auto t0 = std::chrono::steady_clock::now();
+
+  if (c.called_as_subprocess) {
+    setup_beve_logger();
+  }
 
   if (c.chrom1.has_value()) {
     assert(c.chrom2.has_value());
@@ -1201,7 +1361,7 @@ int run_command(const ComputePvalConfig &c) {
     SPDLOG_INFO("[{}:{}] processed {} records in {}!", *c.chrom1, *c.chrom2, interactions_processed,
                 format_duration(t1 - t0));
 
-    SPDLOG_INFO("records for {}:{} have been written to file \"{}\"", *c.chrom1, *c.chrom2,
+    SPDLOG_INFO("[{}:{}]: all records have been written to file \"{}\"", *c.chrom1, *c.chrom2,
                 c.output_path.string());
     return 0;
   }
@@ -1226,8 +1386,7 @@ int run_command(const ComputePvalConfig &c) {
   ++files_created;  // report file
   files_created += static_cast<std::size_t>(log_file_initialized);
 
-  SPDLOG_INFO("{} new file(s) have been created under prefix \"{}\"", files_created,
-              c.output_prefix);
+  SPDLOG_INFO("created {} new file(s) under prefix \"{}\"", files_created, c.output_prefix);
 
   return 0;
 }

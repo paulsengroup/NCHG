@@ -405,6 +405,13 @@ void Cli::make_compute_subcommand() {
     "Set verbosity of output to the console.")
     ->check(CLI::Range(1, 4))
     ->capture_default_str();
+
+  auto hidden_grp = sc.add_option_group("");
+  hidden_grp->add_flag(
+    "--as-subprocess",
+    c.called_as_subprocess,
+    "This flag is only meant to be used when NCHG is calling itself as a subprocess."
+  );
   // clang-format on
 
   sc.get_option("--chrom2")->needs("--chrom1");
@@ -816,6 +823,17 @@ void Cli::validate_compute_subcommand() const {
         "concurrency will be limited to a single thread");
   }
 
+  if (c.called_as_subprocess) {
+    if (!c.chrom1 || !c.chrom2) {
+      errors.emplace_back(
+          "internal error: --chrom1 and --chrom2 are required when --as-subprocess is passed");
+    }
+    if (c.threads != 1) {
+      errors.emplace_back(
+          "internal error: --threads should always be 1 when --as-subprocess is passed");
+    }
+  }
+
   if (!errors.empty()) {
     throw std::runtime_error(
         fmt::format("the following error(s) where encountered while validating CLI "
@@ -960,9 +978,13 @@ void Cli::transform_args_compute_subcommand() {
     c.threads = 1;
   }
 
-  // in spdlog, high numbers correspond to low log levels
-  assert(c.verbosity > 0 && c.verbosity <= SPDLOG_LEVEL_CRITICAL);
-  c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
+  if (c.called_as_subprocess) {
+    c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical - spdlog::level::debug);
+  } else {
+    // in spdlog, high numbers correspond to low log levels
+    assert(c.verbosity > 0 && c.verbosity <= SPDLOG_LEVEL_CRITICAL);
+    c.verbosity = static_cast<std::uint8_t>(spdlog::level::critical) - c.verbosity;
+  }
 }
 
 void Cli::transform_args_expected_subcommand() {

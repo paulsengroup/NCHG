@@ -80,23 +80,11 @@ template <>
 struct from<BEVE, spdlog::log_clock::time_point> {
   template <auto Opts>
   static void op(spdlog::log_clock::time_point &timestamp, auto &&...args) {
-    using BuffT =
-        decltype(std::chrono::duration_cast<std::chrono::nanoseconds>(timestamp.time_since_epoch())
-                     .count());
+    using BuffT = decltype(timestamp.time_since_epoch().count());
 
     BuffT buff{};
     parse<BEVE>::op<Opts>(buff, args...);
-    timestamp = std::chrono::time_point<spdlog::log_clock>(std::chrono::nanoseconds{buff});
-  }
-};
-
-template <>
-struct from<BEVE, spdlog::level_t> {
-  template <auto Opts>
-  static void op(spdlog::level_t &level, auto &&...args) {
-    std::uint8_t buff{};
-    parse<BEVE>::op<Opts>(buff, args...);
-    level = static_cast<int>(buff);
+    timestamp = spdlog::log_clock::time_point(spdlog::log_clock::duration{buff});
   }
 };
 
@@ -114,17 +102,7 @@ template <>
 struct to<BEVE, spdlog::log_clock::time_point> {
   template <auto Opts>
   static void op(const spdlog::log_clock::time_point &timestamp, auto &&...args) {
-    serialize<BEVE>::op<Opts>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(timestamp.time_since_epoch()).count(),
-        args...);
-  }
-};
-
-template <>
-struct to<BEVE, spdlog::level_t> {
-  template <auto Opts>
-  static void op(spdlog::level_t level, auto &&...args) {
-    serialize<BEVE>::op<Opts>(static_cast<std::uint8_t>(level.load()), args...);
+    serialize<BEVE>::op<Opts>(timestamp.time_since_epoch().count(), args...);
   }
 };
 

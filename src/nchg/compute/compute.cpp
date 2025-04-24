@@ -47,6 +47,7 @@ NCHG_DISABLE_WARNING_POP
 #include <hictk/reference.hpp>
 #include <memory>
 #include <mutex>
+#include <ranges>
 #include <thread>
 #include <type_traits>
 #include <variant>
@@ -57,9 +58,7 @@ NCHG_DISABLE_WARNING_POP
 // As of HighFive 2.9.0, these headers must be included after HighFive/hictk,
 // otherwise this source file fails to compile with MSVC
 #include <boost/asio/io_context.hpp>
-#include <boost/asio/read_until.hpp>
-#include <boost/asio/readable_pipe.hpp>
-#include <boost/asio/streambuf.hpp>
+#include <boost/interprocess/ipc/message_queue.hpp>
 #include <boost/process/v2/process.hpp>
 #include <boost/process/v2/stdio.hpp>
 // clang-format on
@@ -436,15 +435,14 @@ class BG2Domains {
 };
 
 class ProcessContext {
-  boost::asio::io_context _ctx{};
-  std::mutex _mtx{};
+  using LockedContext = std::pair<std::unique_lock<std::mutex>, boost::asio::io_context *>;
+  boost::asio::io_context _ctx;
+  std::mutex _mtx;
 
  public:
   ProcessContext() = default;
 
-  [[nodiscard]] std::pair<std::unique_lock<std::mutex>, boost::asio::io_context *> operator()() {
-    return std::make_pair(std::unique_lock{_mtx}, &_ctx);
-  }
+  [[nodiscard]] LockedContext operator()() { return std::make_pair(std::unique_lock{_mtx}, &_ctx); }
 };
 
 [[nodiscard]] static NCHG init_nchg(const std::shared_ptr<const hictk::File> &f,
@@ -671,65 +669,183 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   return buffer;
 }
 
-class Process {
-  boost::process::process _proc;
-  boost::asio::readable_pipe _pipe;
-  std::string_view _chrom1;
-  std::string_view _chrom2;
+class MessageQueue {
+  std::string _name;
+  std::unique_ptr<boost::interprocess::message_queue> _queue{};
+  std::mutex _mtx;
+  std::string _buff{};
+  std::string _eoq_signal{};
+  const std::atomic<bool> *_early_return{};
+  bool _destroy_queue{false};
+
+  static constexpr std::size_t _max_message_size = sizeof(char) * 2048UL;
+
+  MessageQueue(std::string name, std::size_t num_proc, const std::atomic<bool> *early_return,
+               bool create)
+      : _name(std::move(name)),
+        _queue(create ? create_queue(_name, num_proc) : open_queue(_name)),
+        _eoq_signal(
+            fmt::format("### EOQ {}", std::chrono::system_clock::now().time_since_epoch().count())),
+        _early_return(early_return),
+        _destroy_queue(create) {}
 
  public:
-  Process() = delete;
-  Process(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
-          boost::process::process &&proc, boost::asio::readable_pipe &&pipe)
-      : _proc(std::move(proc)),
-        _pipe(std::move(pipe)),
-        _chrom1(chrom1.name()),
-        _chrom2(chrom2.name()) {}
+  MessageQueue() = default;
 
-  void communicate() {
-    boost::asio::streambuf buff;
-    std::istream is(&buff);
-    std::string line;
-    spdlog::details::log_msg msg{};
-    boost::system::error_code ec;
-    bool parse_as_beve{false};
-    for (std::size_t i = 0; true; ++i) {
-      boost::asio::read_until(_pipe, buff, '\n', ec);
-      if (ec) {
-        if (ec == boost::asio::error::eof) {
-          SPDLOG_DEBUG(
-              "[{}:{}]: reached EOF while reading stderr for process PID={} (records processed: "
-              "{})",
-              _chrom1, _chrom2, _proc.id(), i);
+  [[nodiscard]] static MessageQueue create(const std::string &name, std::size_t num_proc,
+                                           const std::atomic<bool> &early_return) {
+    return {name, num_proc, &early_return, true};
+  }
+
+  [[nodiscard]] static MessageQueue open(const std::string &name) {
+    return {name, 1, nullptr, false};
+  }
+
+  MessageQueue(const MessageQueue &other) = delete;
+  MessageQueue(MessageQueue &&other) noexcept
+      : _name(std::move(other._name)),
+        _queue(std::move(other._queue)),
+        _buff(std::move(other._buff)),
+        _eoq_signal(std::move(other._eoq_signal)),
+        _early_return(other._early_return) {}
+
+  ~MessageQueue() noexcept { close(); }
+
+  MessageQueue &operator=(const MessageQueue &other) = delete;
+  MessageQueue &operator=(MessageQueue &&other) noexcept {
+    if (this == &other) {
+      return *this;
+    }
+
+    _name = std::move(other._name);
+    _queue = std::move(other._queue);
+    _buff = std::move(other._buff);
+    _eoq_signal = std::move(other._eoq_signal);
+    _early_return = other._early_return;
+
+    return *this;
+  }
+
+  [[nodiscard]] std::string_view name() const noexcept { return _name; }
+
+  void send(const spdlog::details::log_msg &msg) {
+    assert(_queue);
+    std::unique_lock lck(_mtx);
+    if (!glz::write_beve(msg, _buff)) [[likely]] {
+      send(_buff, std::move(lck));
+    }
+  }
+
+  void send(std::string_view msg) { send(msg, std::unique_lock{_mtx}); }
+
+  void send(std::string_view msg, std::unique_lock<std::mutex> lck) {
+    assert(_queue);
+    assert(lck.owns_lock());
+
+    while (true) {
+      if (_early_return && *_early_return) {
+        return;
+      }
+
+      if (!lck.owns_lock()) {
+        lck.lock();
+      }
+
+      static const std::chrono::microseconds wait_time{50'000};
+      static const boost::interprocess::ustime wait_time_us{
+          static_cast<std::uint64_t>(wait_time.count())};
+
+      if (!msg.empty() && msg.size() <= _max_message_size) {
+        const auto sent = _queue->timed_send(msg.data(), msg.size(), 0, wait_time_us);
+        if (sent) {
           return;
         }
-        throw std::runtime_error(fmt::format(
-            "an error occurred while reading process PID={} stderr: {}", _proc.id(), ec.message()));
-      }
-      std::getline(is, line);
-      if (!parse_as_beve && line == "### Begin BEVE encoded log messages ###") [[unlikely]] {
-        parse_as_beve = true;
-        continue;
-      }
-
-      if (!parse_as_beve) {
-        SPDLOG_ERROR("{}", line);
-      } else if (!glz::read_beve(msg, line)) [[likely]] {
-        spdlog::default_logger_raw()->log(
-            msg.time, msg.source,
-            msg.level != spdlog::level::info ? msg.level : spdlog::level::debug, msg.payload);
+        lck.unlock();
+        std::this_thread::sleep_for(wait_time);
       }
     }
   }
 
-  int wait() { return _proc.wait(); }
+  bool receive() {
+    assert(_queue);
+    assert(_early_return);
 
-  int exit_code() const noexcept { return _proc.exit_code(); }
+    std::size_t msg_size{};
+    [[maybe_unused]] std::uint32_t _{};
+
+    std::unique_lock lck(_mtx, std::defer_lock);
+    static const std::chrono::microseconds wait_time{50'000};
+    static const boost::interprocess::ustime wait_time_us{
+        static_cast<std::uint64_t>(wait_time.count())};
+
+    while (true) {
+      if (*_early_return) {
+        return false;
+      }
+
+      lck.lock();
+      _buff.resize(_max_message_size);
+      const auto received =
+          _queue->timed_receive(_buff.data(), _buff.size(), msg_size, _, wait_time_us);
+      if (received) {
+        break;
+      }
+
+      lck.unlock();
+      std::this_thread::sleep_for(wait_time);
+    }
+
+    _buff.resize(msg_size);
+    if (_buff == _eoq_signal) {
+      return false;
+    }
+
+    spdlog::details::log_msg msg;
+    if (glz::read_beve(msg, _buff)) [[unlikely]] {
+      fmt::println(stderr, "{}", _buff);
+    } else {
+      spdlog::default_logger_raw()->log(
+          msg.time, msg.source, msg.level != spdlog::level::info ? msg.level : spdlog::level::debug,
+          msg.payload);
+    }
+
+    return true;
+  }
+
+  void send_eoq_signal() { send(_eoq_signal); }
+
+  void close() noexcept {
+    try {
+      [[maybe_unused]] const std::scoped_lock lock(_mtx);
+      _queue.reset();
+      if (_destroy_queue) {
+        assert(!_name.empty());
+        boost::interprocess::message_queue::remove(_name.c_str());
+      }
+    } catch (...) {  // NOLINT
+    }
+  }
+
+ private:
+  [[nodiscard]] static std::unique_ptr<boost::interprocess::message_queue> open_queue(
+      const std::filesystem::path &path) {
+    SPDLOG_DEBUG("opening message queue with name={}...", path);
+    return std::make_unique<boost::interprocess::message_queue>(boost::interprocess::open_only,
+                                                                path.c_str());
+  }
+  [[nodiscard]] static std::unique_ptr<boost::interprocess::message_queue> create_queue(
+      const std::filesystem::path &path, std::size_t num_proc) {
+    assert(num_proc != 0);
+    SPDLOG_DEBUG("initializing a message queue with name={}...", path);
+    boost::interprocess::message_queue::remove(path.c_str());
+    return std::make_unique<boost::interprocess::message_queue>(
+        boost::interprocess::create_only, path.c_str(), num_proc * 4, sizeof(char) * 2048UL);
+  }
 };
 
-[[nodiscard]] static Process spawn_compute_process(ProcessContext &ctx, const ComputePvalConfig &c,
-                                                   const hictk::Chromosome &chrom1,
-                                                   const hictk::Chromosome &chrom2) {
+[[nodiscard]] static boost::process::process spawn_compute_process(
+    ProcessContext &ctx, const MessageQueue &msg_queue, const ComputePvalConfig &c,
+    const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2) {
   assert(c.output_prefix.empty());
   assert(!c.output_path.empty());
 
@@ -751,7 +867,8 @@ class Process {
       fmt::to_string(c.compression_lvl),
       "--compression-method",
       c.compression_method,
-      "--as-subprocess",
+      "--log-message-queue",
+      std::string{msg_queue.name()},
   };
 
   if (c.resolution.has_value()) {
@@ -800,16 +917,15 @@ class Process {
   phmap::btree_set<std::string> errors{};
 
   for (std::size_t attempt = 0; attempt < 10; ++attempt) {
-    auto [lck, asio_ctx] = ctx();
-    assert(!!asio_ctx);
     try {
-      boost::asio::readable_pipe stderr_pipe{*asio_ctx};
-      boost::process::process proc(*asio_ctx, c.exec.string(), args,
-                                   boost::process::process_stdio{nullptr, nullptr, stderr_pipe});
+      const auto [lck, asio_ctx] = ctx();
+      boost::process::process proc(
+          *asio_ctx, c.exec.string(), args,
+          boost::process::process_stdio{.in = nullptr, .out = nullptr, .err = {}});
       if (proc.running() || proc.exit_code() == 0) {
         SPDLOG_DEBUG("[{}:{}]: spawned worker process {}...", chrom1.name(), chrom2.name(),
                      proc.id());
-        return {chrom1, chrom2, std::move(proc), std::move(stderr_pipe)};
+        return proc;
       }
       SPDLOG_WARN("[{}:{}]: spawning worker process {} failed (attempt {}/10)...", chrom1.name(),
                   chrom2.name(), proc.id(), attempt + 1);
@@ -856,7 +972,8 @@ class Process {
 [[nodiscard]] static std::size_t worker_fx(FileStore &file_store, const hictk::Chromosome &chrom1,
                                            const hictk::Chromosome &chrom2,
                                            std::optional<BG2Domains> &domains, const TmpDir &tmpdir,
-                                           ProcessContext &ctx, const ComputePvalConfig &config,
+                                           const MessageQueue &msg_queue, ProcessContext &ctx,
+                                           const ComputePvalConfig &config,
                                            bool trans_expected_values_avail,
                                            std::atomic<bool> &early_return) {
   if (early_return) {
@@ -883,9 +1000,8 @@ class Process {
       child_config.path_to_expected_values.clear();
     }
 
-    auto proc = spawn_compute_process(ctx, child_config, chrom1, chrom2);
+    auto proc = spawn_compute_process(ctx, msg_queue, child_config, chrom1, chrom2);
     try {
-      proc.communicate();
       proc.wait();
     } catch (const std::exception &e) {
       const std::string_view msg{e.what()};
@@ -952,34 +1068,80 @@ class Process {
   return base_config;
 }
 
+static void process_log_messages(MessageQueue &msg_queue, std::atomic<bool> &early_return) {
+  std::size_t num_except = 0;
+  SPDLOG_DEBUG("starting logger thread...");
+
+  for (std::size_t i = 0; !early_return; ++i) {
+    try {
+      if (!msg_queue.receive()) {
+        SPDLOG_DEBUG("logger thread is returning: processed a total of {} records", i);
+        return;
+      }
+    } catch (const std::exception &e) {
+      if (++num_except > 10) {
+        early_return = true;
+        throw std::runtime_error(
+            fmt::format("logger thread is encountered the following exception: {}", e.what()));
+      }
+      SPDLOG_WARN("logger thread is encountered the following exception: {}", e.what());
+    } catch (...) {
+      if (++num_except > 10) {
+        early_return = true;
+        throw std::runtime_error("logger thread is encountered an unknown exception");
+      }
+      SPDLOG_WARN("logger thread is encountered an unknown exception");
+    }
+  }
+
+  if (early_return) {
+    SPDLOG_DEBUG("logger thread: early return signal received: returning immediately!");
+  }
+}
+
 static std::size_t process_queries_mt(BS::light_thread_pool &tpool, FileStore &file_store,
                                       const ChromosomePairs &chrom_pairs,
                                       std::optional<BG2Domains> &domains,
                                       const std::optional<ExpectedValues> &expected_values,
                                       const TmpDir &tmpdir, const ComputePvalConfig &c) {
-  std::atomic<bool> early_return{false};
-
   const auto user_provided_expected_values = !c.path_to_expected_values.empty();
   const auto base_config = init_base_config(c, tmpdir, expected_values);
 
-  ProcessContext ctx{};
+  ProcessContext ctx;
+  std::atomic early_return{false};
+  BS::multi_future<std::size_t> workers;
+  workers.reserve(chrom_pairs.size());
 
-  BS::multi_future<std::size_t> workers(chrom_pairs.size());
+  auto msg_queue = MessageQueue::create(TmpDir::generate_random_file_name("nchg-log-queue-", 32),
+                                        tpool.get_thread_count(), early_return);
+
+  auto logger = tpool.submit_task([&] { process_log_messages(msg_queue, early_return); });
+
   auto it = chrom_pairs.begin();
-  for (std::size_t i = 0; i < workers.size(); ++i) {
-    workers[i] = tpool.submit_task([&, i, chrom_pair = *it++] {
+  std::chrono::milliseconds sleep_time{2};
+  for (std::size_t tasks_submitted = 0; tasks_submitted < workers.capacity() && !early_return;) {
+    if (tpool.get_tasks_running() == tpool.get_thread_count()) {
+      std::this_thread::sleep_for(sleep_time);
+      sleep_time = std::min(std::chrono::milliseconds{500}, sleep_time * 2);
+      continue;
+    }
+    workers.emplace_back(tpool.submit_task([&, tasks_submitted, chrom_pair = *it++] {
       const auto &[chrom1, chrom2] = chrom_pair;
-      SPDLOG_DEBUG("submitting task {}/{} ({}:{})...", i + 1, workers.size(), chrom1.name(),
-                   chrom2.name());
-      return worker_fx(file_store, chrom1, chrom2, domains, tmpdir, ctx, base_config,
+      SPDLOG_DEBUG("submitting task {}/{} ({}:{})...", tasks_submitted + 1, workers.size(),
+                   chrom1.name(), chrom2.name());
+      return worker_fx(file_store, chrom1, chrom2, domains, tmpdir, msg_queue, ctx, base_config,
                        user_provided_expected_values, early_return);
-    });
+    }));
+    ++tasks_submitted;
+    sleep_time = std::chrono::milliseconds{2};
   }
 
   std::size_t num_records = 0;
   for (const auto result : workers.get()) {
     num_records += result;
   }
+  msg_queue.send_eoq_signal();
+  logger.get();
 
   return num_records;
 }
@@ -1075,7 +1237,7 @@ static std::size_t process_queries(FileStore &file_store, const ChromosomePairs 
           "be processed: limiting concurrency to {} thread(s)",
           num_threads);
     }
-    BS::light_thread_pool tpool(num_threads);
+    BS::light_thread_pool tpool(num_threads + 1);
     return process_queries_mt(tpool, file_store, chrom_pairs, domains, expected_values, tmpdir, c);
   }
   return process_queries_st(file_store, chrom_pairs, domains, expected_values, c);
@@ -1297,37 +1459,29 @@ static bool setup_file_backed_logger(const std::filesystem::path &output_prefix,
   return false;
 }
 
-static void setup_beve_logger() {
+static void setup_beve_logger(const std::string &name) {
   auto logger = spdlog::default_logger();
-  if (!logger) {
+  if (!logger || name.empty()) {
     return;
   }
 
-  auto callback_sink =
-      std::make_shared<spdlog::sinks::callback_sink_mt>([](const spdlog::details::log_msg &msg) {
-        static std::mutex mtx;
-        static std::string buff{};
+  auto message_queue = std::make_shared<MessageQueue>(MessageQueue::open(name));
 
-        [[maybe_unused]] const std::scoped_lock lock(mtx);
-        if (!glz::write_beve(msg, buff)) [[likely]] {
-          fmt::println(stderr, "{}", buff);
-        }
-      });
+  auto callback_sink = std::make_shared<spdlog::sinks::callback_sink_mt>(
+      [message_queue](const spdlog::details::log_msg &msg) { message_queue->send(msg); });
 
   callback_sink->set_level(spdlog::level::debug);
 
   logger->sinks().clear();
   logger->sinks().emplace_back(std::move(callback_sink));
   logger->set_level(spdlog::level::debug);
-
-  fmt::println(stderr, "### Begin BEVE encoded log messages ###");
 }
 
 int run_command(const ComputePvalConfig &c) {
   const auto t0 = std::chrono::steady_clock::now();
 
-  if (c.called_as_subprocess) {
-    setup_beve_logger();
+  if (!c.log_message_queue.empty()) {
+    setup_beve_logger(c.log_message_queue);
   }
 
   if (c.chrom1.has_value()) {

@@ -58,7 +58,7 @@ class GlobalLogger {
     return stderr_sink;
   }
 
-  [[nodiscard]] std::shared_ptr<spdlog::sinks::callback_sink_mt> init_callback_sink() {
+  [[nodiscard]] std::shared_ptr<spdlog::sinks::callback_sink_mt> init_warning_callback_sink() {
     if constexpr (CAPACITY != 0 && SPDLOG_ACTIVE_LEVEL <= SPDLOG_LEVEL_WARN) {
       auto callback_sink = std::make_shared<spdlog::sinks::callback_sink_mt>(
           [this](const spdlog::details::log_msg &msg) noexcept { enqueue_msg(msg); });
@@ -132,7 +132,8 @@ class GlobalLogger {
   GlobalLogger() noexcept {
     try {
       spdlog::set_default_logger(std::make_shared<spdlog::logger>(
-          "main_logger", spdlog::sinks_init_list{init_stderr_sink(), init_callback_sink()}));
+          "main_logger",
+          spdlog::sinks_init_list{init_stderr_sink(), init_warning_callback_sink()}));
       _ok = true;
     } catch (const std::exception &e) {
       print_noexcept("FAILURE! Failed to setup NCHG's logger: {}", e.what());
@@ -199,7 +200,7 @@ static auto acquire_global_logger() noexcept { return std::move(global_logger); 
   }
 
   if (std::holds_alternative<ComputePvalConfig>(config)) {
-    return !std::get<ComputePvalConfig>(config).called_as_subprocess;
+    return std::get<ComputePvalConfig>(config).log_message_queue.empty();
   }
 
   return true;
@@ -212,7 +213,7 @@ static auto acquire_global_logger() noexcept { return std::move(global_logger); 
     return true;
   }
 
-  if (c->called_as_subprocess) {
+  if (!c->log_message_queue.empty()) {
     return false;
   }
 

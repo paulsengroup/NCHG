@@ -22,18 +22,22 @@
 #include <unistd.h>
 #elif defined(_WIN32)
 #include <cstdio>
-#include <random>
-#include <string>
 #endif
 
 #include <fmt/format.h>
 #include <fmt/std.h>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
+#include <random>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <utility>
 
 namespace nchg {
@@ -127,6 +131,40 @@ class TmpDir {
     }
   }
 
+  [[nodiscard]] static std::string generate_random_file_name(std::mt19937_64& rand_eng,
+                                                             std::string_view prefix = "nchg-tmp-",
+                                                             std::size_t size = 16) {
+    assert(size != 0);
+    // clang-format off
+    constexpr std::string_view alphabet{
+      "0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+      "abcdefghijklmnopqrstuvwxyz"
+    };
+    // clang-format on
+
+    if (size < prefix.size()) {
+      throw std::invalid_argument("size mut be greater than the prefix length");
+    }
+
+    std::string str(size, '\0');
+    prefix.copy(str.data(), prefix.size());
+
+    std::generate(str.begin() + static_cast<std::ptrdiff_t>(prefix.size()), str.end(), [&] {
+      const auto i = std::uniform_int_distribution{std::size_t{0}, alphabet.size() - 1}(rand_eng);
+      return alphabet[i];
+    });
+
+    return str;
+  }
+
+  [[nodiscard]] static std::string generate_random_file_name(std::string_view prefix = "nchg-tmp-",
+                                                             std::size_t size = 16) {
+    std::random_device rd;
+    std::mt19937_64 rand_eng(rd());
+    return generate_random_file_name(rand_eng, prefix, size);
+  }
+
   [[nodiscard]] static std::filesystem::path create_uniq_temp_dir(
       const std::filesystem::path& tmpdir) {
     if (!std::filesystem::exists(tmpdir)) {
@@ -134,20 +172,9 @@ class TmpDir {
           fmt::format("unable to use path {} as TmpDir: path does not exists", tmpdir));
     }
 #ifdef _WIN32
-    std::random_device rd;
-    std::mt19937_64 rand_eng(rd());
     std::filesystem::path dir{};
-
-    const auto lb = static_cast<int>('A');
-    const auto ub = static_cast<int>('Z');
     do {
-      std::string str{10, '\0'};
-
-      for (std::size_t i = 0; i < str.size(); ++i) {
-        str[i] = static_cast<char>(std::uniform_int_distribution<int>{lb, ub}(rand_eng));
-      }
-
-      dir = tmpdir / std::filesystem::path(std::string{"nchg-tmp-"} + std::string{str});
+      dir = tmpdir / generate_random_file_name();
     } while (!std::filesystem::create_directories(dir));
 
     return dir;

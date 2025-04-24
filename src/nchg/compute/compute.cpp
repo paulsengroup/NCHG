@@ -673,7 +673,6 @@ class MessageQueue {
   std::string _name;
   std::unique_ptr<boost::interprocess::message_queue> _queue{};
   std::mutex _mtx;
-  std::string _buff{};
   std::string _eoq_signal{};
   const std::atomic<bool> *_early_return{};
   bool _destroy_queue{false};
@@ -705,7 +704,6 @@ class MessageQueue {
   MessageQueue(MessageQueue &&other) noexcept
       : _name(std::move(other._name)),
         _queue(std::move(other._queue)),
-        _buff(std::move(other._buff)),
         _eoq_signal(std::move(other._eoq_signal)),
         _early_return(other._early_return) {}
 
@@ -719,7 +717,6 @@ class MessageQueue {
 
     _name = std::move(other._name);
     _queue = std::move(other._queue);
-    _buff = std::move(other._buff);
     _eoq_signal = std::move(other._eoq_signal);
     _early_return = other._early_return;
 
@@ -730,9 +727,10 @@ class MessageQueue {
 
   void send(const spdlog::details::log_msg &msg) {
     assert(_queue);
+    std::string buff{};
     std::unique_lock lck(_mtx);
-    if (!glz::write_beve(msg, _buff)) [[likely]] {
-      send(_buff, std::move(lck));
+    if (!glz::write_beve(msg, buff)) [[likely]] {
+      send(buff, std::move(lck));
     }
   }
 
@@ -770,6 +768,7 @@ class MessageQueue {
     assert(_queue);
     assert(_early_return);
 
+    std::string buff(_max_message_size, '\0');
     std::size_t msg_size{};
     [[maybe_unused]] std::uint32_t _{};
 
@@ -784,9 +783,8 @@ class MessageQueue {
       }
 
       lck.lock();
-      _buff.resize(_max_message_size);
       const auto received =
-          _queue->timed_receive(_buff.data(), _buff.size(), msg_size, _, wait_time_us);
+          _queue->timed_receive(buff.data(), buff.size(), msg_size, _, wait_time_us);
       if (received) {
         break;
       }
@@ -795,14 +793,14 @@ class MessageQueue {
       std::this_thread::sleep_for(wait_time);
     }
 
-    _buff.resize(msg_size);
-    if (_buff == _eoq_signal) {
+    buff.resize(msg_size);
+    if (buff == _eoq_signal) {
       return false;
     }
 
     spdlog::details::log_msg msg;
-    if (glz::read_beve(msg, _buff)) [[unlikely]] {
-      fmt::println(stderr, "{}", _buff);
+    if (glz::read_beve(msg, buff)) [[unlikely]] {
+      fmt::println(stderr, "{}", buff);
     } else {
       spdlog::default_logger_raw()->log(
           msg.time, msg.source, msg.level != spdlog::level::info ? msg.level : spdlog::level::debug,

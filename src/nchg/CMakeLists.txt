@@ -21,6 +21,7 @@ find_package(bshoshany-thread-pool REQUIRED)
 find_package(CLI11 REQUIRED)
 find_package(concurrentqueue REQUIRED)
 find_package(FMT REQUIRED)
+find_package(glaze REQUIRED)
 find_package(hictk REQUIRED)
 find_package(HighFive REQUIRED)
 find_package(readerwriterqueue REQUIRED)
@@ -59,6 +60,7 @@ target_link_libraries(
     CLI11::CLI11
     concurrentqueue::concurrentqueue
     fmt::fmt-header-only
+    glaze::glaze
     readerwriterqueue::readerwriterqueue
     spdlog::spdlog_header_only
   PUBLIC
@@ -69,7 +71,7 @@ target_link_libraries(
 target_compile_definitions(
   NCHG
   PRIVATE
-    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE
+    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
     "$<$<NOT:$<BOOL:${NCHG_USE_PIDFD_OPEN}>>:BOOST_PROCESS_V2_DISABLE_PIDFD_OPEN>"
 )
 

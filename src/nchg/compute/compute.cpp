@@ -40,7 +40,7 @@ NCHG_DISABLE_WARNING_POP
 #include <cassert>
 #include <cstdint>
 #include <fstream>
-#include <glaze/glaze_exceptions.hpp>
+#include <glaze/glaze.hpp>
 #include <hictk/fmt/pixel.hpp>
 #include <hictk/genomic_interval.hpp>
 #include <hictk/hash.hpp>

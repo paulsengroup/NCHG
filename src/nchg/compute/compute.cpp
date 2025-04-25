@@ -59,6 +59,7 @@ NCHG_DISABLE_WARNING_POP
 // otherwise this source file fails to compile with MSVC
 #include <boost/asio/io_context.hpp>
 #include <boost/interprocess/ipc/message_queue.hpp>
+#include <boost/process/v2/environment.hpp>
 #include <boost/process/v2/process.hpp>
 #include <boost/process/v2/stdio.hpp>
 // clang-format on
@@ -841,6 +842,27 @@ class MessageQueue {
   }
 };
 
+[[nodiscard]] static boost::process::process_environment generate_subprocess_env(
+    const MessageQueue &msg_queue) {
+  constexpr boost::string_view queue_name_env_variable{"NCHG_LOG_MESSAGE_QUEUE_NAME"};
+
+  static std::once_flag flag;
+  using EnvironmentKV =
+      std::pair<boost::process::environment::key, boost::process::environment::value>;
+  static std::vector<EnvironmentKV> vars{};
+
+  std::call_once(flag, [&] {
+    vars.emplace_back(boost::process::environment::key{queue_name_env_variable},
+                      boost::process::environment::value{msg_queue.name()});
+    // NOLINTNEXTLINE(*-mt-unsafe)
+    if (const auto *var = std::getenv("NCHG_CI"); var) {
+      vars.emplace_back("NCHG_CI", var);
+    }
+  });
+
+  return {vars};
+}
+
 [[nodiscard]] static boost::process::process spawn_compute_process(
     ProcessContext &ctx, const MessageQueue &msg_queue, const ComputePvalConfig &c,
     const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2) {
@@ -865,8 +887,6 @@ class MessageQueue {
       fmt::to_string(c.compression_lvl),
       "--compression-method",
       c.compression_method,
-      "--log-message-queue",
-      std::string{msg_queue.name()},
   };
 
   if (c.resolution.has_value()) {
@@ -912,13 +932,15 @@ class MessageQueue {
     args.emplace_back("--force");
   }
 
+  auto env = generate_subprocess_env(msg_queue);
+
   phmap::btree_set<std::string> errors{};
 
   for (std::size_t attempt = 0; attempt < 10; ++attempt) {
     try {
       const auto [lck, asio_ctx] = ctx();
       boost::process::process proc(
-          *asio_ctx, c.exec.string(), args,
+          *asio_ctx, c.exec.string(), args, env,
           boost::process::process_stdio{.in = nullptr, .out = nullptr, .err = {}});
       if (proc.running() || proc.exit_code() == 0) {
         SPDLOG_DEBUG("[{}:{}]: spawned worker process {}...", chrom1.name(), chrom2.name(),
@@ -942,6 +964,10 @@ class MessageQueue {
   if (errors.empty()) {
     throw std::runtime_error(fmt::format("failed to spawn worker process: {} {}", c.exec.string(),
                                          fmt::join(args, " ")));
+  }
+  if (errors.size() == 1) {
+    throw std::runtime_error(fmt::format("failed to spawn worker process: {} {}: {}",
+                                         c.exec.string(), fmt::join(args, " "), *errors.begin()));
   }
   throw std::runtime_error(
       fmt::format("failed to spawn worker process: {} {}\n"

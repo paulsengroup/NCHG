@@ -405,14 +405,6 @@ void Cli::make_compute_subcommand() {
     "Set verbosity of output to the console.")
     ->check(CLI::Range(1, 4))
     ->capture_default_str();
-
-  auto* hidden_grp = sc.add_option_group("");
-  hidden_grp->add_option(
-    "--log-message-queue",
-    c.log_message_queue,
-    "Path to the IPC queue used to share messages across processes.\n"
-    "This flag is only meant to be used when NCHG is calling itself as a subprocess."
-  );
   // clang-format on
 
   sc.get_option("--chrom2")->needs("--chrom1");
@@ -966,6 +958,11 @@ void Cli::transform_args_compute_subcommand() {
 
   if (c.chrom1.has_value()) {
     c.threads = 1;
+  }
+
+  // NOLINTNEXTLINE(*-mt-unsafe)
+  if (const auto *path = std::getenv("NCHG_LOG_MESSAGE_QUEUE_NAME"); path) {
+    c.log_message_queue = path;
   }
 
   // in spdlog, high numbers correspond to low log levels

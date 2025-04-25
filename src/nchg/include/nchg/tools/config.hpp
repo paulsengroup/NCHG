@@ -78,7 +78,7 @@ struct ComputePvalConfig {
   std::size_t threads{1};
 
   std::uint8_t verbosity{3};
-  std::filesystem::path log_message_queue{};
+  std::string log_message_queue{};
 };
 
 struct FilterConfig {

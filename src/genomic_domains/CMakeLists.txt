@@ -16,30 +16,26 @@
 # with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
-include(FetchContent)
+find_package(FMT REQUIRED)
+find_package(hictk REQUIRED)
 
-set(HICTK_ENABLE_TESTING OFF)
-set(HICTK_BUILD_EXAMPLES OFF)
-set(HICTK_BUILD_BENCHMARKS OFF)
-set(HICTK_WITH_EIGEN OFF)
-set(HICTK_BUILD_TOOLS OFF)
-set(HICTK_INSTALL OFF)
-set(HICTK_ENABLE_GIT_VERSION_TRACKING OFF)
+add_library(genomic_domains STATIC)
+add_library(nchg::genomic_domains ALIAS genomic_domains)
 
-FetchContent_Declare(
-  hictk
-  GIT_REPOSITORY https://github.com/paulsengroup/hictk.git
-  GIT_TAG v2.1.1
-  EXCLUDE_FROM_ALL
-  OVERRIDE_FIND_PACKAGE
-  SYSTEM
+target_sources(
+  genomic_domains
+  PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/genomic_domains.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/genomic_domains_impl.hpp"
 )
 
-add_subdirectory(common)
-add_subdirectory(descriptive_stats)
-add_subdirectory(genomic_domains)
-add_subdirectory(hypothesis_testing)
-add_subdirectory(io)
-add_subdirectory(preproc)
-
-add_subdirectory(nchg)
+target_include_directories(genomic_domains PUBLIC include/)
+target_link_libraries(
+  genomic_domains
+  PRIVATE
+    nchg_project_options
+    nchg_project_warnings
+  PUBLIC
+    nchg::common
+    hictk::libhictk
+)

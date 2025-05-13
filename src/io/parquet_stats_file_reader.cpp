@@ -78,7 +78,7 @@ namespace nchg {
   return result.MoveValueUnsafe();
 }
 
-[[nodiscard]] std::shared_ptr<arrow::Schema> get_file_schema(
+[[nodiscard]] static std::shared_ptr<arrow::Schema> get_file_schema(
     const std::shared_ptr<arrow::io::ReadableFile> &fp) {
   try {
     auto props = parquet::default_reader_properties();

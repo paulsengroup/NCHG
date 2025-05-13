@@ -56,7 +56,6 @@ class KMerger {
 
   std::vector<ItInternal> _heads{};
   std::vector<ItInternal> _tails{};
-  std::size_t _i{};
 
  public:
   template <typename ItInternal = ItInternal>

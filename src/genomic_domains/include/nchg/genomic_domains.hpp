@@ -18,21 +18,36 @@
 
 #pragma once
 
+#include <boost/geometry/index/rtree.hpp>
 #include <cstddef>
+#include <filesystem>
 #include <functional>
+#include <hictk/chromosome.hpp>
 #include <hictk/genomic_interval.hpp>
+#include <hictk/pixel.hpp>
+#include <hictk/reference.hpp>
+#include <memory>
+#include <optional>
+#include <span>
+#include <utility>
+#include <vector>
 
 #include "nchg/concepts.hpp"
 
 namespace nchg {
 class BEDPE {
-  hictk::GenomicInterval _range1{};
-  hictk::GenomicInterval _range2{};
+  std::shared_ptr<const hictk::GenomicInterval> _range1{};
+  std::shared_ptr<const hictk::GenomicInterval> _range2{};
+
+  inline static const auto _null_range = std::make_shared<const hictk::GenomicInterval>();
 
  public:
-  BEDPE() = default;
-  explicit BEDPE(const hictk::GenomicInterval &range_);
+  BEDPE();
+  explicit BEDPE(hictk::GenomicInterval range_);
+  explicit BEDPE(const std::shared_ptr<const hictk::GenomicInterval> &range_);
   BEDPE(hictk::GenomicInterval range1_, hictk::GenomicInterval range2_);
+  BEDPE(std::shared_ptr<const hictk::GenomicInterval> range1_,
+        std::shared_ptr<const hictk::GenomicInterval> range2_);
 
   [[nodiscard]] bool operator==(const BEDPE &other) const noexcept;
   [[nodiscard]] bool operator!=(const BEDPE &other) const noexcept;
@@ -43,42 +58,94 @@ class BEDPE {
 
   [[nodiscard]] constexpr const hictk::GenomicInterval &range1() const noexcept;
   [[nodiscard]] constexpr const hictk::GenomicInterval &range2() const noexcept;
+
+  [[nodiscard]] constexpr const hictk::Chromosome &chrom1() const noexcept;
+  [[nodiscard]] constexpr std::uint32_t start1() const noexcept;
+  [[nodiscard]] constexpr std::uint32_t end1() const noexcept;
+  [[nodiscard]] constexpr const hictk::Chromosome &chrom2() const noexcept;
+  [[nodiscard]] constexpr std::uint32_t start2() const noexcept;
+  [[nodiscard]] constexpr std::uint32_t end2() const noexcept;
+
+  // These accessors are required in order to register BEDPE with boost::geometry.
+  // They do nothing and throw an exception when called.
+  [[noreturn]] constexpr hictk::Chromosome &chrom1();
+  [[noreturn]] constexpr std::uint32_t &start1();
+  [[noreturn]] constexpr std::uint32_t &end1();
+  [[noreturn]] constexpr hictk::Chromosome &chrom2();
+  [[noreturn]] constexpr std::uint32_t &start2();
+  [[noreturn]] constexpr std::uint32_t &end2();
 };
 
 template <typename N>
   requires arithmetic<N>
-class BG2Domain {
-  BEDPE _domain{};
-  N _count{};
+class GenomicDomainsIndexed {
+  hictk::Chromosome _chrom1{};
+  hictk::Chromosome _chrom2{};
+
+  using Value = std::pair<BEDPE, std::size_t>;
+  using RTree = boost::geometry::index::rtree<Value, boost::geometry::index::rstar<16>>;
+
+  std::shared_ptr<const RTree> _domains{};
+  std::vector<N> _counts{};
 
  public:
-  BG2Domain() = default;
-  explicit BG2Domain(BEDPE domain_, N count_ = 0) noexcept;
+  GenomicDomainsIndexed() = default;
+  GenomicDomainsIndexed(hictk::Chromosome chrom1_, hictk::Chromosome chrom2_,
+                        std::span<const BEDPE> domains);
+  GenomicDomainsIndexed(hictk::Chromosome chrom1_, hictk::Chromosome chrom2_,
+                        std::shared_ptr<const RTree> domains);
 
-  constexpr const BEDPE &domain() const noexcept;
-  constexpr N count() const noexcept;
+  [[nodiscard]] constexpr const hictk::Chromosome &chrom1() const noexcept;
+  [[nodiscard]] constexpr const hictk::Chromosome &chrom2() const noexcept;
 
-  constexpr auto operator+=(N n) noexcept -> BG2Domain &;
+  [[nodiscard]] bool empty() const noexcept;
+  [[nodiscard]] std::size_t size() const noexcept;
+  void clear_counts() noexcept;
 
-  [[nodiscard]] bool operator==(const BG2Domain &other) const noexcept;
-  [[nodiscard]] bool operator!=(const BG2Domain &other) const noexcept;
-  [[nodiscard]] bool operator<(const BG2Domain &other) const noexcept;
+  [[nodiscard]] auto to_vector() const -> std::vector<std::pair<BEDPE, N>>;
+  [[nodiscard]] N at(const BEDPE &dom) const;
+  [[nodiscard]] N sum() const noexcept;
 
-  [[nodiscard]] static bool less_than_op_tiled(const BG2Domain &dom1,
-                                               const BG2Domain &dom2) noexcept;
-  [[nodiscard]] static bool less_than_op_linear(const BG2Domain &dom1,
-                                                const BG2Domain &dom2) noexcept;
+  template <typename M>
+  std::size_t add_interactions(const hictk::Pixel<M> &p);
+
+ private:
+  [[nodiscard]] static auto build_rtree(std::span<const BEDPE> domains)
+      -> std::shared_ptr<const RTree>;
+};
+
+class GenomicDomains {
+  std::vector<BEDPE> _domains;
+
+ public:
+  GenomicDomains() = default;
+  explicit GenomicDomains(std::vector<BEDPE> domains_, bool sort = true);
+
+  [[nodiscard]] bool empty() const noexcept;
+  [[nodiscard]] std::size_t size() const noexcept;
+  [[nodiscard]] bool contains(const hictk::Chromosome &chrom) const noexcept;
+  [[nodiscard]] bool contains(const hictk::Chromosome &chrom1,
+                              const hictk::Chromosome &chrom2) const noexcept;
+
+  template <typename N>
+  [[nodiscard]] auto fetch(const hictk::Chromosome &chrom) const -> GenomicDomainsIndexed<N>;
+  template <typename N>
+  [[nodiscard]] auto fetch(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2) const
+      -> GenomicDomainsIndexed<N>;
+
+  [[nodiscard]] constexpr std::span<BEDPE> operator()() noexcept;
+  [[nodiscard]] constexpr std::span<const BEDPE> operator()() const noexcept;
+
+ private:
+  [[nodiscard]] std::span<const BEDPE> equal_range(const hictk::Chromosome &chrom) const noexcept;
+  [[nodiscard]] std::span<const BEDPE> equal_range(const hictk::Chromosome &chrom1,
+                                                   const hictk::Chromosome &chrom2) const noexcept;
 };
 }  // namespace nchg
 
 template <>
 struct std::hash<nchg::BEDPE> {
   std::size_t operator()(const nchg::BEDPE &dom) const noexcept;
-};
-
-template <typename N>
-struct std::hash<nchg::BG2Domain<N>> {
-  std::size_t operator()(const nchg::BG2Domain<N> &dom) const noexcept;
 };
 
 #include "../../genomic_domains_impl.hpp"

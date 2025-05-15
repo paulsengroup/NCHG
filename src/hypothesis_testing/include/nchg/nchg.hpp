@@ -28,6 +28,7 @@ NCHG_DISABLE_WARNING_POP
 // clang-format on
 
 #include <cstdint>
+#include <hictk/chromosome.hpp>
 #include <hictk/cooler/pixel_selector.hpp>
 #include <hictk/file.hpp>
 #include <hictk/genomic_interval.hpp>
@@ -41,6 +42,7 @@ NCHG_DISABLE_WARNING_POP
 
 #include "nchg/expected_matrix.hpp"
 #include "nchg/expected_values.hpp"
+#include "nchg/genomic_domains.hpp"
 #include "nchg/observed_matrix.hpp"
 
 namespace nchg {
@@ -85,8 +87,8 @@ class NCHG {
 
   using Params = ExpectedValues::Params;
   static constexpr auto DefaultParams = ExpectedValues::DefaultParams;
-  explicit NCHG(std::shared_ptr<const hictk::File> f, const hictk::Chromosome& chrom1,
-                const hictk::Chromosome& chrom2, const Params& params);
+  NCHG(std::shared_ptr<const hictk::File> f, const hictk::Chromosome& chrom1,
+       const hictk::Chromosome& chrom2, const Params& params);
   NCHG(std::shared_ptr<const hictk::File> f, const hictk::Chromosome& chrom1,
        const hictk::Chromosome& chrom2, ExpectedValues expected_values);
 
@@ -95,11 +97,8 @@ class NCHG {
   [[nodiscard]] const ObservedMatrix& observed_matrix() const noexcept;
   [[nodiscard]] const ExpectedMatrixStats& expected_matrix() const noexcept;
 
-  [[nodiscard]] auto compute(const hictk::GenomicInterval& range, double bad_bin_fraction) const
-      -> Stats;
-  [[nodiscard]] auto compute(const hictk::GenomicInterval& range1,
-                             const hictk::GenomicInterval& range2, double bad_bin_fraction) const
-      -> Stats;
+  [[nodiscard]] auto compute(const BEDPE& domain, std::uint64_t obs, double exp,
+                             double bad_bin_fraction) const -> Stats;
 
   [[nodiscard]] auto cbegin(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2) const
       -> IteratorVariant;
@@ -112,13 +111,13 @@ class NCHG {
       -> IteratorVariant;
 
  private:
-  [[nodiscard]] static std::shared_ptr<const ExpectedMatrixStats> init_exp_matrix(
-      const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2, const hictk::File& f,
-      const ExpectedValues& expected_values);
-  [[nodiscard]] static std::shared_ptr<const ObservedMatrix> init_obs_matrix(
-      const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2, const hictk::File& fp,
-      const std::vector<bool>& bin1_mask, const std::vector<bool>& bin2_mask, double mad_max_,
-      std::uint64_t min_delta_, std::uint64_t max_delta_);
+  [[nodiscard]] auto init_matrices(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2,
+                                   const hictk::File& f, const ExpectedValues& expected_values,
+                                   const std::vector<bool>& bin1_mask,
+                                   const std::vector<bool>& bin2_mask, double mad_max_,
+                                   std::uint64_t min_delta_, std::uint64_t max_delta_)
+      -> std::pair<std::shared_ptr<const ObservedMatrix>,
+                   std::shared_ptr<const ExpectedMatrixStats>>;
 
   [[nodiscard]] static double compute_cumulative_nchg(std::vector<double>& buffer,
                                                       std::uint64_t obs, std::uint64_t N1,

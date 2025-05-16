@@ -52,6 +52,7 @@ target_link_libraries(
     nchg_project_warnings
     nchg::common
     nchg::descriptive_stats
+    nchg::genomic_domains
     nchg::hypothesis_testing
     nchg::io
     Boost::headers

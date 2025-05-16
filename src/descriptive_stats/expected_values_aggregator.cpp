@@ -125,8 +125,9 @@ void ExpectedValuesAggregator::compute_density_cis(double bin_aggregation_possib
 
   assert(_weights.size() == _observed_distances.size());
   for (std::size_t i = 0; i < _weights.size(); i++) {
-    _weights[i] = _observed_distances[i] == 0 ? std::numeric_limits<double>::quiet_NaN()
-                                              : _observed_distances[i] / _possible_distances[i];
+    _weights[i] = _observed_distances[i] == 0 || _possible_distances[i] == 0
+                      ? std::numeric_limits<double>::quiet_NaN()
+                      : _observed_distances[i] / _possible_distances[i];
   }
 
   if (last_valid_bin_idx != _possible_distances.size()) {

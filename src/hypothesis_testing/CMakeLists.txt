@@ -62,6 +62,7 @@ target_link_libraries(
   PUBLIC
     nchg::common
     nchg::descriptive_stats
+    nchg::genomic_domains
     nchg::preproc
     hictk::libhictk
     phmap

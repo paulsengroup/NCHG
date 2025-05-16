@@ -18,14 +18,35 @@
 
 #include "nchg/expected_matrix.hpp"
 
-#include <parallel_hashmap/btree.h>
-
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <hictk/bin_table.hpp>
 #include <hictk/chromosome.hpp>
+#include <memory>
+#include <utility>
 #include <vector>
 
 namespace nchg {
+
+ExpectedMatrixStats::ExpectedMatrixStats(hictk::Chromosome chrom1, hictk::Chromosome chrom2,
+                                         hictk::BinTable bins, std::vector<double> weights,
+                                         std::shared_ptr<const MarginalBuff> marginals1_,
+                                         std::shared_ptr<const MarginalBuff> marginals2_,
+                                         std::uint64_t nnz_, double sum_, std::uint64_t min_delta_,
+                                         std::uint64_t max_delta_) noexcept
+    : _chrom1(std::move(chrom1)),
+      _chrom2(std::move(chrom2)),
+      _bins(std::move(bins)),
+      _weights(std::move(weights)),
+      _min_delta(min_delta_),
+      _max_delta(max_delta_),
+      _marginals1(std::move(marginals1_)),
+      _marginals2(std::move(marginals2_)),
+      _nnz(nnz_),
+      _sum(sum_) {
+  assert(_min_delta <= _max_delta);
+}
 
 std::uint32_t ExpectedMatrixStats::resolution() const noexcept { return _bins.resolution(); }
 
@@ -49,11 +70,6 @@ double ExpectedMatrixStats::nnz_avg() const noexcept {
 }
 
 const std::vector<double> &ExpectedMatrixStats::weights() const noexcept { return _weights; }
-
-const phmap::btree_map<hictk::Chromosome, double> &ExpectedMatrixStats::scaling_factors()
-    const noexcept {
-  return _scaling_factors;
-}
 
 std::uint64_t ExpectedMatrixStats::min_delta() const noexcept { return _min_delta; }
 

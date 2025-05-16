@@ -18,14 +18,12 @@
 
 #include "nchg/nchg.hpp"
 
-#include <spdlog/spdlog.h>
-
 #include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cstdint>
 #include <hictk/file.hpp>
-#include <hictk/genomic_interval.hpp>
 #include <memory>
 
+#include "nchg/genomic_domains.hpp"
 #include "nchg/test/tmpdir.hpp"
 
 namespace nchg::test {
@@ -42,18 +40,20 @@ TEST_CASE("NCHG", "[medium][nchg]") {
   const NCHG nchg(clr, chr1, chr1, params);
 
   SECTION("significant") {
-    const hictk::GenomicInterval range1(chr1, 14'000'000, 18'000'000);
-    const hictk::GenomicInterval range2(chr1, 233'000'000, 236'000'000);
+    const BEDPE domain{{chr1, 14'000'000, 18'000'000}, {chr1, 233'000'000, 236'000'000}};
 
-    const auto s = nchg.compute(range1, range2, 1.0);
+    constexpr std::uint64_t obs = 204693;
+    constexpr double exp = 24444.163382290564;
+    const auto s = nchg.compute(domain, obs, exp, 1.0);
 
     CHECK(s.pval <= 0.05);
   }
   SECTION("not significant") {
-    const hictk::GenomicInterval range1(chr1, 0, 10'000'000);
-    const hictk::GenomicInterval range2(chr1, 95'000'000, 105'000'000);
+    const BEDPE domain{{chr1, 0, 10'000'000}, {chr1, 95'000'000, 105'000'000}};
 
-    const auto s = nchg.compute(range1, range2, 1.0);
+    constexpr std::uint64_t obs = 80550;
+    constexpr double exp = 190955.4493385836;
+    const auto s = nchg.compute(domain, obs, exp, 1.0);
 
     CHECK(s.pval > 0.05);
   }

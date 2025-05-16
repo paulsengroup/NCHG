@@ -23,14 +23,12 @@
 #include <cmath>
 #include <cstdint>
 #include <hictk/pixel.hpp>
-#include <hictk/transformers/join_genomic_coords.hpp>
 #include <limits>
 #include <memory>
 #include <tuple>
 #include <utility>
 #include <vector>
 
-#include "nchg/concepts.hpp"
 #include "nchg/expected_matrix.hpp"
 #include "nchg/observed_matrix.hpp"
 

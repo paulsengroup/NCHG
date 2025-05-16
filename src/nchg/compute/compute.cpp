@@ -929,12 +929,20 @@ class MessageQueue {
   static std::vector<EnvironmentKV> vars{};
 
   std::call_once(flag, [&] {
+    if constexpr (ndebug_not_defined()) {
+      std::ranges::transform(
+          boost::process::environment::current(), std::back_inserter(vars), [](const auto &kv) {
+            return std::make_pair(boost::process::environment::key{kv.key()},
+                                  boost::process::environment::value{kv.value()});
+          });
+    } else {
+      // NOLINTNEXTLINE(*-mt-unsafe)
+      if (const auto *var = std::getenv("NCHG_CI"); var) {
+        vars.emplace_back("NCHG_CI", var);
+      }
+    }
     vars.emplace_back(boost::process::environment::key{queue_name_env_variable},
                       boost::process::environment::value{msg_queue.name()});
-    // NOLINTNEXTLINE(*-mt-unsafe)
-    if (const auto *var = std::getenv("NCHG_CI"); var) {
-      vars.emplace_back("NCHG_CI", var);
-    }
   });
 
   return {vars};

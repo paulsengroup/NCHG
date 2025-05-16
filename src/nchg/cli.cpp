@@ -942,22 +942,29 @@ void Cli::transform_args_compute_subcommand() {
     if (!c.chrom2.has_value()) {
       c.chrom2 = c.chrom1;
     }
+
+    if (c.chrom1 == c.chrom2) {
+      c.compute_cis = true;
+      c.compute_trans = false;
+    } else {
+      c.compute_cis = false;
+      c.compute_trans = true;
+    }
+
     c.output_path = c.output_prefix;
     c.output_prefix.clear();
 
     if (c.output_path.extension() != ".parquet") {
       c.output_path = std::filesystem::path{fmt::format("{}.parquet", c.output_path.string())};
     }
+
+    c.threads = 1;
   }
 
   c.exec = get_path_to_executable();
 
   if (c.compression_method == "lz4") {
     c.compression_lvl = std::min(c.compression_lvl, std::uint8_t{9});
-  }
-
-  if (c.chrom1.has_value()) {
-    c.threads = 1;
   }
 
   // NOLINTNEXTLINE(*-mt-unsafe)

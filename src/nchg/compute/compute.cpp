@@ -82,7 +82,6 @@ NCHG_DISABLE_WARNING_POP
 // clang-format on
 
 #include "nchg/common.hpp"
-#include "nchg/concepts.hpp"
 #include "nchg/file_store.hpp"
 #include "nchg/genomic_domains.hpp"
 #include "nchg/hash.hpp"
@@ -436,24 +435,31 @@ class ProcessContext {
   [[nodiscard]] LockedContext operator()() { return std::make_pair(std::unique_lock{_mtx}, &_ctx); }
 };
 
-[[nodiscard]] static NCHG init_nchg(const std::shared_ptr<const hictk::File> &f,
+[[nodiscard]] static auto init_nchg(const std::shared_ptr<const hictk::File> &f,
                                     const std::optional<ExpectedValues> &expected_values,
                                     const ComputePvalConfig &c) {
   assert(c.chrom1.has_value());
   assert(c.chrom2.has_value());
-  assert(c.compute_cis);
-  assert(c.compute_trans);
+
+  struct Result {
+    NCHG nchg;
+    std::shared_ptr<const std::vector<bool>> bin1_mask{};
+    std::shared_ptr<const std::vector<bool>> bin2_mask{};
+  };
 
   const auto &chrom1 = f->chromosomes().at(*c.chrom1);
   const auto &chrom2 = f->chromosomes().at(*c.chrom2);
 
   if (expected_values.has_value()) {
-    return {f, chrom1, chrom2, *expected_values};
+    auto [bin1_mask, bin2_mask] = expected_values->bin_mask(chrom1, chrom2);
+    return Result{.nchg = NCHG{f, chrom1, chrom2, *expected_values},
+                  .bin1_mask = std::move(bin1_mask),
+                  .bin2_mask = std::move(bin2_mask)};
   }
 
   if (!c.path_to_expected_values.empty()) {
     SPDLOG_INFO("reading expected values from {}...", c.path_to_expected_values);
-    return {f, chrom1, chrom2, ExpectedValues::deserialize(c.path_to_expected_values)};
+    return init_nchg(f, ExpectedValues::deserialize(c.path_to_expected_values), c);
   }
 
   const auto bin_mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
@@ -470,7 +476,7 @@ class ProcessContext {
        .interpolation_window_size = c.interpolation_window_size},
       bin_mask);
 
-  return {f, chrom1, chrom2, evs};
+  return init_nchg(f, evs, c);
 }
 
 static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
@@ -598,8 +604,7 @@ map_interactions_to_domains(const hictk::File &f, const GenomicDomains &domains,
     return 0;
   }
 
-  const auto nchg = init_nchg(f, expected_values, c);
-  const auto [bin1_mask, bin2_mask] = expected_values->bin_mask(chrom1, chrom2);
+  const auto [nchg, bin1_mask, bin2_mask] = init_nchg(f, expected_values, c);
   assert(bin1_mask);
   assert(bin2_mask);
 
@@ -632,7 +637,7 @@ map_interactions_to_domains(const hictk::File &f, const GenomicDomains &domains,
 
   const auto &chrom1 = f->chromosomes().at(*c.chrom1);
   const auto &chrom2 = f->chromosomes().at(*c.chrom2);
-  const auto nchg = init_nchg(f, expected_values, c);
+  const auto nchg = init_nchg(f, expected_values, c).nchg;
 
   ParquetStatsFileWriter writer(f->chromosomes(), c.output_path, c.force, c.compression_method,
                                 c.compression_lvl, c.threads);
@@ -1289,7 +1294,7 @@ static std::size_t process_queries_st(FileStore &file_store, const ChromosomePai
   return tot_num_records;
 }
 
-static std::optional<ExpectedValues> init_cis_expected_values(const ComputePvalConfig &c) {
+[[nodiscard]] static ExpectedValues init_cis_expected_values(const ComputePvalConfig &c) {
   assert(c.compute_cis || c.chrom1 == c.chrom2);
 
   SPDLOG_INFO("initializing expected values for cis matrices...");
@@ -1297,7 +1302,7 @@ static std::optional<ExpectedValues> init_cis_expected_values(const ComputePvalC
 
   const auto bin_mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
-  return {ExpectedValues::cis_only(
+  return ExpectedValues::cis_only(
       f,
       {.mad_max = c.mad_max,
        .min_delta = c.min_delta,
@@ -1307,7 +1312,7 @@ static std::optional<ExpectedValues> init_cis_expected_values(const ComputePvalC
        .interpolate = c.interpolate_expected_values,
        .interpolation_qtile = c.interpolation_qtile,
        .interpolation_window_size = c.interpolation_window_size},
-      bin_mask)};
+      bin_mask);
 }
 
 static std::size_t process_queries(FileStore &file_store, const ChromosomePairs &chrom_pairs,
@@ -1329,10 +1334,10 @@ static std::size_t process_queries(FileStore &file_store, const ChromosomePairs 
       num_threads = chrom_pairs.size();
       SPDLOG_WARN(
           "number of threads specified through --threads exceeds the number of chromosome pairs "
-          "to "
-          "be processed: limiting concurrency to {} thread(s)",
+          "to be processed: limiting concurrency to {} thread(s)",
           num_threads);
     }
+    assert(num_threads != 0);
     BS::light_thread_pool tpool(num_threads + 1);
     return process_queries_mt(tpool, file_store, chrom_pairs, domains, expected_values, tmpdir, c);
   }
@@ -1463,26 +1468,27 @@ static void validate_expected_values(const ExpectedValues &expected_values,
   }
 
   if (!c.path_to_domains.empty()) {
-    assert(c.chrom1.has_value() || f.chromosomes().contains(*c.chrom1));
-    assert(c.chrom2.has_value() || f.chromosomes().contains(*c.chrom2));
+    assert(!c.chrom1.has_value() || f.chromosomes().contains(*c.chrom1));
+    assert(!c.chrom2.has_value() || f.chromosomes().contains(*c.chrom2));
 
     plan.domains.emplace(parse_domains(f.chromosomes(), c.path_to_domains, c.compute_cis,
                                        c.compute_trans, c.chrom1, c.chrom2));
   }
 
-  // TODO can we figure out if we only have cis domains and do less work?
-  if (c.compute_cis) {
-    plan.chrom_pairs = init_cis_chromosomes(f.chromosomes(), plan.domains);
-  }
+  if (!c.chrom1.has_value()) {
+    assert(!c.chrom2.has_value());
+    if (c.compute_cis) {
+      plan.chrom_pairs = init_cis_chromosomes(f.chromosomes(), plan.domains);
+    }
 
-  if (c.compute_trans) {
-    std::ranges::move(init_trans_chromosomes(f.chromosomes(), plan.domains),
-                      std::inserter(plan.chrom_pairs, plan.chrom_pairs.end()));
-  }
-
-  if (c.chrom1.has_value()) {
+    if (c.compute_trans) {
+      std::ranges::move(init_trans_chromosomes(f.chromosomes(), plan.domains),
+                        std::inserter(plan.chrom_pairs, plan.chrom_pairs.end()));
+    }
+  } else {
     assert(c.chrom2.has_value());
-    plan.chrom_pairs.clear();
+    plan.chrom_pairs.emplace(
+        std::make_pair(f.chromosomes().at(*c.chrom1), f.chromosomes().at(*c.chrom2)));
   }
 
   if (init_file_store) {
@@ -1503,11 +1509,6 @@ static void validate_expected_values(const ExpectedValues &expected_values,
   if (!c.path_to_expected_values.empty()) {
     assert(!plan.expected_values.has_value());
     plan.expected_values = ExpectedValues::deserialize(c.path_to_expected_values);
-  } else if (c.compute_cis) {
-    plan.expected_values = init_cis_expected_values(c);
-  }
-
-  if (plan.expected_values.has_value()) {
     validate_expected_values(*plan.expected_values, c.path_to_expected_values, plan.chrom_pairs,
                              f.resolution());
   }
@@ -1521,6 +1522,10 @@ static void validate_expected_values(const ExpectedValues &expected_values,
     }
     plan.file_store = std::make_unique<FileStore>(
         root_dir, false, fmt::format("{}.json", c.output_prefix.filename().string()));
+  }
+
+  if (!plan.expected_values.has_value() && c.compute_cis) {
+    plan.expected_values = init_cis_expected_values(c);
   }
 
   return plan;

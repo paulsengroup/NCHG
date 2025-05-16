@@ -23,7 +23,6 @@
 #include <boost/geometry/geometries/register/box.hpp>
 #include <boost/geometry/geometries/register/point.hpp>
 #include <boost/geometry/geometry.hpp>
-#include <boost/range.hpp>
 #include <boost/range/adaptor/indexed.hpp>
 #include <boost/range/adaptor/transformed.hpp>
 #include <cassert>
@@ -34,6 +33,7 @@
 #include <hictk/genomic_interval.hpp>
 #include <memory>
 #include <numeric>
+#include <ranges>
 #include <span>
 #include <stdexcept>
 #include <utility>
@@ -77,18 +77,6 @@ constexpr const hictk::Chromosome& BEDPE::chrom2() const noexcept { return range
 constexpr std::uint32_t BEDPE::start2() const noexcept { return range2().start(); }
 
 constexpr std::uint32_t BEDPE::end2() const noexcept { return range2().end(); }
-
-constexpr hictk::Chromosome& BEDPE::chrom1() { throw std::runtime_error("not implemented!"); }
-
-constexpr std::uint32_t& BEDPE::start1() { throw std::runtime_error("not implemented!"); }
-
-constexpr std::uint32_t& BEDPE::end1() { throw std::runtime_error("not implemented!"); }
-
-constexpr hictk::Chromosome& BEDPE::chrom2() { throw std::runtime_error("not implemented!"); }
-
-constexpr std::uint32_t& BEDPE::start2() { throw std::runtime_error("not implemented!"); }
-
-constexpr std::uint32_t& BEDPE::end2() { throw std::runtime_error("not implemented!"); }
 
 template <typename N>
   requires arithmetic<N>
@@ -229,14 +217,14 @@ inline auto GenomicDomainsIndexed<N>::build_rtree(std::span<const BEDPE> domains
     return nullptr;
   }
 
-  auto make_pair = [](const auto& v) {
-    const auto& dom = v.value();
+  auto add_index = [i = std::size_t{}](const auto& dom) mutable {
     return std::make_pair(BEDPE{{dom.chrom1(), dom.start1(), dom.end1() - 1},
                                 {dom.chrom2(), dom.start2(), dom.end2() - 1}},
-                          v.index());
+                          i++);
   };
-  return std::make_shared<const RTree>(domains | boost::adaptors::indexed() |
-                                       boost::adaptors::transformed(make_pair));
+
+  auto indexed_domains = domains | std::views::transform(add_index);
+  return std::make_shared<const RTree>(indexed_domains.begin(), indexed_domains.end());
 }
 
 template <typename N>

@@ -255,9 +255,9 @@ auto NCHG::compute(const BEDPE &domain, std::uint64_t obs, double exp,
 
 auto NCHG::cbegin(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2) const
     -> IteratorVariant {
-  auto [bin1_mask, bin2_mask] = _expected_values.bin_mask(chrom1, chrom2);
   return std::visit(
       [&](const auto &f) -> IteratorVariant {
+        auto [bin1_mask, bin2_mask] = _expected_values.bin_mask(chrom1, chrom2);
         return {iterator{f.fetch(chrom1.name(), chrom2.name()), _obs_matrix, _exp_matrix, bin1_mask,
                          bin2_mask, params().min_delta, params().max_delta}};
       },

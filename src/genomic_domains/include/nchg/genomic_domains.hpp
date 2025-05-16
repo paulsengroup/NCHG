@@ -68,12 +68,12 @@ class BEDPE {
 
   // These accessors are required in order to register BEDPE with boost::geometry.
   // They do nothing and throw an exception when called.
-  [[noreturn]] constexpr hictk::Chromosome &chrom1();
-  [[noreturn]] constexpr std::uint32_t &start1();
-  [[noreturn]] constexpr std::uint32_t &end1();
-  [[noreturn]] constexpr hictk::Chromosome &chrom2();
-  [[noreturn]] constexpr std::uint32_t &start2();
-  [[noreturn]] constexpr std::uint32_t &end2();
+  [[noreturn]] hictk::Chromosome &chrom1();
+  [[noreturn]] std::uint32_t &start1();
+  [[noreturn]] std::uint32_t &end1();
+  [[noreturn]] hictk::Chromosome &chrom2();
+  [[noreturn]] std::uint32_t &start2();
+  [[noreturn]] std::uint32_t &end2();
 };
 
 template <typename N>

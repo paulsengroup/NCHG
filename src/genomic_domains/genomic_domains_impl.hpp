@@ -139,7 +139,8 @@ inline auto GenomicDomainsIndexed<N>::to_vector() const -> std::vector<std::pair
 
   std::vector<std::pair<BEDPE, N>> buff(size(), std::make_pair(BEDPE{}, N{}));
   for (const auto& [dom, i] : *_domains) {
-    assert(i < size());
+    assert(i < _domains->size());
+    assert(i < _counts.size());
     assert(buff[i].first == BEDPE{});
     buff[i] = std::make_pair(BEDPE{{dom.chrom1(), dom.start1(), dom.end1() + 1},
                                    {dom.chrom2(), dom.start2(), dom.end2() + 1}},
@@ -217,10 +218,11 @@ inline auto GenomicDomainsIndexed<N>::build_rtree(std::span<const BEDPE> domains
     return nullptr;
   }
 
-  auto add_index = [i = std::size_t{}](const auto& dom) mutable {
+  auto add_index = [ptr = domains.data()](const auto& dom) {
+    const auto i = static_cast<std::size_t>(&dom - ptr);
     return std::make_pair(BEDPE{{dom.chrom1(), dom.start1(), dom.end1() - 1},
                                 {dom.chrom2(), dom.start2(), dom.end2() - 1}},
-                          i++);
+                          i);
   };
 
   auto indexed_domains = domains | std::views::transform(add_index);

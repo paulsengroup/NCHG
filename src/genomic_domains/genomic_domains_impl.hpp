@@ -212,6 +212,63 @@ inline std::size_t GenomicDomainsIndexed<N>::add_interactions(const hictk::Pixel
 
 template <typename N>
   requires arithmetic<N>
+inline double GenomicDomainsIndexed<N>::coverage(std::uint32_t block_size) const {
+  assert(block_size != 0);
+
+  if (!_domains || _domains->empty()) {
+    return 0;
+  }
+
+  auto grid = [&] {
+    std::vector<std::shared_ptr<const hictk::GenomicInterval>> bins1{};
+    std::vector<std::shared_ptr<const hictk::GenomicInterval>> bins2{};
+
+    const auto num_bins1 = (_chrom1.size() + block_size - 1) / block_size;
+    bins1.reserve(num_bins1);
+    for (std::uint32_t start = 0; start < _chrom1.size(); start += block_size) {
+      bins1.emplace_back(std::make_shared<hictk::GenomicInterval>(
+          _chrom1, start, std::min(start + block_size, _chrom1.size())));
+    }
+
+    if (_chrom1 == _chrom2) {
+      bins2 = bins1;
+    } else {
+      const auto num_bins2 = (_chrom2.size() + block_size - 1) / block_size;
+      bins2.reserve(num_bins2);
+      for (std::uint32_t start = 0; start < _chrom2.size(); start += block_size) {
+        bins2.emplace_back(std::make_shared<hictk::GenomicInterval>(
+            _chrom2, start, std::min(start + block_size, _chrom2.size())));
+      }
+    }
+
+    std::vector<BEDPE> domains_{};
+    for (const auto& range1 : bins1) {
+      for (const auto& range2 : bins2) {
+        if (*range1 <= *range2) {
+          domains_.emplace_back(range1, range2);
+        }
+      }
+    }
+    return GenomicDomainsIndexed{_chrom1, _chrom2, domains_};
+  }();
+
+  for (const auto& domain : *_domains | std::views::keys) {
+    const auto& range1 = domain.range1();
+    const auto& range2 = domain.range2();
+    grid.add_interactions(hictk::Pixel<N>{_chrom1, range1.start(), range1.end(), _chrom2,
+                                          range2.start(), range2.end(), 1});
+  }
+
+  std::size_t blocks_covered = 0;
+  for (const auto count : grid._counts) {
+    blocks_covered += count != 0;
+  }
+
+  return static_cast<double>(blocks_covered) / static_cast<double>(grid.size());
+}
+
+template <typename N>
+  requires arithmetic<N>
 inline auto GenomicDomainsIndexed<N>::build_rtree(std::span<const BEDPE> domains)
     -> std::shared_ptr<const RTree> {
   if (domains.empty()) {

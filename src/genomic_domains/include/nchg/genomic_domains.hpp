@@ -115,6 +115,7 @@ class GenomicDomainsIndexed {
 
   template <typename M>
   std::size_t add_interactions(const hictk::Pixel<M> &p);
+  [[nodiscard]] double coverage(std::uint32_t block_size = 100'000) const;
 
  private:
   [[nodiscard]] static auto build_rtree(std::span<const BEDPE> domains)

@@ -142,6 +142,7 @@ struct meta<spdlog::details::log_msg> {
 
 namespace nchg {
 
+using DomainAggregationStrategy = ComputePvalConfig::DomainAggregationStrategy;
 using ChromPair = std::pair<hictk::Chromosome, hictk::Chromosome>;
 using ChromosomePairs = phmap::btree_set<ChromPair>;
 
@@ -513,34 +514,20 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   }
 }
 
-[[nodiscard]] static std::vector<std::tuple<BEDPE, std::uint64_t, double>>
-map_interactions_to_domains(const hictk::File &f, const GenomicDomains &domains,
-                            const ExpectedMatrixStats &expected_matrix,
-                            const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
-                            std::uint64_t min_delta, std::uint64_t max_delta,
-                            const std::vector<bool> &bin1_mask,
-                            const std::vector<bool> &bin2_mask) {
-  // TODO come up with some heuristic to figure out the best strategy to fetch interactions
-  if (chrom1 != chrom2) {
-    min_delta = 0;
-    max_delta = std::numeric_limits<std::uint64_t>::max();
-  }
+[[nodiscard]] static std::uint64_t map_interactions_to_domains_one_pass(
+    const hictk::File &f, GenomicDomainsIndexed<std::uint64_t> &obs_domains,
+    GenomicDomainsIndexed<double> &exp_domains, const ExpectedMatrixStats &expected_matrix,
+    std::uint64_t min_delta, std::uint64_t max_delta, const std::vector<bool> &bin1_mask,
+    const std::vector<bool> &bin2_mask) {
+  const auto &chrom1 = obs_domains.chrom1().name();
+  const auto &chrom2 = obs_domains.chrom2().name();
 
-  auto obs_domains = domains.fetch<std::uint32_t>(chrom1, chrom2);
-  auto exp_domains = domains.fetch<double>(chrom1, chrom2);
-
-  if (obs_domains.empty()) {
-    return {};
-  }
-
-  SPDLOG_DEBUG("[{}:{}] mapping interactions to {} genomic domains...", chrom1.name(),
-               chrom2.name(), obs_domains.size());
-  [[maybe_unused]] const auto t0 = std::chrono::system_clock::now();
-
-  [[maybe_unused]] std::uint64_t tot_interactions{};
+  SPDLOG_DEBUG("[{}:{}]: mapping interactions to {} genomic domains using the one pass strategy...",
+               chrom1, chrom2, obs_domains.size());
+  std::uint64_t tot_interactions{};
   std::visit(
       [&](const auto &fp) {
-        const auto sel = fp.fetch(chrom1.name(), chrom2.name());
+        const auto sel = fp.fetch(chrom1, chrom2);
         const hictk::transformers::JoinGenomicCoords jsel(
             sel.template begin<std::uint64_t>(), sel.template end<std::uint64_t>(), fp.bins_ptr());
 
@@ -563,6 +550,93 @@ map_interactions_to_domains(const hictk::File &f, const GenomicDomains &domains,
         }
       },
       f.get());
+
+  return tot_interactions;
+}
+
+[[nodiscard]] static std::uint64_t map_interactions_to_domains_multi_pass(
+    const hictk::File &f, GenomicDomainsIndexed<std::uint64_t> &obs_domains,
+    GenomicDomainsIndexed<double> &exp_domains, const ExpectedMatrixStats &expected_matrix,
+    std::uint64_t min_delta, std::uint64_t max_delta, const std::vector<bool> &bin1_mask,
+    const std::vector<bool> &bin2_mask) {
+  const auto &chrom1 = obs_domains.chrom1().name();
+  const auto &chrom2 = obs_domains.chrom2().name();
+
+  SPDLOG_DEBUG(
+      "[{}:{}]: mapping interactions to {} genomic domains using the multi pass strategy...",
+      chrom1, chrom2, obs_domains.size());
+
+  std::uint64_t tot_interactions{};
+  const auto domains = obs_domains.to_vector();
+
+  std::visit(
+      [&](const auto &fp) {
+        for (const auto &dom : domains | std::views::keys) {
+          const auto sel =
+              fp.fetch(chrom1, dom.start1(), dom.end1(), chrom2, dom.start2(), dom.end2());
+          const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<std::uint64_t>(),
+                                                            sel.template end<std::uint64_t>(),
+                                                            fp.bins_ptr());
+
+          for (const auto &p : jsel) {
+            const auto delta = p.coords.bin2.start() - p.coords.bin1.start();
+
+            const auto i1 = p.coords.bin1.rel_id();
+            const auto i2 = p.coords.bin2.rel_id();
+
+            if (delta < min_delta || delta >= max_delta || bin1_mask[i1] || bin2_mask[i2])
+                [[unlikely]] {
+              continue;
+            }
+
+            if (obs_domains.add_interactions(p) != 0) {
+              tot_interactions += p.count;
+              const auto exp_count = expected_matrix.at(i1, i2);
+              exp_domains.add_interactions(hictk::Pixel{p.coords, exp_count});
+            }
+          }
+        }
+      },
+      f.get());
+
+  return tot_interactions;
+}
+
+[[nodiscard]] static std::vector<std::tuple<BEDPE, std::uint64_t, double>>
+map_interactions_to_domains(const hictk::File &f, const GenomicDomains &domains,
+                            const ExpectedMatrixStats &expected_matrix,
+                            const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
+                            std::uint64_t min_delta, std::uint64_t max_delta,
+                            const std::vector<bool> &bin1_mask, const std::vector<bool> &bin2_mask,
+                            DomainAggregationStrategy aggregation_stategy) {
+  const auto t0 = std::chrono::system_clock::now();
+
+  if (chrom1 != chrom2) {
+    min_delta = 0;
+    max_delta = std::numeric_limits<std::uint64_t>::max();
+  }
+
+  auto obs_domains = domains.fetch<std::uint64_t>(chrom1, chrom2);
+  if (obs_domains.empty()) {
+    return {};
+  }
+
+  auto exp_domains = domains.fetch<double>(chrom1, chrom2);
+
+  if (aggregation_stategy == DomainAggregationStrategy::AUTO) {
+    const auto coverage = obs_domains.coverage(std::max(std::uint32_t{100'000}, f.resolution()));
+    SPDLOG_DEBUG("[{}:{}]: {} domain(s) cover ~{:.2f}% of the matrix", chrom1.name(), chrom2.name(),
+                 obs_domains.size(), 100 * coverage);
+    aggregation_stategy = coverage > 0.33 ? DomainAggregationStrategy::SINGLE_PASS
+                                          : DomainAggregationStrategy::MULTI_PASS;
+  }
+
+  const auto tot_interactions =
+      aggregation_stategy == DomainAggregationStrategy::SINGLE_PASS
+          ? map_interactions_to_domains_one_pass(f, obs_domains, exp_domains, expected_matrix,
+                                                 min_delta, max_delta, bin1_mask, bin2_mask)
+          : map_interactions_to_domains_multi_pass(f, obs_domains, exp_domains, expected_matrix,
+                                                   min_delta, max_delta, bin1_mask, bin2_mask);
 
   std::vector<std::tuple<BEDPE, std::uint64_t, double>> results(obs_domains.size());
   auto obs_domains_sorted = obs_domains.to_vector();
@@ -608,9 +682,9 @@ map_interactions_to_domains(const hictk::File &f, const GenomicDomains &domains,
   assert(bin1_mask);
   assert(bin2_mask);
 
-  const auto domains_with_interactions =
-      map_interactions_to_domains(*f, domains, nchg.expected_matrix(), chrom1, chrom2, c.min_delta,
-                                  c.max_delta, *bin1_mask, *bin2_mask);
+  const auto domains_with_interactions = map_interactions_to_domains(
+      *f, domains, nchg.expected_matrix(), chrom1, chrom2, c.min_delta, c.max_delta, *bin1_mask,
+      *bin2_mask, c.domain_aggregation_stategy);
 
   std::size_t num_records = 0;
   for (const auto &[domain, obs, exp] : domains_with_interactions) {

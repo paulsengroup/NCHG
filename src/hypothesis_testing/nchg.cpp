@@ -292,7 +292,7 @@ auto NCHG::init_matrices(const hictk::Chromosome &chrom1, const hictk::Chromosom
                          double mad_max_, std::uint64_t min_delta_, std::uint64_t max_delta_)
     -> std::pair<std::shared_ptr<const ObservedMatrix>,
                  std::shared_ptr<const ExpectedMatrixStats>> {
-  SPDLOG_INFO("[{}:{}] initializing observed and expected matrices...", chrom1.name(),
+  SPDLOG_INFO("[{}:{}]: initializing observed and expected matrices...", chrom1.name(),
               chrom2.name());
 
   MatrixStats<std::uint32_t> obs_stats{chrom1,         chrom2,     bin1_mask, bin2_mask,
@@ -325,7 +325,8 @@ auto NCHG::init_matrices(const hictk::Chromosome &chrom1, const hictk::Chromosom
       std::move(exp_stats.marginals2), exp_stats.nnz, exp_stats.sum, min_delta_, max_delta_);
 
   SPDLOG_INFO(
-      "[{}:{}] initialed observed and expected matrices with a total of {} interactions ({} nnz)!",
+      "[{}:{}]: initialized observed and expected matrices with a total of {} interactions ({} "
+      "nnz)!",
       chrom1.name(), chrom2.name(), obs_stats.sum, obs_stats.nnz);
 
   return {std::move(obs_matrix), std::move(exp_matrix)};

@@ -361,7 +361,7 @@ struct GIEqOperator {
     const GenomicDomains &domains, const std::filesystem::path &dest_dir,
     const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2, bool force) {
   const auto dest = dest_dir / fmt::format("domains.{}.{}.bedpe", chrom1.name(), chrom2.name());
-  SPDLOG_DEBUG("[{}:{}] writing domains to temporary file \"{}\"...", chrom1.name(), chrom2.name(),
+  SPDLOG_DEBUG("[{}:{}]: writing domains to temporary file \"{}\"...", chrom1.name(), chrom2.name(),
                dest.string());
 
   const auto t0 = std::chrono::steady_clock::now();
@@ -393,11 +393,11 @@ struct GIEqOperator {
     if (selected_domains.empty()) {
       SPDLOG_WARN("[{}:{}]: no domains were selected!", chrom1.name(), chrom2.name());
     } else if (selected_domains.size() == 1) {
-      SPDLOG_DEBUG("[{}:{}] selected a single domain ({:ucsc}; {:ucsc})...", chrom1.name(),
+      SPDLOG_DEBUG("[{}:{}]: selected a single domain ({:ucsc}; {:ucsc})...", chrom1.name(),
                    chrom2.name(), selected_domains.front().first.range1(),
                    selected_domains.front().first.range2());
     } else {
-      SPDLOG_DEBUG("[{}:{}] selected {} domains ({:ucsc}; {:ucsc} ... {:ucsc}; {:ucsc})...",
+      SPDLOG_DEBUG("[{}:{}]: selected {} domains ({:ucsc}; {:ucsc} ... {:ucsc}; {:ucsc})...",
                    chrom1.name(), chrom2.name(), selected_domains.size(),
                    selected_domains.front().first.range1(), selected_domains.front().first.range2(),
                    selected_domains.back().first.range1(), selected_domains.back().first.range2());
@@ -420,7 +420,7 @@ struct GIEqOperator {
 
   const auto t1 = std::chrono::steady_clock::now();
 
-  SPDLOG_DEBUG("[{}:{}] written {} domains to \"{}\" in {}", chrom1.name(), chrom2.name(),
+  SPDLOG_DEBUG("[{}:{}]: written {} domains to \"{}\" in {}", chrom1.name(), chrom2.name(),
                domains_processed, dest.string(), format_duration(t1 - t0));
   return dest;
 }
@@ -522,7 +522,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   const auto &chrom1 = obs_domains.chrom1().name();
   const auto &chrom2 = obs_domains.chrom2().name();
 
-  SPDLOG_DEBUG("[{}:{}]: mapping interactions to {} genomic domains using the one pass strategy...",
+  SPDLOG_DEBUG("[{}:{}]: mapping interactions to {} genomic domains using the one-pass strategy...",
                chrom1, chrom2, obs_domains.size());
   std::uint64_t tot_interactions{};
   std::visit(
@@ -563,7 +563,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   const auto &chrom2 = obs_domains.chrom2().name();
 
   SPDLOG_DEBUG(
-      "[{}:{}]: mapping interactions to {} genomic domains using the multi pass strategy...",
+      "[{}:{}]: mapping interactions to {} genomic domains using the multi-pass strategy...",
       chrom1, chrom2, obs_domains.size());
 
   std::uint64_t tot_interactions{};
@@ -649,8 +649,8 @@ map_interactions_to_domains(const hictk::File &f, const GenomicDomains &domains,
   }
 
   [[maybe_unused]] const auto t1 = std::chrono::system_clock::now();
-  SPDLOG_DEBUG("[{}:{}] mapped {} interactions to {} genomic domains in {}!", chrom1.name(),
-               chrom2.name(), tot_interactions, domains.size(), format_duration(t1 - t0));
+  SPDLOG_DEBUG("[{}:{}]: mapped {} interactions to {} genomic domains in {}!", chrom1.name(),
+               chrom2.name(), tot_interactions, obs_domains.size(), format_duration(t1 - t0));
 
   return results;
 }
@@ -664,7 +664,7 @@ map_interactions_to_domains(const hictk::File &f, const GenomicDomains &domains,
   assert(c.chrom2.has_value());
   assert(!c.output_path.empty());
 
-  SPDLOG_INFO("[{}:{}] begin processing domains from {}...", *c.chrom1, *c.chrom2,
+  SPDLOG_INFO("[{}:{}]: begin processing domains from {}...", *c.chrom1, *c.chrom2,
               c.path_to_domains);
 
   ParquetStatsFileWriter writer(f->chromosomes(), c.output_path, c.force, c.compression_method,
@@ -707,7 +707,7 @@ map_interactions_to_domains(const hictk::File &f, const GenomicDomains &domains,
   assert(c.chrom2.has_value());
   assert(!c.output_path.empty());
 
-  SPDLOG_INFO("[{}:{}] begin processing interactions...", *c.chrom1, *c.chrom2);
+  SPDLOG_INFO("[{}:{}]: begin processing interactions...", *c.chrom1, *c.chrom2);
 
   const auto &chrom1 = f->chromosomes().at(*c.chrom1);
   const auto &chrom2 = f->chromosomes().at(*c.chrom2);
@@ -1373,9 +1373,9 @@ static std::size_t process_queries_st(FileStore &file_store, const ChromosomePai
       file_store.register_file(config.output_path);
 
       const auto t1 = std::chrono::steady_clock::now();
-      SPDLOG_INFO("[{}:{}] processed {} records in {}!", chrom1.name(), chrom2.name(), num_records,
+      SPDLOG_INFO("[{}:{}]: processed {} records in {}!", chrom1.name(), chrom2.name(), num_records,
                   format_duration(t1 - t0));
-      SPDLOG_INFO("[{}:{}] {} records have been written to file \"{}\"", chrom1.name(),
+      SPDLOG_INFO("[{}:{}]: {} records have been written to file \"{}\"", chrom1.name(),
                   chrom2.name(), num_records, config.output_path.string());
 
     } catch (const std::exception &e) {
@@ -1716,8 +1716,8 @@ int run_command(const ComputePvalConfig &c) {
     const auto interactions_processed =
         run_nchg_compute_worker(c, plan.domains, plan.expected_values);
     const auto t1 = std::chrono::steady_clock::now();
-    SPDLOG_INFO("[{}:{}] processed {} records in {}!", *c.chrom1, *c.chrom2, interactions_processed,
-                format_duration(t1 - t0));
+    SPDLOG_INFO("[{}:{}]: processed {} records in {}!", *c.chrom1, *c.chrom2,
+                interactions_processed, format_duration(t1 - t0));
 
     SPDLOG_INFO("[{}:{}]: all records have been written to file \"{}\"", *c.chrom1, *c.chrom2,
                 c.output_path.string());

@@ -111,7 +111,7 @@ ExpectedValues ExpectedValues::chromosome_pair(
     std::shared_ptr<const hictk::File> file, const hictk::Chromosome &chrom1,
     const hictk::Chromosome &chrom2, const Params &params,
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask) {
-  SPDLOG_INFO("[{}:{}] computing expected values...", chrom1.name(), chrom2.name());
+  SPDLOG_INFO("[{}:{}]: computing expected values...", chrom1.name(), chrom2.name());
 
   ExpectedValues ev(nullptr, params);
   ev._fp = std::move(file);

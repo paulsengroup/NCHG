@@ -1022,6 +1022,18 @@ class MessageQueue {
   return {vars};
 }
 
+[[nodiscard]] static std::string aggregation_strategy_to_str(DomainAggregationStrategy strategy) {
+  switch (strategy) {
+    case DomainAggregationStrategy::AUTO:
+      return "auto";
+    case DomainAggregationStrategy::SINGLE_PASS:
+      return "one-pass";
+    case DomainAggregationStrategy::MULTI_PASS:
+      return "multi-pass";
+  }
+  unreachable_code();
+}
+
 [[nodiscard]] static boost::process::process spawn_compute_process(
     ProcessContext &ctx, const MessageQueue &msg_queue, const ComputePvalConfig &c,
     const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2) {
@@ -1056,6 +1068,8 @@ class MessageQueue {
   if (!c.path_to_domains.empty()) {
     args.emplace_back("--domains");
     args.emplace_back(c.path_to_domains.string());
+    args.emplace_back("--interaction-aggregation-strategy");
+    args.emplace_back(aggregation_strategy_to_str(c.domain_aggregation_stategy));
   }
 
   if (c.path_to_expected_values.empty()) {

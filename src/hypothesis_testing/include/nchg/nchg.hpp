@@ -87,10 +87,10 @@ class NCHG {
 
   using Params = ExpectedValues::Params;
   static constexpr auto DefaultParams = ExpectedValues::DefaultParams;
-  NCHG(std::shared_ptr<const hictk::File> f, const hictk::Chromosome& chrom1,
+  NCHG(const std::shared_ptr<const hictk::File>& f, const hictk::Chromosome& chrom1,
        const hictk::Chromosome& chrom2, const Params& params);
-  NCHG(std::shared_ptr<const hictk::File> f, const hictk::Chromosome& chrom1,
-       const hictk::Chromosome& chrom2, ExpectedValues expected_values);
+  NCHG(std::shared_ptr<const hictk::File> f, hictk::Chromosome chrom1, hictk::Chromosome chrom2,
+       ExpectedValues expected_values);
 
   [[nodiscard]] auto params() const noexcept -> Params;
 
@@ -111,11 +111,12 @@ class NCHG {
       -> IteratorVariant;
 
  private:
-  [[nodiscard]] auto init_matrices(const hictk::Chromosome& chrom1, const hictk::Chromosome& chrom2,
-                                   const hictk::File& f, const ExpectedValues& expected_values,
-                                   const std::vector<bool>& bin1_mask,
-                                   const std::vector<bool>& bin2_mask, double mad_max_,
-                                   std::uint64_t min_delta_, std::uint64_t max_delta_)
+  [[nodiscard]] static auto init_matrices(const hictk::Chromosome& chrom1,
+                                          const hictk::Chromosome& chrom2, const hictk::File& f,
+                                          const ExpectedValues& expected_values,
+                                          const std::vector<bool>& bin1_mask,
+                                          const std::vector<bool>& bin2_mask, double mad_max_,
+                                          std::uint64_t min_delta_, std::uint64_t max_delta_)
       -> std::pair<std::shared_ptr<const ObservedMatrix>,
                    std::shared_ptr<const ExpectedMatrixStats>>;
 

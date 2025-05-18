@@ -192,19 +192,19 @@ auto NCHG::aggregate_pixels(const hictk::GenomicInterval &range1,
   return Result{obs, exp};
 }
 
-NCHG::NCHG(std::shared_ptr<const hictk::File> f, const hictk::Chromosome &chrom1,
+NCHG::NCHG(const std::shared_ptr<const hictk::File> &f, const hictk::Chromosome &chrom1,
            const hictk::Chromosome &chrom2, const Params &params)
     : NCHG(f, chrom1, chrom2, ExpectedValues::chromosome_pair(f, chrom1, chrom2, params)) {}
 
-NCHG::NCHG(std::shared_ptr<const hictk::File> f, const hictk::Chromosome &chrom1,
-           const hictk::Chromosome &chrom2, ExpectedValues expected_values)
+NCHG::NCHG(std::shared_ptr<const hictk::File> f, hictk::Chromosome chrom1, hictk::Chromosome chrom2,
+           ExpectedValues expected_values)
     : _fp(std::move(f)),
-      _chrom1(chrom1),
-      _chrom2(chrom2),
+      _chrom1(std::move(chrom1)),
+      _chrom2(std::move(chrom2)),
       _expected_values(std::move(expected_values)) {
   const auto &[bin1_mask, bin2_mask] = _expected_values.bin_mask(chrom1, chrom2);
   auto [obs_matrix, exp_matrix] = init_matrices(
-      chrom1, chrom2, *_fp, _expected_values, bin1_mask ? *bin1_mask : std::vector<bool>{},
+      _chrom1, _chrom2, *_fp, _expected_values, bin1_mask ? *bin1_mask : std::vector<bool>{},
       bin2_mask ? *bin2_mask : std::vector<bool>{}, _expected_values.params().mad_max,
       _expected_values.params().min_delta, _expected_values.params().max_delta);
 
@@ -258,8 +258,9 @@ auto NCHG::cbegin(const hictk::Chromosome &chrom1, const hictk::Chromosome &chro
   return std::visit(
       [&](const auto &f) -> IteratorVariant {
         auto [bin1_mask, bin2_mask] = _expected_values.bin_mask(chrom1, chrom2);
-        return {iterator{f.fetch(chrom1.name(), chrom2.name()), _obs_matrix, _exp_matrix, bin1_mask,
-                         bin2_mask, params().min_delta, params().max_delta}};
+        return {iterator{f.fetch(chrom1.name(), chrom2.name()), _obs_matrix, _exp_matrix,
+                         std::move(bin1_mask), std::move(bin2_mask), params().min_delta,
+                         params().max_delta}};
       },
       _fp->get());
 }
@@ -294,10 +295,13 @@ auto NCHG::init_matrices(const hictk::Chromosome &chrom1, const hictk::Chromosom
   SPDLOG_INFO("[{}:{}] initializing observed and expected matrices...", chrom1.name(),
               chrom2.name());
 
-  MatrixStats<std::uint32_t> obs_stats{_chrom1,        _chrom2,    bin1_mask, bin2_mask,
+  MatrixStats<std::uint32_t> obs_stats{chrom1,         chrom2,     bin1_mask, bin2_mask,
                                        f.resolution(), min_delta_, max_delta_};
-  MatrixStats<double> exp_stats{_chrom1,        _chrom2,    bin1_mask,  bin2_mask,
-                                f.resolution(), min_delta_, max_delta_, expected_values.weights()};
+
+  const auto weights =
+      chrom1 == chrom2 ? expected_values.expected_values(chrom1) : std::vector<double>{};
+  MatrixStats<double> exp_stats{chrom1,         chrom2,     bin1_mask,  bin2_mask,
+                                f.resolution(), min_delta_, max_delta_, weights};
 
   std::visit(
       [&](const auto &fp) {
@@ -317,7 +321,7 @@ auto NCHG::init_matrices(const hictk::Chromosome &chrom1, const hictk::Chromosom
       obs_stats.nnz, obs_stats.sum, mad_max_, min_delta_, max_delta_);
 
   auto exp_matrix = std::make_shared<const ExpectedMatrixStats>(
-      chrom1, chrom2, f.bins(), expected_values.weights(), std::move(exp_stats.marginals1),
+      chrom1, chrom2, f.bins(), std::move(weights), std::move(exp_stats.marginals1),
       std::move(exp_stats.marginals2), exp_stats.nnz, exp_stats.sum, min_delta_, max_delta_);
 
   SPDLOG_INFO(

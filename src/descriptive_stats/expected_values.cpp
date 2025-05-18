@@ -173,8 +173,6 @@ ExpectedValues ExpectedValues::deserialize(const std::filesystem::path &path) {
 
 std::uint32_t ExpectedValues::resolution() const noexcept { return _resolution; }
 
-const std::vector<double> &ExpectedValues::weights() const noexcept { return _expected_weights; }
-
 auto ExpectedValues::params() const noexcept -> Params {
   return {_mad_max,
           _min_delta,

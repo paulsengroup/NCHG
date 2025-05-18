@@ -18,14 +18,21 @@
 
 #pragma once
 
+//clang-format off
+#include "nchg/suppress_warnings.hpp"
+
+NCHG_DISABLE_WARNING_PUSH
+NCHG_DISABLE_MAYBE_UNINITIALIZED
 #include <boost/geometry/index/rtree.hpp>
+NCHG_DISABLE_WARNING_POP
+//clang-format on
+
 #include <cstddef>
 #include <filesystem>
 #include <functional>
 #include <hictk/chromosome.hpp>
 #include <hictk/genomic_interval.hpp>
 #include <hictk/pixel.hpp>
-#include <hictk/reference.hpp>
 #include <memory>
 #include <optional>
 #include <span>

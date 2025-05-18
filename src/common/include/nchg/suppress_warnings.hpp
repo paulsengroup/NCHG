@@ -33,6 +33,7 @@
 
     #define NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS   NCHG_DISABLE_WARNING(4996)
     #define NCHG_DISABLE_WARNING_MACRO_REDEFINED           NCHG_DISABLE_WARNING(4005)
+    #define NCHG_DISABLE_MAYBE_UNINITIALIZED
     #define NCHG_DISABLE_WARNING_OLD_STYLE_CAST            NCHG_DISABLE_WARNING(26475)
 #endif
 
@@ -44,18 +45,19 @@
     #define NCHG_DISABLE_WARNING(warningName)              NCHG_DO_PRAGMA(GCC diagnostic ignored warningName)
 
     #define NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS   NCHG_DISABLE_WARNING("-Wdeprecated-declarations")
-
     #define NCHG_DISABLE_WARNING_OLD_STYLE_CAST            NCHG_DISABLE_WARNING("-Wold-style-cast")
 #endif
 
 // Defines for GCC only
 #if defined(__GNUC__) && !defined(__clang__)
     #define NCHG_DISABLE_WARNING_MACRO_REDEFINED
+    #define NCHG_DISABLE_MAYBE_UNINITIALIZED               NCHG_DISABLE_WARNING("-Wmaybe-uninitialized")
 #endif
 
 // Defines for Clang only
 #ifdef __clang__
     #define NCHG_DISABLE_WARNING_MACRO_REDEFINED           NCHG_DISABLE_WARNING("-Wmacro-redefined")
+    #define NCHG_DISABLE_MAYBE_UNINITIALIZED
 #endif
 
 // Defines for unknown/unsupported compilers
@@ -66,6 +68,7 @@
 
     #define NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
     #define NCHG_DISABLE_WARNING_MACRO_REDEFINED
+    #define NCHG_DISABLE_MAYBE_UNINITIALIZED
     #define NCHG_DISABLE_WARNING_OLD_STYLE_CAST
 #endif
 

@@ -81,14 +81,14 @@ template <typename N>
   return hictk::internal::parse_numeric_or_throw<N>(tok);
 }
 
-using ChromPair = std::pair<std::string, std::string>;
+using ChromNamePair = std::pair<std::string, std::string>;
 
 struct PValue {
   std::size_t i{};
   double pvalue{};
 };
 
-using ChromChromPvalueMap = phmap::btree_map<ChromPair, std::vector<PValue>, StringPairCmp>;
+using ChromChromPvalueMap = phmap::btree_map<ChromNamePair, std::vector<PValue>, StringPairCmp>;
 using FlatPvalueMap = phmap::flat_hash_map<std::size_t, double>;
 
 [[nodiscard]] static ChromChromPvalueMap read_records(const std::filesystem::path& path) {

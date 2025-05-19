@@ -28,7 +28,10 @@ NCHG_DISABLE_WARNING_POP
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
+#include <fmt/ranges.h>
 #include <fmt/std.h>
+#include <parallel_hashmap/btree.h>
+#include <parallel_hashmap/phmap.h>
 #include <parquet/stream_reader.h>
 #include <parquet/stream_writer.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -37,20 +40,34 @@ NCHG_DISABLE_WARNING_POP
 
 #include <BS_thread_pool.hpp>
 #include <algorithm>
+#include <atomic>
 #include <cassert>
+#include <chrono>
+#include <cmath>
+#include <cstddef>
 #include <cstdint>
+#include <exception>
+#include <filesystem>
 #include <fstream>
 #include <glaze/glaze.hpp>
-#include <hictk/fmt/pixel.hpp>
+#include <hictk/chromosome.hpp>
 #include <hictk/genomic_interval.hpp>
 #include <hictk/hash.hpp>
 #include <hictk/reference.hpp>
+#include <hictk/transformers/join_genomic_coords.hpp>
+#include <iterator>
+#include <limits>
 #include <memory>
 #include <mutex>
-#include <ranges>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <string_view>
 #include <thread>
-#include <type_traits>
+#include <tuple>
+#include <utility>
 #include <variant>
+#include <vector>
 
 #include "nchg/tools/tmpdir.hpp"
 
@@ -65,8 +82,9 @@ NCHG_DISABLE_WARNING_POP
 // clang-format on
 
 #include "nchg/common.hpp"
-#include "nchg/concepts.hpp"
 #include "nchg/file_store.hpp"
+#include "nchg/genomic_domains.hpp"
+#include "nchg/hash.hpp"
 #include "nchg/nchg.hpp"
 #include "nchg/parquet_stats_file_writer.hpp"
 #include "nchg/text.hpp"
@@ -124,316 +142,288 @@ struct meta<spdlog::details::log_msg> {
 
 namespace nchg {
 
+using DomainAggregationStrategy = ComputePvalConfig::DomainAggregationStrategy;
 using ChromPair = std::pair<hictk::Chromosome, hictk::Chromosome>;
-using BG2Domain = std::pair<hictk::GenomicInterval, hictk::GenomicInterval>;
-
-using BG2DomainSet = phmap::flat_hash_set<BG2Domain>;
 using ChromosomePairs = phmap::btree_set<ChromPair>;
 
-class BG2Domains {
-  std::vector<BG2Domain> _domains;
-  std::unique_ptr<std::mutex> _mtx{};
+struct GIHasher {
+  using is_transparent = void;
+  static std::size_t operator()(const std::shared_ptr<const hictk::GenomicInterval> &gi) {
+    assert(!!gi);
+    return operator()(*gi);
+  }
 
-  [[nodiscard]] static std::vector<BG2Domain> parse_domains(
-      const hictk::Reference &chroms, const std::filesystem::path &path, bool keep_cis,
-      bool keep_trans, const std::optional<hictk::Chromosome> &chrom1,
-      const std::optional<hictk::Chromosome> &chrom2) {
-    SPDLOG_INFO("reading domains from file \"{}\"...", path.string());
-    const auto t0 = std::chrono::steady_clock::now();
+  static std::size_t operator()(const hictk::GenomicInterval &gi) {
+    return std::hash<hictk::GenomicInterval>{}(gi);
+  }
+};
 
-    std::ifstream ifs{};
-    ifs.exceptions(ifs.exceptions() | std::ios::badbit | std::ios::failbit);
+struct GIEqOperator {
+  using is_transparent = void;
+  static bool operator()(const std::shared_ptr<const hictk::GenomicInterval> &gi1,
+                         const std::shared_ptr<const hictk::GenomicInterval> &gi2) {
+    assert(!!gi1);
+    assert(!!gi2);
 
-    std::size_t i = 1;
-    std::string buffer;
-    std::size_t domains_dropped{};
-    std::size_t duplicate_domains{};
-    std::size_t dropped_cis{};
-    std::size_t dropped_trans{};
-    BG2DomainSet domain_set{};
+    return *gi1 == *gi2;
+  }
 
-    if (chrom1.has_value()) {
-      assert(chrom2.has_value());
-      assert(chroms.contains(*chrom1));
-      assert(chroms.contains(*chrom2));
+  static bool operator()(const hictk::GenomicInterval &gi1,
+                         const std::shared_ptr<const hictk::GenomicInterval> &gi2) {
+    assert(!!gi2);
+
+    return gi1 == *gi2;
+  }
+
+  static bool operator()(const std::shared_ptr<const hictk::GenomicInterval> &gi1,
+                         const hictk::GenomicInterval &gi2) {
+    assert(!!gi1);
+
+    return *gi1 == gi2;
+  }
+};
+
+[[nodiscard]] static GenomicDomains parse_domains(
+    const hictk::Reference &chroms, const std::filesystem::path &path, bool keep_cis,
+    bool keep_trans, const std::optional<hictk::Chromosome> &chrom1 = {},
+    const std::optional<hictk::Chromosome> &chrom2 = {}) {
+  SPDLOG_INFO("reading domains from file \"{}\"...", path.string());
+  const auto t0 = std::chrono::steady_clock::now();
+
+  std::ifstream ifs{};
+  ifs.exceptions(ifs.exceptions() | std::ios::badbit | std::ios::failbit);
+
+  std::size_t i = 1;
+  std::string buffer;
+  std::size_t domains_parsed{};
+  std::size_t domains_dropped{};
+  std::size_t duplicate_domains{};
+  std::size_t dropped_cis{};
+  std::size_t dropped_trans{};
+
+  phmap::flat_hash_set<std::shared_ptr<const hictk::GenomicInterval>, GIHasher, GIEqOperator>
+      intervals{};
+  phmap::flat_hash_set<BEDPE> domains{};
+
+  if (chrom1.has_value()) {
+    assert(chrom2.has_value());
+    assert(chroms.contains(*chrom1));
+    assert(chroms.contains(*chrom2));
+  }
+
+  auto fetch_or_insert_gi = [&](std::string_view domain) {
+    auto gi = hictk::GenomicInterval::parse_bed(chroms, domain);
+    const auto match = intervals.find(gi);
+    if (match != intervals.end()) {
+      return *match;
     }
 
-    try {
-      ifs.open(path);
+    const auto [it, _] =
+        intervals.emplace(std::make_shared<const hictk::GenomicInterval>(std::move(gi)));
+    return *it;
+  };
 
-      for (; std::getline(ifs, buffer); ++i) {
-        if (buffer.empty()) {
-          continue;
-        }
+  try {
+    ifs.open(path);
 
-        if (buffer.back() == '\r') {
-          buffer.resize(buffer.size() - 1);
-        }
+    for (; std::getline(ifs, buffer); ++i) {
+      if (buffer.empty()) {
+        continue;
+      }
 
-        const auto record = truncate_record<6>(buffer);
-        const auto domain1 = truncate_record<3>(record);
-        const auto domain2 = truncate_record<3>(record.substr(domain1.size() + 1));
+      if (buffer.back() == '\r') {
+        buffer.resize(buffer.size() - 1);
+      }
 
-        const auto chrom1_parsed = truncate_record<1>(domain1);
-        const auto chrom2_parsed = truncate_record<1>(domain2);
+      const auto record = truncate_record<6>(buffer);
+      const auto domain1 = truncate_record<3>(record);
+      const auto domain2 = truncate_record<3>(record.substr(domain1.size() + 1));
 
-        if (!chrom1.has_value()) {
-          assert(!chrom2.has_value());
-          if (!chroms.contains(chrom1_parsed) || !chroms.contains(chrom2_parsed)) {
-            ++domains_dropped;
-            continue;
-          }
+      const auto chrom1_parsed = truncate_record<1>(domain1);
+      const auto chrom2_parsed = truncate_record<1>(domain2);
 
-          if (!keep_cis && chrom1_parsed == chrom2_parsed) {
-            ++dropped_cis;
-            continue;
-          }
+      ++domains_parsed;
 
-          if (!keep_trans && chrom1_parsed != chrom2_parsed) {
-            ++dropped_trans;
-            continue;
-          }
-        }
-
-        if ((chrom1.has_value() && *chrom1 != chrom1_parsed) ||
-            (chrom2.has_value() && *chrom2 != chrom2_parsed)) {
+      if (!chrom1.has_value()) {
+        assert(!chrom2.has_value());
+        if (!chroms.contains(chrom1_parsed) || !chroms.contains(chrom2_parsed)) {
           ++domains_dropped;
           continue;
         }
 
-        auto domain = std::make_pair(hictk::GenomicInterval::parse_bed(chroms, domain1),
-                                     hictk::GenomicInterval::parse_bed(chroms, domain2));
-
-        if (domain.first > domain.second) {
-          throw std::runtime_error(
-              fmt::format("domains cannot overlap with the lower triangular matrix: offending "
-                          "domain {:ucsc}; {:ucsc}",
-                          domain.first, domain.second));
+        if (!keep_cis && chrom1_parsed == chrom2_parsed) {
+          ++dropped_cis;
+          continue;
         }
 
-        const auto &[_, inserted] = domain_set.emplace(std::move(domain));
-        duplicate_domains += static_cast<std::size_t>(!inserted);
+        if (!keep_trans && chrom1_parsed != chrom2_parsed) {
+          ++dropped_trans;
+          continue;
+        }
       }
-    } catch (const std::exception &e) {
-      if (!ifs.eof()) {
+
+      if ((chrom1.has_value() && *chrom1 != chrom1_parsed) ||
+          (chrom2.has_value() && *chrom2 != chrom2_parsed)) {
+        ++domains_dropped;
+        continue;
+      }
+
+      auto gi1 = std::make_shared<const hictk::GenomicInterval>(
+          hictk::GenomicInterval::parse_bed(chroms, domain1));
+      auto gi2 = domain1 == domain2 ? gi1
+                                    : std::make_shared<const hictk::GenomicInterval>(
+                                          hictk::GenomicInterval::parse_bed(chroms, domain2));
+
+      BEDPE domain{fetch_or_insert_gi(domain1), fetch_or_insert_gi(domain2)};
+
+      if (domain.range1() > domain.range2()) {
         throw std::runtime_error(
-            fmt::format("found an invalid record at line {} of file {}: {}", i, path, e.what()));
+            fmt::format("domains cannot overlap with the lower triangular matrix: offending "
+                        "domain {:ucsc}; {:ucsc}",
+                        domain.range1(), domain.range2()));
       }
-    } catch (...) {
+
+      const auto &[_, inserted] = domains.emplace(std::move(domain));
+      duplicate_domains += static_cast<std::size_t>(!inserted);
+    }
+  } catch (const std::exception &e) {
+    if (!ifs.eof()) {
       throw std::runtime_error(
-          fmt::format("found an invalid record at line {} of file {}: unknown error", i, path));
+          fmt::format("found an invalid record at line {} of file {}: {}", i, path, e.what()));
     }
-
-    if (duplicate_domains != 0) {
-      SPDLOG_WARN("found {} duplicate domain(s)", domains_dropped);
-    }
-    if (domains_dropped != 0) {
-      if (chrom1.has_value()) {
-        assert(chrom2.has_value());
-        SPDLOG_WARN(
-            "[{}:{}]: {} domain(s) were dropped because they did not map to the selected "
-            "chromosomes",
-            chrom1->name(), chrom2->name(), domains_dropped);
-      } else {
-        SPDLOG_WARN("{} domain(s) were dropped because they did not map to any known chromosome",
-                    domains_dropped);
-      }
-    }
-    if (dropped_cis != 0) {
-      SPDLOG_WARN(
-          "{} domain(s) were dropped because they overlapped with the cis area of the interaction "
-          "map",
-          dropped_cis);
-    }
-    if (dropped_trans != 0) {
-      SPDLOG_WARN(
-          "{} domain(s) were dropped because they overlapped with the trans area of the "
-          "interaction map",
-          dropped_trans);
-    }
-
-    if (domain_set.empty()) {
-      throw std::runtime_error(
-          fmt::format("unable to parse any domain from file \"{}\"", path.string()));
-    }
-
-    std::vector<BG2Domain> domains(domain_set.size());
-    std::ranges::move(domain_set, domains.begin());
-    {
-      BG2DomainSet tmp{};
-      std::swap(domain_set, tmp);
-    }
-
-    // We want to domains to be sorted in a tiled fashion:
-    // e.g. all chr1:chr1 domains should precede all chr1:chr2 domains.
-    //      Within tiles, domains should be sorted by their genomic coordinates
-    std::ranges::sort(domains, [](const auto &domain1, const auto &domain2) {
-      const auto &c1 = domain1.first.chrom();
-      const auto &c2 = domain2.first.chrom();
-      const auto &c3 = domain1.second.chrom();
-      const auto &c4 = domain2.second.chrom();
-
-      if (c1 != c2) {
-        return c1 < c2;
-      }
-      if (c3 != c4) {
-        return c3 < c4;
-      }
-
-      auto pos1 = domain1.first.start();
-      auto pos2 = domain2.first.start();
-
-      if (pos1 != pos2) {
-        return pos1 < pos2;
-      }
-
-      auto pos3 = domain1.second.start();
-      auto pos4 = domain2.second.start();
-
-      if (pos3 != pos4) {
-        return pos3 < pos4;
-      }
-
-      pos1 = domain1.first.end();
-      pos2 = domain2.first.end();
-
-      if (pos1 != pos2) {
-        return pos1 < pos2;
-      }
-
-      pos3 = domain1.second.end();
-      pos4 = domain2.second.end();
-
-      return pos3 < pos4;
-    });
-
-    const auto t1 = std::chrono::steady_clock::now();
-    SPDLOG_INFO("read {} domains from \"{}\" in {}", domains.size(), path.string(),
-                format_duration(t1 - t0));
-    return domains;
-  }
-  [[nodiscard]] auto select_domains(const hictk::Chromosome &chrom1,
-                                    const hictk::Chromosome &chrom2) noexcept {
-    SPDLOG_DEBUG("[{}:{}]: selecting domains...", chrom1.name(), chrom2.name());
-
-    // The positions here do not matter: see implementation of the comparison operator below
-    const auto query =
-        std::make_pair(hictk::GenomicInterval{chrom1, 0, 1}, hictk::GenomicInterval{chrom2, 0, 1});
-    return std::equal_range(_domains.begin(), _domains.end(), query,
-                            [&](const auto &domain1, const auto &domain2) {
-                              const auto &c1 = domain1.first.chrom();
-                              const auto &c2 = domain2.first.chrom();
-                              const auto &c3 = domain1.second.chrom();
-                              const auto &c4 = domain2.second.chrom();
-
-                              if (c1 == c2) {
-                                return c3 < c4;
-                              }
-                              return c1 < c2;
-                            });
+  } catch (...) {
+    throw std::runtime_error(
+        fmt::format("found an invalid record at line {} of file {}: unknown error", i, path));
   }
 
- public:
-  using iterator = std::vector<BG2Domain>::iterator;
-  using const_iterator = std::vector<BG2Domain>::const_iterator;
-
-  BG2Domains() : _mtx(std::make_unique<std::mutex>()) {}
-  BG2Domains(const hictk::Reference &chroms, const std::filesystem::path &path, bool keep_cis,
-             bool keep_trans, const std::optional<hictk::Chromosome> &chrom1 = {},
-             const std::optional<hictk::Chromosome> &chrom2 = {})
-      : _domains(parse_domains(chroms, path, keep_cis, keep_trans, chrom1, chrom2)),
-        _mtx(std::make_unique<std::mutex>()) {}
-
-  [[nodiscard]] iterator begin() noexcept { return _domains.begin(); }
-  [[nodiscard]] iterator end() noexcept { return _domains.end(); }
-
-  [[nodiscard]] const_iterator begin() const noexcept { return _domains.begin(); }
-  [[nodiscard]] const_iterator end() const noexcept { return _domains.end(); }
-
-  [[nodiscard]] const_iterator cbegin() const noexcept { return _domains.cbegin(); }
-  [[nodiscard]] const_iterator cend() const noexcept { return _domains.cend(); }
-
-  [[nodiscard]] std::vector<BG2Domain> extract(const hictk::Chromosome &chrom1,
-                                               const hictk::Chromosome &chrom2) {
-    assert(_mtx);
-    SPDLOG_DEBUG("[{}:{}] extracting domains...", chrom1.name(), chrom2.name());
-
-    [[maybe_unused]] const auto lck = std::scoped_lock(*_mtx);
-    auto [first, last] = select_domains(chrom1, chrom2);
-    std::vector domains(first, last);
-    _domains.erase(first, last);
-    _domains.shrink_to_fit();
-    SPDLOG_DEBUG("[{}:{}] extracted {} domains!", chrom1.name(), chrom2.name(), domains.size());
-    return domains;
+  if (duplicate_domains != 0) {
+    SPDLOG_WARN("found {} duplicate domain(s)", duplicate_domains);
+  }
+  if (domains_dropped != 0) {
+    if (chrom1.has_value()) {
+      assert(chrom2.has_value());
+      SPDLOG_DEBUG(
+          "[{}:{}]: {}/{} domain(s) were dropped because they did not map to the specified "
+          "chromosome(s)",
+          chrom1->name(), chrom2->name(), domains_dropped, domains_parsed);
+    } else {
+      SPDLOG_WARN("{}/{} domain(s) were dropped because they did not map to any known chromosome",
+                  domains_dropped, domains_parsed);
+    }
+  }
+  if (dropped_cis != 0) {
+    SPDLOG_WARN(
+        "{} domain(s) were dropped because they overlapped with the cis area of the interaction "
+        "map",
+        dropped_cis);
+  }
+  if (dropped_trans != 0) {
+    SPDLOG_WARN(
+        "{} domain(s) were dropped because they overlapped with the trans area of the "
+        "interaction map",
+        dropped_trans);
   }
 
-  [[nodiscard]] std::filesystem::path extact_and_write_to_file(
-      const std::filesystem::path &dest_dir, const hictk::Chromosome &chrom1,
-      const hictk::Chromosome &chrom2, bool force) {
-    const auto dest = dest_dir / fmt::format("domains.{}.{}.bedpe", chrom1.name(), chrom2.name());
-    SPDLOG_DEBUG("[{}:{}] writing domains to temporary file \"{}\"...", chrom1.name(),
-                 chrom2.name(), dest.string());
+  if (domains.empty()) {
+    throw std::runtime_error(
+        fmt::format("unable to parse any domain from file \"{}\"", path.string()));
+  }
 
-    const auto t0 = std::chrono::steady_clock::now();
+  GenomicDomains domains_{std::vector<BEDPE>{std::make_move_iterator(domains.begin()),
+                                             std::make_move_iterator(domains.end())},
+                          true};
 
-    if (!force && std::filesystem::exists(dest)) {
-      throw std::runtime_error(
-          fmt::format("refusing to overwrite existing temporary file: \"{}\". "
-                      "Pass --force to overwrite.",
-                      dest));
+  const auto t1 = std::chrono::steady_clock::now();
+  SPDLOG_INFO("read {} domains from \"{}\" in {}", domains_.size(), path.string(),
+              format_duration(t1 - t0));
+  return domains_;
+}
+
+[[nodiscard]] static GenomicDomains parse_domains(const hictk::Reference &chroms,
+                                                  const std::filesystem::path &path, bool keep_cis,
+                                                  bool keep_trans,
+                                                  const std::optional<std::string> &chrom1 = {},
+                                                  const std::optional<std::string> &chrom2 = {}) {
+  if (!chrom1.has_value()) {
+    assert(!chrom2.has_value());
+    return parse_domains(chroms, path, keep_cis, keep_trans, std::optional<hictk::Chromosome>{},
+                         std::optional<hictk::Chromosome>{});
+  }
+
+  assert(chrom2.has_value());
+  assert(chroms.contains(*chrom1));
+  assert(chroms.contains(*chrom2));
+
+  return parse_domains(chroms, path, keep_cis, keep_trans, chroms.at(*chrom1), chroms.at(*chrom2));
+}
+
+[[nodiscard]] static std::filesystem::path write_domains_to_file(
+    const GenomicDomains &domains, const std::filesystem::path &dest_dir,
+    const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2, bool force) {
+  const auto dest = dest_dir / fmt::format("domains.{}.{}.bedpe", chrom1.name(), chrom2.name());
+  SPDLOG_DEBUG("[{}:{}]: writing domains to temporary file \"{}\"...", chrom1.name(), chrom2.name(),
+               dest.string());
+
+  const auto t0 = std::chrono::steady_clock::now();
+
+  if (!force && std::filesystem::exists(dest)) {
+    throw std::runtime_error(
+        fmt::format("refusing to overwrite existing temporary file: \"{}\". "
+                    "Pass --force to overwrite.",
+                    dest));
+  }
+
+  std::filesystem::remove(dest);  // NOLINT;
+
+  [[maybe_unused]] std::size_t domains_processed{};
+  std::ofstream fs{};
+  fs.exceptions(fs.exceptions() | std::ios::badbit | std::ios::failbit);
+
+  try {
+    if (dest_dir.empty() && !std::filesystem::exists(dest)) {
+      std::filesystem::create_directories(dest_dir);  // NOLINT
     }
-
-    std::filesystem::remove(dest);  // NOLINT;
-
-    [[maybe_unused]] std::size_t domains_processed{};
-    std::ofstream fs{};
-    fs.exceptions(fs.exceptions() | std::ios::badbit | std::ios::failbit);
-
-    try {
-      if (dest_dir.empty() && !std::filesystem::exists(dest)) {
-        std::filesystem::create_directories(dest_dir);  // NOLINT
-      }
 #ifdef __cpp_lib_ios_noreplace
-      fs.open(dest, std::ios::out | std::ios::trunc | std::ios::noreplace);
+    fs.open(dest, std::ios::out | std::ios::trunc | std::ios::noreplace);
 #else
-      fs.open(dest, std::ios::out | std::ios::trunc);
+    fs.open(dest, std::ios::out | std::ios::trunc);
 #endif
 
-      const auto selected_domains = extract(chrom1, chrom2);
-      if (selected_domains.empty()) {
-        SPDLOG_WARN("[{}:{}]: no domains were selected!", chrom1.name(), chrom2.name());
-      } else if (selected_domains.size() == 1) {
-        SPDLOG_DEBUG("[{}:{}] selected a single domain ({:ucsc}; {:ucsc})...", chrom1.name(),
-                     chrom2.name(), selected_domains.front().first,
-                     selected_domains.front().second);
-      } else {
-        SPDLOG_DEBUG("[{}:{}] selected {} domains ({:ucsc}; {:ucsc} ... {:ucsc}; {:ucsc})...",
-                     chrom1.name(), chrom2.name(), selected_domains.size(),
-                     selected_domains.front().first, selected_domains.front().second,
-                     selected_domains.back().first, selected_domains.back().second);
-      }
-      for (const auto &domain : selected_domains) {
-        fmt::print(fs, "{:bed}\t{:bed}\n", domain.first, domain.second);
-        ++domains_processed;
-      }
-
-    } catch (const std::exception &e) {
-      throw std::runtime_error(
-          fmt::format("failed to write domains for {}:{} to temporary file \"{}\": {}",
-                      chrom1.name(), chrom2.name(), dest.string(), e.what()));
-    } catch (...) {
-      throw std::runtime_error(
-          fmt::format("failed to write domains for {}:{} to temporary file \"{}\": unknown error",
-                      chrom1.name(), chrom2.name(), dest.string()));
+    const auto selected_domains = domains.fetch<std::uint8_t>(chrom1, chrom2).to_vector();
+    if (selected_domains.empty()) {
+      SPDLOG_WARN("[{}:{}]: no domains were selected!", chrom1.name(), chrom2.name());
+    } else if (selected_domains.size() == 1) {
+      SPDLOG_DEBUG("[{}:{}]: selected a single domain ({:ucsc}; {:ucsc})...", chrom1.name(),
+                   chrom2.name(), selected_domains.front().first.range1(),
+                   selected_domains.front().first.range2());
+    } else {
+      SPDLOG_DEBUG("[{}:{}]: selected {} domains ({:ucsc}; {:ucsc} ... {:ucsc}; {:ucsc})...",
+                   chrom1.name(), chrom2.name(), selected_domains.size(),
+                   selected_domains.front().first.range1(), selected_domains.front().first.range2(),
+                   selected_domains.back().first.range1(), selected_domains.back().first.range2());
     }
 
-    const auto t1 = std::chrono::steady_clock::now();
+    for (const auto &[domain, _] : selected_domains) {
+      fmt::print(fs, "{:bed}\t{:bed}\n", domain.range1(), domain.range2());
+      ++domains_processed;
+    }
 
-    SPDLOG_DEBUG("[{}:{}] written {} domains to \"{}\" in {}", chrom1.name(), chrom2.name(),
-                 domains_processed, dest.string(), format_duration(t1 - t0));
-    return dest;
+  } catch (const std::exception &e) {
+    throw std::runtime_error(
+        fmt::format("failed to write domains for {}:{} to temporary file \"{}\": {}", chrom1.name(),
+                    chrom2.name(), dest.string(), e.what()));
+  } catch (...) {
+    throw std::runtime_error(
+        fmt::format("failed to write domains for {}:{} to temporary file \"{}\": unknown error",
+                    chrom1.name(), chrom2.name(), dest.string()));
   }
-};
+
+  const auto t1 = std::chrono::steady_clock::now();
+
+  SPDLOG_DEBUG("[{}:{}]: written {} domains to \"{}\" in {}", chrom1.name(), chrom2.name(),
+               domains_processed, dest.string(), format_duration(t1 - t0));
+  return dest;
+}
 
 class ProcessContext {
   using LockedContext = std::pair<std::unique_lock<std::mutex>, boost::asio::io_context *>;
@@ -446,24 +436,31 @@ class ProcessContext {
   [[nodiscard]] LockedContext operator()() { return std::make_pair(std::unique_lock{_mtx}, &_ctx); }
 };
 
-[[nodiscard]] static NCHG init_nchg(const std::shared_ptr<const hictk::File> &f,
+[[nodiscard]] static auto init_nchg(const std::shared_ptr<const hictk::File> &f,
                                     const std::optional<ExpectedValues> &expected_values,
                                     const ComputePvalConfig &c) {
   assert(c.chrom1.has_value());
   assert(c.chrom2.has_value());
-  assert(c.compute_cis);
-  assert(c.compute_trans);
+
+  struct Result {
+    NCHG nchg;
+    std::shared_ptr<const std::vector<bool>> bin1_mask{};
+    std::shared_ptr<const std::vector<bool>> bin2_mask{};
+  };
 
   const auto &chrom1 = f->chromosomes().at(*c.chrom1);
   const auto &chrom2 = f->chromosomes().at(*c.chrom2);
 
   if (expected_values.has_value()) {
-    return {f, chrom1, chrom2, *expected_values};
+    auto [bin1_mask, bin2_mask] = expected_values->bin_mask(chrom1, chrom2);
+    return Result{.nchg = NCHG{f, chrom1, chrom2, *expected_values},
+                  .bin1_mask = std::move(bin1_mask),
+                  .bin2_mask = std::move(bin2_mask)};
   }
 
   if (!c.path_to_expected_values.empty()) {
     SPDLOG_INFO("reading expected values from {}...", c.path_to_expected_values);
-    return {f, chrom1, chrom2, ExpectedValues::deserialize(c.path_to_expected_values)};
+    return init_nchg(f, ExpectedValues::deserialize(c.path_to_expected_values), c);
   }
 
   const auto bin_mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
@@ -480,7 +477,7 @@ class ProcessContext {
        .interpolation_window_size = c.interpolation_window_size},
       bin_mask);
 
-  return {f, chrom1, chrom2, evs};
+  return init_nchg(f, evs, c);
 }
 
 static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
@@ -517,32 +514,181 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   }
 }
 
+[[nodiscard]] static std::uint64_t map_interactions_to_domains_one_pass(
+    const hictk::File &f, GenomicDomainsIndexed<std::uint64_t> &obs_domains,
+    GenomicDomainsIndexed<double> &exp_domains, const ExpectedMatrixStats &expected_matrix,
+    std::uint64_t min_delta, std::uint64_t max_delta, const std::vector<bool> &bin1_mask,
+    const std::vector<bool> &bin2_mask) {
+  const auto &chrom1 = obs_domains.chrom1().name();
+  const auto &chrom2 = obs_domains.chrom2().name();
+
+  SPDLOG_DEBUG("[{}:{}]: mapping interactions to {} genomic domains using the one-pass strategy...",
+               chrom1, chrom2, obs_domains.size());
+  std::uint64_t tot_interactions{};
+  std::visit(
+      [&](const auto &fp) {
+        const auto sel = fp.fetch(chrom1, chrom2);
+        const hictk::transformers::JoinGenomicCoords jsel(
+            sel.template begin<std::uint64_t>(), sel.template end<std::uint64_t>(), fp.bins_ptr());
+
+        for (const auto &p : jsel) {
+          const auto delta = p.coords.bin2.start() - p.coords.bin1.start();
+
+          const auto i1 = p.coords.bin1.rel_id();
+          const auto i2 = p.coords.bin2.rel_id();
+
+          if (delta < min_delta || delta >= max_delta || bin1_mask[i1] || bin2_mask[i2])
+              [[unlikely]] {
+            continue;
+          }
+
+          if (obs_domains.add_interactions(p) != 0) {
+            tot_interactions += p.count;
+            const auto exp_count = expected_matrix.at(i1, i2);
+            exp_domains.add_interactions(hictk::Pixel{p.coords, exp_count});
+          }
+        }
+      },
+      f.get());
+
+  return tot_interactions;
+}
+
+[[nodiscard]] static std::uint64_t map_interactions_to_domains_multi_pass(
+    const hictk::File &f, GenomicDomainsIndexed<std::uint64_t> &obs_domains,
+    GenomicDomainsIndexed<double> &exp_domains, const ExpectedMatrixStats &expected_matrix,
+    std::uint64_t min_delta, std::uint64_t max_delta, const std::vector<bool> &bin1_mask,
+    const std::vector<bool> &bin2_mask) {
+  const auto &chrom1 = obs_domains.chrom1().name();
+  const auto &chrom2 = obs_domains.chrom2().name();
+
+  SPDLOG_DEBUG(
+      "[{}:{}]: mapping interactions to {} genomic domains using the multi-pass strategy...",
+      chrom1, chrom2, obs_domains.size());
+
+  std::uint64_t tot_interactions{};
+  const auto domains = obs_domains.to_vector();
+
+  std::visit(
+      [&](const auto &fp) {
+        for (const auto &dom : domains | std::views::keys) {
+          const auto sel =
+              fp.fetch(chrom1, dom.start1(), dom.end1(), chrom2, dom.start2(), dom.end2());
+          const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<std::uint64_t>(),
+                                                            sel.template end<std::uint64_t>(),
+                                                            fp.bins_ptr());
+
+          for (const auto &p : jsel) {
+            const auto delta = p.coords.bin2.start() - p.coords.bin1.start();
+
+            const auto i1 = p.coords.bin1.rel_id();
+            const auto i2 = p.coords.bin2.rel_id();
+
+            if (delta < min_delta || delta >= max_delta || bin1_mask[i1] || bin2_mask[i2])
+                [[unlikely]] {
+              continue;
+            }
+
+            if (obs_domains.add_interactions(p) != 0) {
+              tot_interactions += p.count;
+              const auto exp_count = expected_matrix.at(i1, i2);
+              exp_domains.add_interactions(hictk::Pixel{p.coords, exp_count});
+            }
+          }
+        }
+      },
+      f.get());
+
+  return tot_interactions;
+}
+
+[[nodiscard]] static std::vector<std::tuple<BEDPE, std::uint64_t, double>>
+map_interactions_to_domains(const hictk::File &f, const GenomicDomains &domains,
+                            const ExpectedMatrixStats &expected_matrix,
+                            const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
+                            std::uint64_t min_delta, std::uint64_t max_delta,
+                            const std::vector<bool> &bin1_mask, const std::vector<bool> &bin2_mask,
+                            DomainAggregationStrategy aggregation_stategy) {
+  const auto t0 = std::chrono::system_clock::now();
+
+  if (chrom1 != chrom2) {
+    min_delta = 0;
+    max_delta = std::numeric_limits<std::uint64_t>::max();
+  }
+
+  auto obs_domains = domains.fetch<std::uint64_t>(chrom1, chrom2);
+  if (obs_domains.empty()) {
+    return {};
+  }
+
+  auto exp_domains = domains.fetch<double>(chrom1, chrom2);
+
+  if (aggregation_stategy == DomainAggregationStrategy::AUTO) {
+    const auto coverage = obs_domains.coverage(std::max(std::uint32_t{100'000}, f.resolution()));
+    SPDLOG_DEBUG("[{}:{}]: {} domain(s) cover ~{:.2f}% of the matrix", chrom1.name(), chrom2.name(),
+                 obs_domains.size(), 100 * coverage);
+    aggregation_stategy = coverage > 0.33 ? DomainAggregationStrategy::SINGLE_PASS
+                                          : DomainAggregationStrategy::MULTI_PASS;
+  }
+
+  const auto tot_interactions =
+      aggregation_stategy == DomainAggregationStrategy::SINGLE_PASS
+          ? map_interactions_to_domains_one_pass(f, obs_domains, exp_domains, expected_matrix,
+                                                 min_delta, max_delta, bin1_mask, bin2_mask)
+          : map_interactions_to_domains_multi_pass(f, obs_domains, exp_domains, expected_matrix,
+                                                   min_delta, max_delta, bin1_mask, bin2_mask);
+
+  std::vector<std::tuple<BEDPE, std::uint64_t, double>> results(obs_domains.size());
+  auto obs_domains_sorted = obs_domains.to_vector();
+  const auto exp_domains_sorted = exp_domains.to_vector();
+  assert(obs_domains_sorted.size() == exp_domains_sorted.size());
+
+  for (std::size_t i = 0; i < obs_domains_sorted.size(); ++i) {
+    results[i] = std::make_tuple(std::move(obs_domains_sorted[i].first),
+                                 obs_domains_sorted[i].second, exp_domains_sorted[i].second);
+  }
+
+  [[maybe_unused]] const auto t1 = std::chrono::system_clock::now();
+  SPDLOG_DEBUG("[{}:{}]: mapped {} interactions to {} genomic domains in {}!", chrom1.name(),
+               chrom2.name(), tot_interactions, obs_domains.size(), format_duration(t1 - t0));
+
+  return results;
+}
+
 [[nodiscard]] static std::size_t process_domains(
-    const std::shared_ptr<const hictk::File> &f, BG2Domains &domains,
+    const std::shared_ptr<const hictk::File> &f, const GenomicDomains &domains,
     const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
+  assert(f);
   assert(std::filesystem::exists(c.path_to_domains));
   assert(c.chrom1.has_value());
   assert(c.chrom2.has_value());
   assert(!c.output_path.empty());
 
-  SPDLOG_INFO("[{}:{}] begin processing domains from {}...", *c.chrom1, *c.chrom2,
+  SPDLOG_INFO("[{}:{}]: begin processing domains from {}...", *c.chrom1, *c.chrom2,
               c.path_to_domains);
 
   ParquetStatsFileWriter writer(f->chromosomes(), c.output_path, c.force, c.compression_method,
                                 c.compression_lvl, c.threads);
 
-  const auto selected_domains =
-      domains.extract(f->chromosomes().at(*c.chrom1), f->chromosomes().at(*c.chrom2));
-  if (selected_domains.empty()) {
+  const auto &chrom1 = f->chromosomes().at(*c.chrom1);
+  const auto &chrom2 = f->chromosomes().at(*c.chrom2);
+
+  if (!domains.contains(chrom1, chrom2)) {
     writer.finalize<NCHGResult>();
     return 0;
   }
 
-  const auto nchg = init_nchg(f, expected_values, c);
+  const auto [nchg, bin1_mask, bin2_mask] = init_nchg(f, expected_values, c);
+  assert(bin1_mask);
+  assert(bin2_mask);
+
+  const auto domains_with_interactions = map_interactions_to_domains(
+      *f, domains, nchg.expected_matrix(), chrom1, chrom2, c.min_delta, c.max_delta, *bin1_mask,
+      *bin2_mask, c.domain_aggregation_stategy);
 
   std::size_t num_records = 0;
-  for (const auto &domain : selected_domains) {
-    const auto s = nchg.compute(domain.first, domain.second, c.bad_bin_fraction);
+  for (const auto &[domain, obs, exp] : domains_with_interactions) {
+    const auto s = nchg.compute(domain, obs, exp, c.bad_bin_fraction);
 
     if (std::isfinite(s.odds_ratio) && s.omega != 0) [[likely]] {
       writer.append(s);
@@ -561,11 +707,11 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
   assert(c.chrom2.has_value());
   assert(!c.output_path.empty());
 
-  SPDLOG_INFO("[{}:{}] begin processing interactions...", *c.chrom1, *c.chrom2);
+  SPDLOG_INFO("[{}:{}]: begin processing interactions...", *c.chrom1, *c.chrom2);
 
   const auto &chrom1 = f->chromosomes().at(*c.chrom1);
   const auto &chrom2 = f->chromosomes().at(*c.chrom2);
-  const auto nchg = init_nchg(f, expected_values, c);
+  const auto nchg = init_nchg(f, expected_values, c).nchg;
 
   ParquetStatsFileWriter writer(f->chromosomes(), c.output_path, c.force, c.compression_method,
                                 c.compression_lvl, c.threads);
@@ -592,7 +738,7 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 }
 
 [[nodiscard]] static std::size_t run_nchg_compute_worker(
-    const ComputePvalConfig &c, std::optional<BG2Domains> &domains,
+    const ComputePvalConfig &c, const std::optional<GenomicDomains> &domains,
     const std::optional<ExpectedValues> &expected_values = {}) {
   assert(c.chrom1.has_value());
   assert(c.chrom2.has_value());
@@ -607,7 +753,8 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
     const auto chrom1 = std::make_optional(f->chromosomes().at(*c.chrom1));
     const auto chrom2 = std::make_optional(f->chromosomes().at(*c.chrom2));
 
-    BG2Domains domains_(f->chromosomes(), c.path_to_domains, true, true, chrom1, chrom2);
+    const auto domains_ =
+        parse_domains(f->chromosomes(), c.path_to_domains, true, true, chrom1, chrom2);
     return process_domains(f, domains_, expected_values, c);
   }
 
@@ -615,11 +762,13 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 }
 
 [[nodiscard]] static ChromosomePairs init_cis_chromosomes(
-    const hictk::Reference &chroms, const std::optional<BG2Domains> &domains) {
+    const hictk::Reference &chroms, const std::optional<GenomicDomains> &domains) {
   ChromosomePairs buffer{};
 
   if (domains.has_value()) {
-    for (const auto &[domain1, domain2] : *domains) {
+    for (const auto &domain : (*domains)()) {
+      const auto &domain1 = domain.range1();
+      const auto &domain2 = domain.range2();
       assert(chroms.contains(domain1.chrom().name()));
       assert(chroms.contains(domain2.chrom().name()));
 
@@ -640,11 +789,13 @@ static void write_chrom_sizes_to_file(const hictk::Reference &chroms,
 }
 
 [[nodiscard]] static ChromosomePairs init_trans_chromosomes(
-    const hictk::Reference &chroms, const std::optional<BG2Domains> &domains) {
+    const hictk::Reference &chroms, const std::optional<GenomicDomains> &domains) {
   ChromosomePairs buffer{};
 
   if (domains.has_value()) {
-    for (const auto &[domain1, domain2] : *domains) {
+    for (const auto &domain : (*domains)()) {
+      const auto &domain1 = domain.range1();
+      const auto &domain2 = domain.range2();
       assert(chroms.contains(domain1.chrom().name()));
       assert(chroms.contains(domain2.chrom().name()));
 
@@ -852,15 +1003,35 @@ class MessageQueue {
   static std::vector<EnvironmentKV> vars{};
 
   std::call_once(flag, [&] {
+    if constexpr (ndebug_not_defined()) {
+      std::ranges::transform(
+          boost::process::environment::current(), std::back_inserter(vars), [](const auto &kv) {
+            return std::make_pair(boost::process::environment::key{kv.key()},
+                                  boost::process::environment::value{kv.value()});
+          });
+    } else {
+      // NOLINTNEXTLINE(*-mt-unsafe)
+      if (const auto *var = std::getenv("NCHG_CI"); var) {
+        vars.emplace_back("NCHG_CI", var);
+      }
+    }
     vars.emplace_back(boost::process::environment::key{queue_name_env_variable},
                       boost::process::environment::value{msg_queue.name()});
-    // NOLINTNEXTLINE(*-mt-unsafe)
-    if (const auto *var = std::getenv("NCHG_CI"); var) {
-      vars.emplace_back("NCHG_CI", var);
-    }
   });
 
   return {vars};
+}
+
+[[nodiscard]] static std::string aggregation_strategy_to_str(DomainAggregationStrategy strategy) {
+  switch (strategy) {
+    case DomainAggregationStrategy::AUTO:
+      return "auto";
+    case DomainAggregationStrategy::SINGLE_PASS:
+      return "one-pass";
+    case DomainAggregationStrategy::MULTI_PASS:
+      return "multi-pass";
+  }
+  unreachable_code();
 }
 
 [[nodiscard]] static boost::process::process spawn_compute_process(
@@ -897,6 +1068,8 @@ class MessageQueue {
   if (!c.path_to_domains.empty()) {
     args.emplace_back("--domains");
     args.emplace_back(c.path_to_domains.string());
+    args.emplace_back("--interaction-aggregation-strategy");
+    args.emplace_back(aggregation_strategy_to_str(c.domain_aggregation_stategy));
   }
 
   if (c.path_to_expected_values.empty()) {
@@ -995,9 +1168,9 @@ class MessageQueue {
 
 [[nodiscard]] static std::size_t worker_fx(FileStore &file_store, const hictk::Chromosome &chrom1,
                                            const hictk::Chromosome &chrom2,
-                                           std::optional<BG2Domains> &domains, const TmpDir &tmpdir,
-                                           const MessageQueue &msg_queue, ProcessContext &ctx,
-                                           const ComputePvalConfig &config,
+                                           const std::optional<GenomicDomains> &domains,
+                                           const TmpDir &tmpdir, const MessageQueue &msg_queue,
+                                           ProcessContext &ctx, const ComputePvalConfig &config,
                                            bool trans_expected_values_avail,
                                            std::atomic<bool> &early_return) {
   if (early_return) {
@@ -1014,7 +1187,7 @@ class MessageQueue {
 
     std::filesystem::path domain_file{};
     if (domains.has_value()) {
-      domain_file = domains->extact_and_write_to_file(tmpdir(), chrom1, chrom2, child_config.force);
+      domain_file = write_domains_to_file(*domains, tmpdir(), chrom1, chrom2, child_config.force);
       child_config.path_to_domains = domain_file;
     } else {
       assert(child_config.path_to_domains.empty());
@@ -1125,7 +1298,7 @@ static void process_log_messages(MessageQueue &msg_queue, std::atomic<bool> &ear
 
 static std::size_t process_queries_mt(BS::light_thread_pool &tpool, FileStore &file_store,
                                       const ChromosomePairs &chrom_pairs,
-                                      std::optional<BG2Domains> &domains,
+                                      const std::optional<GenomicDomains> &domains,
                                       const std::optional<ExpectedValues> &expected_values,
                                       const TmpDir &tmpdir, const ComputePvalConfig &c) {
   const auto user_provided_expected_values = !c.path_to_expected_values.empty();
@@ -1171,7 +1344,7 @@ static std::size_t process_queries_mt(BS::light_thread_pool &tpool, FileStore &f
 }
 
 static std::size_t process_queries_st(FileStore &file_store, const ChromosomePairs &chrom_pairs,
-                                      std::optional<BG2Domains> &domains,
+                                      const std::optional<GenomicDomains> &domains,
                                       const std::optional<ExpectedValues> &expected_values,
                                       const ComputePvalConfig &c) {
   assert(!c.output_prefix.empty());
@@ -1200,9 +1373,9 @@ static std::size_t process_queries_st(FileStore &file_store, const ChromosomePai
       file_store.register_file(config.output_path);
 
       const auto t1 = std::chrono::steady_clock::now();
-      SPDLOG_INFO("[{}:{}] processed {} records in {}!", chrom1.name(), chrom2.name(), num_records,
+      SPDLOG_INFO("[{}:{}]: processed {} records in {}!", chrom1.name(), chrom2.name(), num_records,
                   format_duration(t1 - t0));
-      SPDLOG_INFO("[{}:{}] {} records have been written to file \"{}\"", chrom1.name(),
+      SPDLOG_INFO("[{}:{}]: {} records have been written to file \"{}\"", chrom1.name(),
                   chrom2.name(), num_records, config.output_path.string());
 
     } catch (const std::exception &e) {
@@ -1217,7 +1390,7 @@ static std::size_t process_queries_st(FileStore &file_store, const ChromosomePai
   return tot_num_records;
 }
 
-static std::optional<ExpectedValues> init_cis_expected_values(const ComputePvalConfig &c) {
+[[nodiscard]] static ExpectedValues init_cis_expected_values(const ComputePvalConfig &c) {
   assert(c.compute_cis || c.chrom1 == c.chrom2);
 
   SPDLOG_INFO("initializing expected values for cis matrices...");
@@ -1225,7 +1398,7 @@ static std::optional<ExpectedValues> init_cis_expected_values(const ComputePvalC
 
   const auto bin_mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
-  return {ExpectedValues::cis_only(
+  return ExpectedValues::cis_only(
       f,
       {.mad_max = c.mad_max,
        .min_delta = c.min_delta,
@@ -1235,11 +1408,11 @@ static std::optional<ExpectedValues> init_cis_expected_values(const ComputePvalC
        .interpolate = c.interpolate_expected_values,
        .interpolation_qtile = c.interpolation_qtile,
        .interpolation_window_size = c.interpolation_window_size},
-      bin_mask)};
+      bin_mask);
 }
 
 static std::size_t process_queries(FileStore &file_store, const ChromosomePairs &chrom_pairs,
-                                   std::optional<BG2Domains> &domains,
+                                   const std::optional<GenomicDomains> &domains,
                                    const std::optional<ExpectedValues> &expected_values,
                                    const ComputePvalConfig &c) {
   const std::filesystem::path chrom_sizes_path{generate_chrom_sizes_file_name(c.output_prefix)};
@@ -1257,10 +1430,10 @@ static std::size_t process_queries(FileStore &file_store, const ChromosomePairs 
       num_threads = chrom_pairs.size();
       SPDLOG_WARN(
           "number of threads specified through --threads exceeds the number of chromosome pairs "
-          "to "
-          "be processed: limiting concurrency to {} thread(s)",
+          "to be processed: limiting concurrency to {} thread(s)",
           num_threads);
     }
+    assert(num_threads != 0);
     BS::light_thread_pool tpool(num_threads + 1);
     return process_queries_mt(tpool, file_store, chrom_pairs, domains, expected_values, tmpdir, c);
   }
@@ -1373,12 +1546,13 @@ static void validate_expected_values(const ExpectedValues &expected_values,
   }
 }
 
-[[nodiscard]] static auto generate_execution_plan(const ComputePvalConfig &c) {
+[[nodiscard]] static auto generate_execution_plan(const ComputePvalConfig &c,
+                                                  bool init_file_store) {
   struct Plan {
     std::unique_ptr<FileStore> file_store;
     ChromosomePairs chrom_pairs{};
     std::optional<ExpectedValues> expected_values{};
-    std::optional<BG2Domains> domains{};
+    std::optional<GenomicDomains> domains{};
   };
 
   Plan plan{};
@@ -1390,40 +1564,65 @@ static void validate_expected_values(const ExpectedValues &expected_values,
   }
 
   if (!c.path_to_domains.empty()) {
-    plan.domains.emplace(f.chromosomes(), c.path_to_domains, c.compute_cis, c.compute_trans);
+    assert(!c.chrom1.has_value() || f.chromosomes().contains(*c.chrom1));
+    assert(!c.chrom2.has_value() || f.chromosomes().contains(*c.chrom2));
+
+    plan.domains.emplace(parse_domains(f.chromosomes(), c.path_to_domains, c.compute_cis,
+                                       c.compute_trans, c.chrom1, c.chrom2));
   }
 
-  if (c.compute_cis) {
-    plan.chrom_pairs = init_cis_chromosomes(f.chromosomes(), plan.domains);
+  if (!c.chrom1.has_value()) {
+    assert(!c.chrom2.has_value());
+    if (c.compute_cis) {
+      plan.chrom_pairs = init_cis_chromosomes(f.chromosomes(), plan.domains);
+    }
+
+    if (c.compute_trans) {
+      std::ranges::move(init_trans_chromosomes(f.chromosomes(), plan.domains),
+                        std::inserter(plan.chrom_pairs, plan.chrom_pairs.end()));
+    }
+  } else {
+    assert(c.chrom2.has_value());
+    plan.chrom_pairs.emplace(
+        std::make_pair(f.chromosomes().at(*c.chrom1), f.chromosomes().at(*c.chrom2)));
   }
 
-  if (c.compute_trans) {
-    std::ranges::move(init_trans_chromosomes(f.chromosomes(), plan.domains),
-                      std::inserter(plan.chrom_pairs, plan.chrom_pairs.end()));
+  if (init_file_store) {
+    process_file_collisions(c.output_prefix, plan.chrom_pairs, c.force);
+  } else {
+    assert(!c.output_path.empty());
+    if (c.force) {
+      const auto removed = std::filesystem::remove(c.output_path);  // NOLINT
+      if (removed) {
+        SPDLOG_DEBUG("file \"{}\" has been deleted", c.output_path.string());
+      }
+    } else if (std::filesystem::exists(c.output_path)) {
+      throw std::runtime_error(fmt::format(
+          "refusing to overwrite file \"{}\". Pass --force to overwrite.", c.output_path.string()));
+    }
   }
-
-  process_file_collisions(c.output_prefix, plan.chrom_pairs, c.force);
 
   if (!c.path_to_expected_values.empty()) {
     assert(!plan.expected_values.has_value());
     plan.expected_values = ExpectedValues::deserialize(c.path_to_expected_values);
-  } else if (c.compute_cis) {
-    plan.expected_values = init_cis_expected_values(c);
-  }
-
-  if (plan.expected_values.has_value()) {
     validate_expected_values(*plan.expected_values, c.path_to_expected_values, plan.chrom_pairs,
                              f.resolution());
   }
 
-  const auto root_dir = c.output_prefix.has_parent_path() ? c.output_prefix.parent_path()
-                                                          : std::filesystem::current_path();
+  if (init_file_store) {
+    const auto root_dir = c.output_prefix.has_parent_path() ? c.output_prefix.parent_path()
+                                                            : std::filesystem::current_path();
 
-  if (!root_dir.empty() && !std::filesystem::exists(root_dir)) {
-    std::filesystem::create_directories(root_dir);  // NOLINT
+    if (!root_dir.empty() && !std::filesystem::exists(root_dir)) {
+      std::filesystem::create_directories(root_dir);  // NOLINT
+    }
+    plan.file_store = std::make_unique<FileStore>(
+        root_dir, false, fmt::format("{}.json", c.output_prefix.filename().string()));
   }
-  plan.file_store = std::make_unique<FileStore>(
-      root_dir, false, fmt::format("{}.json", c.output_prefix.filename().string()));
+
+  if (!plan.expected_values.has_value() && c.compute_cis) {
+    plan.expected_values = init_cis_expected_values(c);
+  }
 
   return plan;
 }
@@ -1511,11 +1710,14 @@ int run_command(const ComputePvalConfig &c) {
   if (c.chrom1.has_value()) {
     assert(c.chrom2.has_value());
     assert(!c.output_path.empty());
-    std::optional<BG2Domains> placeholder{};
-    const auto interactions_processed = run_nchg_compute_worker(c, placeholder);
+
+    const auto plan = generate_execution_plan(c, false);
+
+    const auto interactions_processed =
+        run_nchg_compute_worker(c, plan.domains, plan.expected_values);
     const auto t1 = std::chrono::steady_clock::now();
-    SPDLOG_INFO("[{}:{}] processed {} records in {}!", *c.chrom1, *c.chrom2, interactions_processed,
-                format_duration(t1 - t0));
+    SPDLOG_INFO("[{}:{}]: processed {} records in {}!", *c.chrom1, *c.chrom2,
+                interactions_processed, format_duration(t1 - t0));
 
     SPDLOG_INFO("[{}:{}]: all records have been written to file \"{}\"", *c.chrom1, *c.chrom2,
                 c.output_path.string());
@@ -1524,7 +1726,7 @@ int run_command(const ComputePvalConfig &c) {
 
   const auto log_file_initialized = setup_file_backed_logger(c.output_prefix, c.force);
 
-  auto [file_store, chrom_pairs, expected_values, domains] = generate_execution_plan(c);
+  auto [file_store, chrom_pairs, expected_values, domains] = generate_execution_plan(c, true);
 
   const auto interactions_processed =
       process_queries(*file_store, chrom_pairs, domains, expected_values, c);

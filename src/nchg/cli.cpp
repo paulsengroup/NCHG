@@ -371,6 +371,23 @@ void Cli::make_compute_subcommand() {
   ->check(CLI::Bound(0.0, 1.0))
   ->capture_default_str();
   sc.add_option(
+    "--interaction-aggregation-strategy",
+    c.domain_aggregation_stategy,
+    "Strategy used to aggregate interactions using the provided genomic domains.\n"
+    "Ignored when --domains has not been specified.\n"
+    "The \"one-pass\" algorithm is optimized for scenarios where the provided domains cover a\n"
+    "significant fraction of individual chromosome-chromosome matrix (e.g. 30% or more),\n"
+    "while the \"multi-pass\" algorithm is better at handling all other scenarios.")
+  ->transform(
+    CLI::CheckedTransformer{
+      std::map<std::string, ComputePvalConfig::DomainAggregationStrategy>{
+        {"auto", ComputePvalConfig::DomainAggregationStrategy::AUTO},
+        {"one-pass", ComputePvalConfig::DomainAggregationStrategy::SINGLE_PASS},
+        {"multi-pass", ComputePvalConfig::DomainAggregationStrategy::MULTI_PASS},
+      }
+    })
+  ->default_str("auto");
+  sc.add_option(
     "--bin-mask",
     c.path_to_bin_mask,
     "Path to a BED3+ file with a list of domains that should be masked.")
@@ -806,6 +823,12 @@ void Cli::validate_compute_subcommand() const {
     _warnings.emplace_back("--min-delta and --max-delta are ignored when --trans-only=true");
   }
 
+  if (!c.path_to_domains.empty() && !sc.get_option("--interaction-aggregation-strategy")->empty()) {
+    _warnings.emplace_back(
+        "--interaction-aggregation-strategy is ignored when no domains have been specified through "
+        "the --domains option");
+  }
+
   if (c.compression_method == "lz4" && c.compression_lvl > 9) {
     _warnings.emplace_back("compression method lz4 supports compression levels up to 9");
   }
@@ -942,22 +965,29 @@ void Cli::transform_args_compute_subcommand() {
     if (!c.chrom2.has_value()) {
       c.chrom2 = c.chrom1;
     }
+
+    if (c.chrom1 == c.chrom2) {
+      c.compute_cis = true;
+      c.compute_trans = false;
+    } else {
+      c.compute_cis = false;
+      c.compute_trans = true;
+    }
+
     c.output_path = c.output_prefix;
     c.output_prefix.clear();
 
     if (c.output_path.extension() != ".parquet") {
       c.output_path = std::filesystem::path{fmt::format("{}.parquet", c.output_path.string())};
     }
+
+    c.threads = 1;
   }
 
   c.exec = get_path_to_executable();
 
   if (c.compression_method == "lz4") {
     c.compression_lvl = std::min(c.compression_lvl, std::uint8_t{9});
-  }
-
-  if (c.chrom1.has_value()) {
-    c.threads = 1;
   }
 
   // NOLINTNEXTLINE(*-mt-unsafe)

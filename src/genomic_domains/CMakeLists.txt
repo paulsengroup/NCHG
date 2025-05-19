@@ -16,12 +16,26 @@
 # with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
-include_directories(include)
+find_package(FMT REQUIRED)
+find_package(hictk REQUIRED)
 
-add_subdirectory(expected_matrix)
-add_subdirectory(expected_values)
-add_subdirectory(fdr)
-add_subdirectory(file_store)
-add_subdirectory(genomic_domains)
-add_subdirectory(nchg)
-add_subdirectory(observed_matrix)
+add_library(genomic_domains STATIC)
+add_library(nchg::genomic_domains ALIAS genomic_domains)
+
+target_sources(
+  genomic_domains
+  PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/genomic_domains.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/genomic_domains_impl.hpp"
+)
+
+target_include_directories(genomic_domains PUBLIC include/)
+target_link_libraries(
+  genomic_domains
+  PRIVATE
+    nchg_project_options
+    nchg_project_warnings
+  PUBLIC
+    nchg::common
+    hictk::libhictk
+)

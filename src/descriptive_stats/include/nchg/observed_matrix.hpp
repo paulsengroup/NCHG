@@ -32,21 +32,22 @@ namespace nchg {
 
 class ObservedMatrix {
   using N = std::uint32_t;
+  using MarginalBuff = std::vector<std::uint64_t>;
 
   hictk::Chromosome _chrom1{};
   hictk::Chromosome _chrom2{};
 
   hictk::BinTable _bins{};
 
-  std::shared_ptr<std::vector<std::uint64_t>> _marginals1{};
-  std::shared_ptr<std::vector<std::uint64_t>> _marginals2{};
+  std::shared_ptr<const MarginalBuff> _marginals1{};
+  std::shared_ptr<const MarginalBuff> _marginals2{};
 
   double _mad_max{};
   std::uint64_t _min_delta{};
   std::uint64_t _max_delta{};
 
-  std::uint64_t _sum{};
   std::uint64_t _nnz{};
+  std::uint64_t _sum{};
 
  public:
   ObservedMatrix() = delete;
@@ -58,6 +59,12 @@ class ObservedMatrix {
                  const std::vector<bool>& bin_mask1 = {}, const std::vector<bool>& bin_mask2 = {},
                  std::uint64_t min_delta_ = 0,
                  std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max());
+
+  ObservedMatrix(hictk::Chromosome chrom1, hictk::Chromosome chrom2, hictk::BinTable bins,
+                 std::shared_ptr<const MarginalBuff> marginals1_,
+                 std::shared_ptr<const MarginalBuff> marginals2_, std::uint64_t nnz_,
+                 std::uint64_t sum_, double mad_max_ = 0.0, std::uint64_t min_delta_ = 0,
+                 std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max()) noexcept;
 
   [[nodiscard]] std::uint32_t resolution() const noexcept;
   [[nodiscard]] std::size_t num_rows() const noexcept;

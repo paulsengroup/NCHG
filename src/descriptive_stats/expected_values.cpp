@@ -111,7 +111,7 @@ ExpectedValues ExpectedValues::chromosome_pair(
     std::shared_ptr<const hictk::File> file, const hictk::Chromosome &chrom1,
     const hictk::Chromosome &chrom2, const Params &params,
     const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask) {
-  SPDLOG_INFO("[{}:{}] computing expected values...", chrom1.name(), chrom2.name());
+  SPDLOG_INFO("[{}:{}]: computing expected values...", chrom1.name(), chrom2.name());
 
   ExpectedValues ev(nullptr, params);
   ev._fp = std::move(file);
@@ -173,8 +173,6 @@ ExpectedValues ExpectedValues::deserialize(const std::filesystem::path &path) {
 
 std::uint32_t ExpectedValues::resolution() const noexcept { return _resolution; }
 
-const std::vector<double> &ExpectedValues::weights() const noexcept { return _expected_weights; }
-
 auto ExpectedValues::params() const noexcept -> Params {
   return {_mad_max,
           _min_delta,
@@ -209,13 +207,18 @@ std::vector<double> ExpectedValues::expected_values(const hictk::Chromosome &chr
   std::vector weights(_expected_weights.begin(),
                       _expected_weights.begin() + static_cast<std::ptrdiff_t>(num_bins));
 
-  if (!rescale) {
+  const auto sf = rescale ? _expected_scaling_factors.at(chrom) : 1.0;
+  if (sf == 1) {
     return weights;
   }
 
-  const auto sf = _expected_scaling_factors.at(chrom);
-  std::ranges::transform(weights, weights.begin(), [&](const auto n) { return n / sf; });
-
+  std::ranges::transform(weights, weights.begin(), [&](auto n) {
+    n /= sf;
+    if (std::isfinite(n)) {
+      return n;
+    }
+    return 0.0;
+  });
   return weights;
 }
 

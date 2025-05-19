@@ -102,7 +102,6 @@ class ExpectedValues {
   static ExpectedValues deserialize(const std::filesystem::path& path);
 
   [[nodiscard]] std::uint32_t resolution() const noexcept;
-  [[nodiscard]] const std::vector<double>& weights() const noexcept;
   [[nodiscard]] auto params() const noexcept -> Params;
 
   [[nodiscard]] std::shared_ptr<const std::vector<bool>> bin_mask(

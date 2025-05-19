@@ -47,6 +47,8 @@ struct ChecksumConfig {
 };
 
 struct ComputePvalConfig {
+  enum class DomainAggregationStrategy : std::uint8_t { AUTO, SINGLE_PASS, MULTI_PASS };
+
   std::filesystem::path exec{};
   std::filesystem::path path_to_hic{};
   std::filesystem::path output_prefix{};
@@ -61,6 +63,7 @@ struct ComputePvalConfig {
 
   bool compute_cis{true};
   bool compute_trans{true};
+  DomainAggregationStrategy domain_aggregation_stategy{DomainAggregationStrategy::AUTO};
 
   double mad_max{5.0};
   std::uint64_t min_delta{40'000};

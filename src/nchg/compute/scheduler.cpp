@@ -240,6 +240,10 @@ class ProcessContext {
       if (const auto *var = std::getenv("NCHG_CI"); var) {
         vars.emplace_back("NCHG_CI", var);
       }
+      // NOLINTNEXTLINE(*-mt-unsafe)
+      if (const auto *var = std::getenv("LLVM_PROFILE_FILE"); var) {
+        vars.emplace_back("LLVM_PROFILE_FILE", var);
+      }
     }
     vars.emplace_back(boost::process::environment::key{queue_name_env_variable},
                       boost::process::environment::value{msg_queue.name()});

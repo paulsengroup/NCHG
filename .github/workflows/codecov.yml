@@ -367,8 +367,11 @@ jobs:
 
       - name: Setup test environment
         run: |
+          NCPUS="$(nproc)"
+
           echo "DATA_DIR=$PWD/test/data/integration_tests" | tee -a "$GITHUB_ENV"
           echo "OUT_PREFIX=ENCFF447ERX.1000000" | tee -a "$GITHUB_ENV"
+          echo "LLVM_PROFILE_POOL_SIZE=$(( NCPUS + 1))" | tee -a "$GITHUB_ENV"
 
       - name: Test NCHG cartesian-product (gw)
         run: |
@@ -444,7 +447,7 @@ jobs:
 
       - name: Test NCHG compute (mt)
         run: |
-          LLVM_PROFILE_FILE="$PWD/nchg.compute-mt.%$(nproc)m.profraw"
+          LLVM_PROFILE_FILE="$PWD/nchg.compute-mt.%${LLVM_PROFILE_POOL_SIZE}m.profraw"
 
           sudo -u devel                                        \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
@@ -475,7 +478,7 @@ jobs:
 
       - name: Test NCHG compute (mt; w/ domain list)
         run: |
-          LLVM_PROFILE_FILE="$PWD/nchg.compute-mt-with-domains.%$(nproc)m.profraw"
+          LLVM_PROFILE_FILE="$PWD/nchg.compute-mt-with-domains.%${LLVM_PROFILE_POOL_SIZE}m.profraw"
 
           sudo -u devel                                        \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \

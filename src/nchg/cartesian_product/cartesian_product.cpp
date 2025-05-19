@@ -16,18 +16,11 @@
 // with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-// clang-format off
-#include "nchg/suppress_warnings.hpp"
-NCHG_DISABLE_WARNING_PUSH
-NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
-#include <parallel_hashmap/btree.h>
-#include <parallel_hashmap/phmap.h>
-NCHG_DISABLE_WARNING_POP
-// clang-format on
-
 #include <fmt/compile.h>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
+#include <parallel_hashmap/btree.h>
+#include <parallel_hashmap/phmap.h>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>

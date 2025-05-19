@@ -16,24 +16,15 @@
 // with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-// clang-format off
-#include "nchg/suppress_warnings.hpp"
-NCHG_DISABLE_WARNING_PUSH
-NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
-#include <hictk/file.hpp>
-NCHG_DISABLE_WARNING_POP
-// clang-format on
-
 #include <spdlog/spdlog.h>
 
 #include <cassert>
 #include <chrono>
 #include <concepts>
 #include <filesystem>
-#include <hictk/chromosome.hpp>
+#include <hictk/file.hpp>
 #include <memory>
 #include <type_traits>
-#include <variant>
 
 #include "nchg/common.hpp"
 #include "nchg/concepts.hpp"

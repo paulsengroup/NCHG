@@ -16,17 +16,6 @@
 // with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-// clang-format off
-#include <queue>
-
-
-#include "nchg/suppress_warnings.hpp"
-NCHG_DISABLE_WARNING_PUSH
-NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
-#include <hictk/reference.hpp>
-NCHG_DISABLE_WARNING_POP
-// clang-format on
-
 #include <fmt/format.h>
 #include <moodycamel/blockingconcurrentqueue.h>
 #include <spdlog/spdlog.h>
@@ -43,7 +32,6 @@ NCHG_DISABLE_WARNING_POP
 #include <future>
 #include <hictk/chromosome.hpp>
 #include <hictk/reference.hpp>
-#include <queue>
 #include <stdexcept>
 #include <string>
 #include <tuple>

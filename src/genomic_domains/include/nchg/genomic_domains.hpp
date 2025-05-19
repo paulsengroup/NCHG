@@ -27,6 +27,8 @@ NCHG_DISABLE_MAYBE_UNINITIALIZED
 NCHG_DISABLE_WARNING_POP
 //clang-format on
 
+#include <parallel_hashmap/btree.h>
+
 #include <cstddef>
 #include <filesystem>
 #include <functional>
@@ -42,6 +44,10 @@ NCHG_DISABLE_WARNING_POP
 #include "nchg/concepts.hpp"
 
 namespace nchg {
+
+using ChromPair = std::pair<hictk::Chromosome, hictk::Chromosome>;
+using ChromosomePairs = phmap::btree_set<ChromPair>;
+
 class BEDPE {
   std::shared_ptr<const hictk::GenomicInterval> _range1{};
   std::shared_ptr<const hictk::GenomicInterval> _range2{};

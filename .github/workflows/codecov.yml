@@ -483,7 +483,7 @@ jobs:
             test/data/ENCFF447ERX.1000000.cool                 \
             "out/$OUT_PREFIX"                                  \
             --threads "$(nproc)"                               \
-            --domains "$DATA_DIR/cartesian_product/$OUT_PREFIX.gw-domains.bedpe"
+            --domains test/data/ENCFF447ERX.1000000.domains.bedpe
 
           test/scripts/validate_nchg_output.py compute \
             "out/$OUT_PREFIX"                          \

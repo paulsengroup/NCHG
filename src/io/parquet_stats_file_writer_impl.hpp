@@ -18,18 +18,11 @@
 
 #pragma once
 
-// clang-format off
-#include "nchg/suppress_warnings.hpp"
-NCHG_DISABLE_WARNING_PUSH
-NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include <arrow/array/array_base.h>
 #include <arrow/util/thread_pool.h>
-#include <parquet/properties.h>
-#include <parquet/arrow/writer.h>
-NCHG_DISABLE_WARNING_POP
-// clang-format on
-
 #include <fmt/format.h>
+#include <parquet/arrow/writer.h>
+#include <parquet/properties.h>
 #include <spdlog/spdlog.h>
 
 #include <cassert>

@@ -16,15 +16,7 @@
 // with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-// clang-format off
-#include "nchg/suppress_warnings.hpp"
-NCHG_DISABLE_WARNING_PUSH
-NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include <arrow/io/file.h>
-#include <hictk/file.hpp>
-NCHG_DISABLE_WARNING_POP
-// clang-format on
-
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
@@ -51,6 +43,7 @@ NCHG_DISABLE_WARNING_POP
 #include <fstream>
 #include <glaze/glaze.hpp>
 #include <hictk/chromosome.hpp>
+#include <hictk/file.hpp>
 #include <hictk/genomic_interval.hpp>
 #include <hictk/reference.hpp>
 #include <hictk/transformers/join_genomic_coords.hpp>

@@ -18,21 +18,14 @@
 
 #include "nchg/parquet_stats_file_reader.hpp"
 
-// clang-format off
-#include "nchg/suppress_warnings.hpp"
-NCHG_DISABLE_WARNING_PUSH
-NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
+#include <arrow/io/file.h>
 #include <arrow/record_batch.h>
 #include <arrow/type.h>
-#include <arrow/io/file.h>
 #include <arrow/util/key_value_metadata.h>
+#include <fmt/format.h>
 #include <parquet/arrow/reader.h>
 #include <parquet/file_reader.h>
 #include <parquet/stream_reader.h>
-NCHG_DISABLE_WARNING_POP
-// clang-format on
-
-#include <fmt/format.h>
 
 #include <algorithm>
 #include <array>

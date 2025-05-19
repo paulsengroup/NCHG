@@ -18,14 +18,8 @@
 
 #pragma once
 
-// clang-format off
-#include "nchg/suppress_warnings.hpp"
-NCHG_DISABLE_WARNING_PUSH
-NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include <parallel_hashmap/btree.h>
 #include <parallel_hashmap/phmap.h>
-NCHG_DISABLE_WARNING_POP
-// clang-format on
 
 #include <cstdint>
 #include <hictk/chromosome.hpp>

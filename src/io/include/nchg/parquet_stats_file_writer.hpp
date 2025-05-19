@@ -18,18 +18,12 @@
 
 #pragma once
 
-// clang-format off
-#include "nchg/suppress_warnings.hpp"
-NCHG_DISABLE_WARNING_PUSH
-NCHG_DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include <arrow/array/array_base.h>
 #include <arrow/builder.h>
-#include <arrow/record_batch.h>
 #include <arrow/io/file.h>
-#include <parquet/properties.h>
+#include <arrow/record_batch.h>
 #include <parquet/arrow/writer.h>
-NCHG_DISABLE_WARNING_POP
-// clang-format on
+#include <parquet/properties.h>
 
 #include <cstddef>
 #include <cstdint>

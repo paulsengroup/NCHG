@@ -47,6 +47,7 @@ NCHG_DISABLE_WARNING_POP
 #include <hictk/reference.hpp>
 #include <memory>
 #include <mutex>
+#include <random>
 #include <ranges>
 #include <thread>
 #include <type_traits>
@@ -863,13 +864,11 @@ class MessageQueue {
   return {vars};
 }
 
-[[nodiscard]] static boost::process::process spawn_compute_process(
-    ProcessContext &ctx, const MessageQueue &msg_queue, const ComputePvalConfig &c,
-    const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2) {
+[[nodiscard]] static std::vector<std::string> generate_compute_args(const hictk::Chromosome &chrom1,
+                                                                    const hictk::Chromosome &chrom2,
+                                                                    const ComputePvalConfig &c) {
   assert(c.output_prefix.empty());
   assert(!c.output_path.empty());
-
-  SPDLOG_INFO("[{}:{}]: begin processing...", chrom1.name(), chrom2.name());
 
   std::vector<std::string> args{
       "compute",
@@ -932,9 +931,31 @@ class MessageQueue {
     args.emplace_back("--force");
   }
 
+  return args;
+}
+
+[[nodiscard]] static std::chrono::milliseconds generate_random_sleep_time_ms(
+    double target_sleep_ms, double stddev = 1.0, double min = 100.0, double max = 10'000.0) {
+  assert(target_sleep_ms > 0);
+  assert(max >= min);
+  assert(stddev >= 0);
+  std::random_device rd{};
+  std::mt19937 rand_eng{rd()};
+  const auto sleep_time_ms =
+      std::clamp(min, max, std::normal_distribution{target_sleep_ms, stddev}(rand_eng));
+  return std::chrono::milliseconds{static_cast<int>(sleep_time_ms)};
+}
+
+[[nodiscard]] static boost::process::process spawn_compute_process(
+    ProcessContext &ctx, const MessageQueue &msg_queue, const ComputePvalConfig &c,
+    const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2) {
+  SPDLOG_INFO("[{}:{}]: begin processing...", chrom1.name(), chrom2.name());
+
+  const auto args = generate_compute_args(chrom1, chrom2, c);
   auto env = generate_subprocess_env(msg_queue);
 
   phmap::btree_set<std::string> errors{};
+  double mean_sleep_time = 250;
 
   for (std::size_t attempt = 0; attempt < 10; ++attempt) {
     try {
@@ -955,10 +976,12 @@ class MessageQueue {
                   chrom2.name(), attempt + 1, e.what());
       errors.emplace(e.what());
     }
-    const std::chrono::milliseconds sleep_time{
-        std::clamp(hictk::internal::hash_combine(0, attempt, chrom1, chrom2) % std::size_t{250},
-                   std::size_t{50}, std::size_t{250})};
+
+    const auto sleep_time = generate_random_sleep_time_ms(mean_sleep_time);
+    SPDLOG_DEBUG("[{}:{}]: sleeping {} before attempting to spawn worker process one more time...",
+                 chrom1.name(), chrom2.name());
     std::this_thread::sleep_for(sleep_time);
+    mean_sleep_time *= 1.5;
   }
 
   if (errors.empty()) {

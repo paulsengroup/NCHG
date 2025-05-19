@@ -30,10 +30,13 @@
 #include <hictk/chromosome.hpp>
 #include <hictk/file.hpp>
 #include <hictk/genomic_interval.hpp>
+#include <hictk/pixel.hpp>
 #include <hictk/transformers/join_genomic_coords.hpp>
+#include <limits>
 #include <memory>
 #include <ranges>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -189,21 +192,25 @@ auto NCHG::aggregate_pixels(const hictk::GenomicInterval &range1,
   return Result{obs, exp};
 }
 
-NCHG::NCHG(std::shared_ptr<const hictk::File> f, const hictk::Chromosome &chrom1,
+NCHG::NCHG(const std::shared_ptr<const hictk::File> &f, const hictk::Chromosome &chrom1,
            const hictk::Chromosome &chrom2, const Params &params)
     : NCHG(f, chrom1, chrom2, ExpectedValues::chromosome_pair(f, chrom1, chrom2, params)) {}
 
-NCHG::NCHG(std::shared_ptr<const hictk::File> f, const hictk::Chromosome &chrom1,
-           const hictk::Chromosome &chrom2, ExpectedValues expected_values)
+NCHG::NCHG(std::shared_ptr<const hictk::File> f, hictk::Chromosome chrom1, hictk::Chromosome chrom2,
+           ExpectedValues expected_values)
     : _fp(std::move(f)),
-      _chrom1(chrom1),
-      _chrom2(chrom2),
-      _exp_matrix(init_exp_matrix(chrom1, chrom2, *_fp, expected_values)),
-      _obs_matrix(init_obs_matrix(
-          chrom1, chrom2, *_fp, *expected_values.bin_mask(chrom1, chrom2).first,
-          *expected_values.bin_mask(chrom1, chrom2).second, expected_values.params().mad_max,
-          expected_values.params().min_delta, expected_values.params().max_delta)),
-      _expected_values(std::move(expected_values)) {}
+      _chrom1(std::move(chrom1)),
+      _chrom2(std::move(chrom2)),
+      _expected_values(std::move(expected_values)) {
+  const auto &[bin1_mask, bin2_mask] = _expected_values.bin_mask(chrom1, chrom2);
+  auto [obs_matrix, exp_matrix] = init_matrices(
+      _chrom1, _chrom2, *_fp, _expected_values, bin1_mask ? *bin1_mask : std::vector<bool>{},
+      bin2_mask ? *bin2_mask : std::vector<bool>{}, _expected_values.params().mad_max,
+      _expected_values.params().min_delta, _expected_values.params().max_delta);
+
+  _obs_matrix = std::move(obs_matrix);
+  _exp_matrix = std::move(exp_matrix);
+}
 
 auto NCHG::params() const noexcept -> Params { return _expected_values.params(); }
 
@@ -211,15 +218,14 @@ const ObservedMatrix &NCHG::observed_matrix() const noexcept { return *_obs_matr
 
 const ExpectedMatrixStats &NCHG::expected_matrix() const noexcept { return *_exp_matrix; }
 
-auto NCHG::compute(const hictk::GenomicInterval &range, double bad_bin_fraction) const -> Stats {
-  return compute(range, range, bad_bin_fraction);
-}
-
-auto NCHG::compute(const hictk::GenomicInterval &range1, const hictk::GenomicInterval &range2,
+auto NCHG::compute(const BEDPE &domain, std::uint64_t obs, double exp,
                    double bad_bin_fraction) const -> Stats {
   if (bad_bin_fraction < 0.0 || bad_bin_fraction > 1.0) [[unlikely]] {
     throw std::logic_error("bad_bin_fraction should be between 0 and 1");
   }
+
+  const auto &range1 = domain.range1();
+  const auto &range2 = domain.range2();
 
   const auto obs_sum = _obs_matrix->sum();
   const auto exp_sum = _exp_matrix->sum();
@@ -232,13 +238,9 @@ auto NCHG::compute(const hictk::GenomicInterval &range1, const hictk::GenomicInt
   const auto range1_masked = N1 == std::numeric_limits<decltype(N1)>::max();
   const auto range2_masked = N2 == std::numeric_limits<decltype(N2)>::max();
 
-  std::uint64_t obs = 0;
-  double exp = 0.0;
-
-  if (!range1_masked && !range2_masked) [[likely]] {
-    const auto &result = aggregate_pixels(range1, range2);
-    obs = result.obs;
-    exp = std::max(0.0, result.exp);
+  if (range1_masked || range2_masked) [[unlikely]] {
+    obs = 0;
+    exp = 0.0;
   }
 
   // clang-format off
@@ -255,9 +257,9 @@ auto NCHG::cbegin(const hictk::Chromosome &chrom1, const hictk::Chromosome &chro
     -> IteratorVariant {
   return std::visit(
       [&](const auto &f) -> IteratorVariant {
+        auto [bin1_mask, bin2_mask] = _expected_values.bin_mask(chrom1, chrom2);
         return {iterator{f.fetch(chrom1.name(), chrom2.name()), _obs_matrix, _exp_matrix,
-                         _expected_values.bin_mask(chrom1, chrom2).first,
-                         _expected_values.bin_mask(chrom1, chrom2).second, params().min_delta,
+                         std::move(bin1_mask), std::move(bin2_mask), params().min_delta,
                          params().max_delta}};
       },
       _fp->get());
@@ -284,38 +286,50 @@ auto NCHG::end(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2)
   return cend(chrom1, chrom2);
 }
 
-auto NCHG::init_exp_matrix(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
-                           const hictk::File &f, const ExpectedValues &expected_values)
-    -> std::shared_ptr<const ExpectedMatrixStats> {
-  SPDLOG_INFO("[{}:{}] initializing expected matrix...", chrom1.name(), chrom2.name());
+auto NCHG::init_matrices(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
+                         const hictk::File &f, const ExpectedValues &expected_values,
+                         const std::vector<bool> &bin1_mask, const std::vector<bool> &bin2_mask,
+                         double mad_max_, std::uint64_t min_delta_, std::uint64_t max_delta_)
+    -> std::pair<std::shared_ptr<const ObservedMatrix>,
+                 std::shared_ptr<const ExpectedMatrixStats>> {
+  SPDLOG_INFO("[{}:{}]: initializing observed and expected matrices...", chrom1.name(),
+              chrom2.name());
 
-  return std::visit(
+  MatrixStats<std::uint32_t> obs_stats{chrom1,         chrom2,     bin1_mask, bin2_mask,
+                                       f.resolution(), min_delta_, max_delta_};
+
+  const auto weights =
+      chrom1 == chrom2 ? expected_values.expected_values(chrom1) : std::vector<double>{};
+  MatrixStats<double> exp_stats{chrom1,         chrom2,     bin1_mask,  bin2_mask,
+                                f.resolution(), min_delta_, max_delta_, weights};
+
+  std::visit(
       [&](const auto &fp) {
         const auto sel = fp.fetch(chrom1.name(), chrom2.name());
         const auto jsel = hictk::transformers::JoinGenomicCoords(
-            sel.template begin<double>(), sel.template end<double>(), fp.bins_ptr());
-        return std::make_shared<const ExpectedMatrixStats>(
-            expected_values.expected_matrix(chrom1, chrom2, fp.bins(), jsel));
+            sel.template begin<std::uint32_t>(), sel.template end<std::uint32_t>(), fp.bins_ptr());
+
+        for (const auto &p : jsel) {
+          obs_stats.add(p);
+          exp_stats.add(hictk::Pixel{p.coords, static_cast<double>(p.count)});
+        }
       },
       f.get());
-}
 
-auto NCHG::init_obs_matrix(const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2,
-                           const hictk::File &f, const std::vector<bool> &bin1_mask,
-                           const std::vector<bool> &bin2_mask, double mad_max_,
-                           std::uint64_t min_delta_, std::uint64_t max_delta_)
-    -> std::shared_ptr<const ObservedMatrix> {
-  SPDLOG_INFO("[{}:{}] initializing observed matrix...", chrom1.name(), chrom2.name());
+  auto obs_matrix = std::make_shared<const ObservedMatrix>(
+      chrom1, chrom2, f.bins(), std::move(obs_stats.marginals1), std::move(obs_stats.marginals2),
+      obs_stats.nnz, obs_stats.sum, mad_max_, min_delta_, max_delta_);
 
-  return std::visit(
-      [&](const auto &fp) {
-        const auto sel = fp.fetch(chrom1.name(), chrom2.name());
-        const auto jsel = hictk::transformers::JoinGenomicCoords(
-            sel.template begin<N>(), sel.template end<N>(), fp.bins_ptr());
-        return std::make_shared<const ObservedMatrix>(jsel, chrom1, chrom2, fp.bins(), mad_max_,
-                                                      bin1_mask, bin2_mask, min_delta_, max_delta_);
-      },
-      f.get());
+  auto exp_matrix = std::make_shared<const ExpectedMatrixStats>(
+      chrom1, chrom2, f.bins(), std::move(weights), std::move(exp_stats.marginals1),
+      std::move(exp_stats.marginals2), exp_stats.nnz, exp_stats.sum, min_delta_, max_delta_);
+
+  SPDLOG_INFO(
+      "[{}:{}]: initialized observed and expected matrices with a total of {} interactions ({} "
+      "nnz)!",
+      chrom1.name(), chrom2.name(), obs_stats.sum, obs_stats.nnz);
+
+  return {std::move(obs_matrix), std::move(exp_matrix)};
 }
 
 double NCHG::compute_cumulative_nchg(std::vector<double> &buffer, std::uint64_t obs,
@@ -439,7 +453,7 @@ constexpr std::pair<double, N2> aggregate_marginals(const hictk::GenomicInterval
   const auto i2 = (range.end() + resolution - 1) / resolution;
 
   if (i1 == i2) [[unlikely]] {
-    return {N2{}, N2{}};
+    return {0.0, N2{}};
   }
 
   assert(i2 <= marginals.size());

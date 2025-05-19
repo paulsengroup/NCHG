@@ -50,6 +50,11 @@ static void compare_masks(const std::vector<bool>& mask, const std::vector<bool>
   }
 }
 
+[[nodiscard]] static std::vector<double> get_weights(
+    const ExpectedValues& evs, const std::shared_ptr<const hictk::File>& clr) {
+  return evs.expected_values(clr->chromosomes().longest_chromosome(), false);
+}
+
 TEST_CASE("ExpectedValues: genome-wide", "[long][expected_values]") {
   spdlog::default_logger()->set_level(spdlog::level::warn);
   const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
@@ -75,8 +80,8 @@ TEST_CASE("ExpectedValues: genome-wide", "[long][expected_values]") {
     CHECK(evs.params().interpolation_window_size ==
           evs_gw_serde.params().interpolation_window_size);
 
-    const auto& w1 = evs.weights();
-    const auto& w2 = evs_gw_serde.weights();
+    const auto w1 = get_weights(evs, clr);
+    const auto w2 = get_weights(evs_gw_serde, clr);
 
     compare_weights(w1, w2);
 
@@ -107,7 +112,7 @@ TEST_CASE("ExpectedValues: cis-only", "[medium][expected_values]") {
   SECTION("accessors") {
     const auto num_bins =
         (clr->chromosomes().at("chr1").size() + clr->resolution() - 1) / clr->resolution();
-    CHECK(evs.weights().size() == num_bins);
+    CHECK(get_weights(evs, clr).size() == num_bins);
 
     const auto chrom = clr->chromosomes().at("chr22");
     const auto chrom_num_bins = (chrom.size() + clr->resolution() - 1) / clr->resolution();

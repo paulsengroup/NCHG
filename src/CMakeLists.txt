@@ -37,6 +37,7 @@ FetchContent_Declare(
 
 add_subdirectory(common)
 add_subdirectory(descriptive_stats)
+add_subdirectory(genomic_domains)
 add_subdirectory(hypothesis_testing)
 add_subdirectory(io)
 add_subdirectory(preproc)

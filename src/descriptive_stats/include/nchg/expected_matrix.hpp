@@ -34,21 +34,22 @@
 namespace nchg {
 
 class ExpectedMatrixStats {
+  using MarginalBuff = std::vector<double>;
+
   hictk::Chromosome _chrom1{};
   hictk::Chromosome _chrom2{};
 
   hictk::BinTable _bins{};
   std::vector<double> _weights{};
-  phmap::btree_map<hictk::Chromosome, double> _scaling_factors{};
 
   std::uint64_t _min_delta{};
   std::uint64_t _max_delta{};
 
-  std::shared_ptr<std::vector<double>> _marginals1{};
-  std::shared_ptr<std::vector<double>> _marginals2{};
+  std::shared_ptr<const MarginalBuff> _marginals1{};
+  std::shared_ptr<const MarginalBuff> _marginals2{};
 
-  double _sum{};
   std::uint64_t _nnz{};
+  double _sum{};
 
  public:
   template <typename Pixels>
@@ -67,6 +68,13 @@ class ExpectedMatrixStats {
                       const std::vector<bool> &bin_mask2 = {}, std::uint64_t min_delta_ = 0,
                       std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max());
 
+  ExpectedMatrixStats(
+      hictk::Chromosome chrom1, hictk::Chromosome chrom2, hictk::BinTable bins,
+      std::vector<double> weights, std::shared_ptr<const MarginalBuff> marginals1_,
+      std::shared_ptr<const MarginalBuff> marginals2_, std::uint64_t nnz_, double sum_,
+      std::uint64_t min_delta_ = 0,
+      std::uint64_t max_delta_ = std::numeric_limits<std::uint64_t>::max()) noexcept;
+
   [[nodiscard]] std::uint32_t resolution() const noexcept;
   [[nodiscard]] std::size_t num_rows() const noexcept;
   [[nodiscard]] std::size_t num_cols() const noexcept;
@@ -79,7 +87,6 @@ class ExpectedMatrixStats {
   [[nodiscard]] double nnz_avg() const noexcept;
 
   [[nodiscard]] const std::vector<double> &weights() const noexcept;
-  [[nodiscard]] const phmap::btree_map<hictk::Chromosome, double> &scaling_factors() const noexcept;
 
   [[nodiscard]] std::uint64_t min_delta() const noexcept;
   [[nodiscard]] std::uint64_t max_delta() const noexcept;

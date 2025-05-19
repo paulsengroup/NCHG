@@ -18,12 +18,36 @@
 
 #include "nchg/observed_matrix.hpp"
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <hictk/chromosome.hpp>
+#include <memory>
+#include <numeric>
 #include <vector>
 
 namespace nchg {
+
+ObservedMatrix::ObservedMatrix(hictk::Chromosome chrom1, hictk::Chromosome chrom2,
+                               hictk::BinTable bins,
+                               std::shared_ptr<const MarginalBuff> marginals1_,
+                               std::shared_ptr<const MarginalBuff> marginals2_, std::uint64_t nnz_,
+                               std::uint64_t sum_, double mad_max_, std::uint64_t min_delta_,
+                               std::uint64_t max_delta_) noexcept
+    : _chrom1(std::move(chrom1)),
+      _chrom2(std::move(chrom2)),
+      _bins(std::move(bins)),
+      _marginals1(std::move(marginals1_)),
+      _marginals2(std::move(marginals2_)),
+      _mad_max(mad_max_),
+      _min_delta(min_delta_),
+      _max_delta(max_delta_),
+      _nnz(nnz_),
+      _sum(sum_) {
+  assert(_nnz <= _sum);
+  assert(_sum == std::accumulate(_marginals1->begin(), _marginals1->end(), std::uint64_t{}));
+  assert(_sum == std::accumulate(_marginals2->begin(), _marginals2->end(), std::uint64_t{}));
+}
 
 std::uint32_t ObservedMatrix::resolution() const noexcept { return _bins.resolution(); }
 

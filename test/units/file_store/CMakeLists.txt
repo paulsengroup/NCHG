@@ -36,6 +36,7 @@ target_link_libraries(
   PRIVATE
     nchg_project_warnings
     nchg_project_options
+    nchg::version
   PUBLIC
     Boost::headers
     glaze::glaze

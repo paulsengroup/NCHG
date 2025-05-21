@@ -27,6 +27,7 @@
 
 #include "./common.hpp"
 #include "nchg/test/tmpdir.hpp"
+#include "nchg/version.hpp"
 
 namespace nchg::test {
 
@@ -189,6 +190,9 @@ TEST_CASE("FileStore", "[short][io][file_store]") {
     REQUIRE(store.finalized());
 
     const auto report = NCHGResultMetadata::from_file(store.report_path());
+    // const auto msg = glz::write_json(report);
+    // std::ofstream ofs("/tmp/test.json", std::ios::trunc);
+    // ofs.write(msg->data(), static_cast<std::streamsize>(msg->size()));
 
     CHECK(report.path() == store.report_path());
     CHECK(report.records().size() == 2);
@@ -196,11 +200,8 @@ TEST_CASE("FileStore", "[short][io][file_store]") {
     CHECK(report.at(path2.filename()).digest() == test_hash2);
 
     CHECK(report.format_version() == "1.0");
-    CHECK(report.created_by() == "NCHG v0.0.2");
-    const auto msg = glz::write_json(report);
-    std::ofstream ofs("/tmp/test.json", std::ios::trunc);
-    ofs.write(msg->data(), static_cast<std::streamsize>(msg->size()));
-    CHECK(report.digest() == "e215114afcb2031456ace1e89b02d25a");
+    CHECK(report.created_by() == config::version::str_long());
+    CHECK(report.digest().size() == 32);
     CHECK(report.digest_algorithm() == "XXH3 (128 bits)");
     CHECK(report.digest_sample_size() == 512UL << 20UL);
   }

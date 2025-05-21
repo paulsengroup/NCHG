@@ -445,6 +445,17 @@ jobs:
 
           rm *.bedpe
 
+      - name: Test NCHG checksum
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.checksum.profraw"
+
+          sudo -u devel                                   \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"   \
+          build/src/nchg/NCHG checksum                    \
+            "$DATA_DIR/compute/ENCFF447ERX.1000000.json"  |
+            test/scripts/validate_nchg_output.py checksum \
+            4a1647c87b983aecd7b555988fc173c2
+
       - name: Test NCHG compute (mt)
         run: |
           LLVM_PROFILE_FILE="$PWD/nchg.compute-mt.%${LLVM_PROFILE_POOL_SIZE}m.profraw"

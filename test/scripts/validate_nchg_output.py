@@ -20,6 +20,7 @@
 
 
 import argparse
+import fileinput
 import json
 import logging
 import pathlib
@@ -63,6 +64,20 @@ def make_cartesian_product_sc(main_parser):
         "ref-bedpe",
         type=pathlib.Path,
         help="Path to the BEDPE file to be used as ground truth.",
+    )
+
+    add_common_flags(sc)
+
+
+def make_checksum_sc(main_parser):
+    sc: argparse.ArgumentParser = main_parser.add_parser(
+        "checksum",
+        help="Validate the output produced by NCHG checksum.",
+    )
+    sc.add_argument(
+        "checksum",
+        type=str,
+        help="Expected checksum",
     )
 
     add_common_flags(sc)
@@ -172,6 +187,7 @@ def make_cli() -> argparse.ArgumentParser:
     )
 
     make_cartesian_product_sc(sub_parser)
+    make_checksum_sc(sub_parser)
     make_compute_sc(sub_parser)
     make_merge_sc(sub_parser)
     make_filter_sc(sub_parser)
@@ -492,6 +508,30 @@ def validate_nchg_cartesian_product(test_file: pathlib.Path, ref_file: pathlib.P
     return 0
 
 
+def validate_nchg_checksum(expected_checksum: str) -> int:
+    logging.info(f'### NCHG checksum: validating using checksum="{expected_checksum}"...')
+    assert len(expected_checksum) == 32
+    lines = [x.strip() for x in fileinput.input(files=("-",), encoding="utf-8")]
+
+    if len(lines) != 1:
+        logging.error("checksum validation failed: expected 1 line, found %d", len(lines))
+        return 1
+
+    logging.info('read "%s" from stdin...', lines[0])
+    path, _, checksum = lines[0].partition("  ")
+
+    if path is None or not pathlib.Path(path).exists():
+        logging.error('checksum validation failed: file "%s" does not exist', path)
+        return 1
+
+    if checksum != expected_checksum:
+        logging.error('checksum validation failed: expected "%s", found "%s"', expected_checksum, checksum)
+        return 1
+
+    logging.debug("checksum validation was successful")
+    return 0
+
+
 def validate_nchg_compute(test_prefix: pathlib.Path, ref_prefix: pathlib.Path) -> int:
     logging.info(f"### NCHG compute: validating {test_prefix}...")
     if test_prefix == ref_prefix:
@@ -595,6 +635,10 @@ def main() -> int:
     cmd = args["command"]
     if cmd == "cartesian-product":
         return validate_nchg_cartesian_product(args["test-bedpe"], args["ref-bedpe"])
+
+    if cmd == "checksum":
+        return validate_nchg_checksum(args["checksum"])
+
     if cmd == "compute":
         return validate_nchg_compute(args["test-prefix"], args["ref-prefix"])
 

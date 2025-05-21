@@ -207,6 +207,7 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}          \
                 -DCMAKE_PREFIX_PATH="$PWD/conan-env/"                \
                 -DENABLE_DEVELOPER_MODE=${{ matrix.developer_mode }} \
+                -DNCHG_ENABLE_GIT_VERSION_TRACKING=OFF               \
                 -DNCHG_ENABLE_TESTING=ON                             \
                 -DNCHG_DOWNLOAD_TEST_DATASET=OFF                     \
                 -DOPT_ENABLE_CLANG_TIDY=OFF                          \

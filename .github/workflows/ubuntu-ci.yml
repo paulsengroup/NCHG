@@ -235,6 +235,7 @@ jobs:
                 -DENABLE_DEVELOPER_MODE=${{ matrix.developer_mode }} \
                 -DOPT_ENABLE_CLANG_TIDY=OFF                          \
                 -DOPT_ENABLE_CPPCHECK=OFF                            \
+                -DNCHG_ENABLE_GIT_VERSION_TRACKING=OFF               \
                 -DNCHG_ENABLE_TESTING=ON                             \
                 -DNCHG_DOWNLOAD_TEST_DATASET=OFF                     \
                 -DCMAKE_INSTALL_PREFIX=dest                          \

@@ -125,6 +125,7 @@ jobs:
 
           cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo             \
                 -DCMAKE_PREFIX_PATH="$PWD/conan-env"          \
+                -DNCHG_ENABLE_GIT_VERSION_TRACKING=OFF        \
                 -DNCHG_ENABLE_TESTING=ON                      \
                 -DNCHG_DOWNLOAD_TEST_DATASET=OFF              \
                 -DCMAKE_C_FLAGS="$cov_flags"                  \

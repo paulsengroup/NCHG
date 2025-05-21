@@ -154,7 +154,7 @@ void Cli::log_warnings() const noexcept {
 void Cli::make_cli() {
   _cli.name(_exec_name);
   _cli.description("NCHG.");
-  _cli.set_version_flag("-V,--version", std::string{config::version::str()});
+  _cli.set_version_flag("-V,--version", std::string{config::version::str_long()});
 
   auto *grp = _cli.add_option_group("help");
   grp->require_option(0, 1);

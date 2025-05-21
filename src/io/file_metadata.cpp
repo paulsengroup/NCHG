@@ -37,6 +37,7 @@
 
 #include "nchg/file_hashing.hpp"
 #include "nchg/text.hpp"
+#include "nchg/version.hpp"
 
 namespace nchg {
 
@@ -139,6 +140,8 @@ void NCHGResultMetadata::ValidationResult::throw_exception() const {
     throw std::runtime_error("failed to validate report file: unknown error");
   }
 }
+
+NCHGResultMetadata::NCHGResultMetadata() : _created_by(std::string{config::version::str_long()}) {}
 
 NCHGResultMetadata::NCHGResultMetadata(const std::filesystem::path& path_, std::string format_,
                                        std::string format_version_, std::string created_by_,

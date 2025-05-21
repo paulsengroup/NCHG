@@ -95,6 +95,7 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=Debug                \
                 -DCMAKE_PREFIX_PATH="$PWD/conan-env"    \
                 -DENABLE_DEVELOPER_MODE=OFF             \
+                -DNCHG_ENABLE_GIT_VERSION_TRACKING=OFF  \
                 -DNCHG_ENABLE_TESTING=ON                \
                 -DNCHG_DOWNLOAD_TEST_DATASET=OFF        \
                 -DCMAKE_INSTALL_PREFIX=dest             \

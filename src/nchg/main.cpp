@@ -36,6 +36,7 @@
 #include "nchg/tools/cli.hpp"
 #include "nchg/tools/config.hpp"
 #include "nchg/tools/tools.hpp"
+#include "nchg/version.hpp"
 
 using namespace nchg;
 
@@ -175,7 +176,7 @@ class GlobalLogger {
 
   void print_welcome_msg() {
     if (_ok) {
-      SPDLOG_INFO("Running NCHG v{}", "0.0.2");
+      SPDLOG_INFO("Running {}", config::version::str_long());
     }
   }
 
@@ -195,7 +196,7 @@ static auto global_logger = std::make_unique<GlobalLogger<256>>();
 static auto acquire_global_logger() noexcept { return std::move(global_logger); }
 
 [[nodiscard]] static bool should_print_welcome_msg(Cli::subcommand subcmd, const Config &config) {
-  if (subcmd == Cli::subcommand::help) {
+  if (subcmd == Cli::subcommand::none) {
     return false;
   }
 
@@ -243,16 +244,16 @@ static std::tuple<int, Cli::subcommand, Config> parse_cli_and_setup_logger(Cli &
     return std::make_tuple(ec, subcmd, config);
   } catch (const CLI::ParseError &e) {
     //  This takes care of formatting and printing error messages (if any)
-    return std::make_tuple(cli.exit(e), Cli::subcommand::help, Config{});
+    return std::make_tuple(cli.exit(e), Cli::subcommand::none, Config{});
   } catch (const std::filesystem::filesystem_error &e) {
     SPDLOG_ERROR("FAILURE! {}", e.what());
-    return std::make_tuple(1, Cli::subcommand::help, Config());
+    return std::make_tuple(1, Cli::subcommand::none, Config());
   } catch (const spdlog::spdlog_ex &e) {
     fmt::print(stderr,
                "FAILURE! An error occurred while setting up the main "
                "application logger: {}.\n",
                e.what());
-    return std::make_tuple(1, Cli::subcommand::help, Config());
+    return std::make_tuple(1, Cli::subcommand::none, Config());
   }
 }
 
@@ -267,7 +268,7 @@ int main(int argc, char **argv) noexcept {
     auto local_logger = acquire_global_logger();
     cli = std::make_unique<Cli>(argc, argv);
     const auto [ec, subcmd, config] = parse_cli_and_setup_logger(*cli, *local_logger);
-    if (ec != 0 || subcmd == Cli::subcommand::help) {
+    if (ec != 0 || subcmd == Cli::subcommand::none) {
       local_logger->clear();
       return ec;
     }

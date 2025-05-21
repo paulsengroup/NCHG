@@ -57,6 +57,7 @@ target_link_libraries(
   PRIVATE
     nchg_project_options
     nchg_project_warnings
+    nchg::version
     fmt::fmt-header-only
     spdlog::spdlog_header_only
   PUBLIC

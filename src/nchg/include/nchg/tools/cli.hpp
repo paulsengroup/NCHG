@@ -111,8 +111,8 @@ inline const auto IsValidHiCFile = HiCFileValidator();                          
 
 class Cli {
  public:
-  enum subcommand : std::uint_fast8_t {
-    help,
+  enum class subcommand : std::uint_fast8_t {
+    none,
     cartesian_product,
     checksum,
     compute,
@@ -138,8 +138,9 @@ class Cli {
   int _exit_code{1};
   Config _config{};
   CLI::App _cli{};
-  subcommand _subcommand{subcommand::help};
+  subcommand _subcommand{subcommand::none};
   mutable std::vector<std::string> _warnings{};
+  std::string_view _help_flag{};
 
   void make_cartesian_product_subcommand();
   void make_checksum_subcommand();
@@ -167,6 +168,8 @@ class Cli {
   void transform_args_merge_subcommand();
   void transform_args_view_subcommand();
   void transform_args();
+
+  [[nodiscard]] bool handle_help_flags();
 };
 
 }  // namespace nchg

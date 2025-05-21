@@ -67,10 +67,10 @@ sudo -u "$BUILD_USER" docker buildx build --platform linux/amd64 \
   --build-arg "FINAL_BASE_IMAGE_DIGEST=$FINAL_BASE_IMAGE_DIGEST" \
   --build-arg "C_COMPILER=clang-19" \
   --build-arg "CXX_COMPILER=clang++-19" \
-  --build-arg "GIT_HASH=$GIT_HASH" \
-  --build-arg "GIT_SHORT_HASH=$GIT_SHORT_HASH" \
-  --build-arg "GIT_TAG=$GIT_TAG" \
-  --build-arg "GIT_IS_DIRTY=$GIT_IS_DIRTY" \
+  --build-arg "NCHG_GIT_HASH=$GIT_HASH" \
+  --build-arg "NCHG_GIT_SHORT_HASH=$GIT_SHORT_HASH" \
+  --build-arg "NCHG_GIT_TAG=$GIT_TAG" \
+  --build-arg "NCHG_GIT_IS_DIRTY=$GIT_IS_DIRTY" \
   --build-arg "CREATION_DATE=$CREATION_DATE" \
   -t "$IMAGE_NAME:latest" \
   -t "$IMAGE_NAME:$(echo "$CREATION_DATE" | tr -d '\-' )" \

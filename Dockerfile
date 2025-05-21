@@ -76,32 +76,32 @@ COPY CMakeLists.txt "$src_dir/"
 COPY src "$src_dir/src/"
 COPY test "$src_dir/test/"
 
-ARG GIT_HASH
-ARG GIT_SHORT_HASH
-ARG GIT_TAG
-ARG GIT_IS_DIRTY
+ARG NCHG_GIT_HASH
+ARG NCHG_GIT_SHORT_HASH
+ARG NCHG_GIT_TAG
+ARG NCHG_GIT_IS_DIRTY
 
-RUN if [ -z "$GIT_HASH" ]; then echo "Missing GIT_HASH --build-arg" && exit 1; fi \
-&&  if [ -z "$GIT_SHORT_HASH" ]; then echo "Missing GIT_SHORT_HASH --build-arg" && exit 1; fi \
-&&  if [ -z "$GIT_IS_DIRTY" ]; then echo "Missing GIT_IS_DIRTY --build-arg" && exit 1; fi \
-&&  if [ -z "$GIT_TAG" ]; then echo "Missing GIT_TAG --build-arg" && exit 1; fi
+RUN if [ -z "$NCHG_GIT_HASH" ]; then echo "Missing NCHG_GIT_HASH --build-arg" && exit 1; fi \
+&&  if [ -z "$NCHG_GIT_SHORT_HASH" ]; then echo "Missing NCHG_GIT_SHORT_HASH --build-arg" && exit 1; fi \
+&&  if [ -z "$NCHG_GIT_IS_DIRTY" ]; then echo "Missing NCHG_GIT_IS_DIRTY --build-arg" && exit 1; fi \
+&&  if [ -z "$NCHG_GIT_TAG" ]; then echo "Missing NCHG_GIT_TAG --build-arg" && exit 1; fi
 
 ARG CCACHE_DISABLE=1
 
 # Configure project
-RUN cmake -DCMAKE_BUILD_TYPE=Release            \
-          -DCMAKE_PREFIX_PATH="$build_dir"      \
-          -DENABLE_DEVELOPER_MODE=OFF           \
-          -DCMAKE_INSTALL_PREFIX="$staging_dir" \
-          -DNCHG_ENABLE_TESTING=OFF             \
-          -DNCHG_USE_PIDFD_OPEN=OFF             \
-          -DGIT_RETRIEVED_STATE=true            \
-          -DGIT_TAG="$GIT_TAG"                  \
-          -DGIT_IS_DIRTY="$GIT_IS_DIRTY"        \
-          -DGIT_HEAD_SHA1="$GIT_HASH"           \
-          -DGIT_DESCRIBE="$GIT_SHORT_HASH"      \
-          -G Ninja                              \
-          -S "$src_dir"                         \
+RUN cmake -DCMAKE_BUILD_TYPE=Release                 \
+          -DCMAKE_PREFIX_PATH="$build_dir"           \
+          -DENABLE_DEVELOPER_MODE=OFF                \
+          -DCMAKE_INSTALL_PREFIX="$staging_dir"      \
+          -DNCHG_ENABLE_TESTING=OFF                  \
+          -DNCHG_USE_PIDFD_OPEN=OFF                  \
+          -DNCHG_GIT_RETRIEVED_STATE=true            \
+          -DNCHG_GIT_TAG="$NCHG_GIT_TAG"             \
+          -DNCHG_GIT_IS_DIRTY="$NCHG_GIT_IS_DIRTY"   \
+          -DNCHG_GIT_HEAD_SHA1="$NCHG_GIT_HASH"      \
+          -DNCHG_GIT_DESCRIBE="$NCHG_GIT_SHORT_HASH" \
+          -G Ninja                                   \
+          -S "$src_dir"                              \
           -B "$build_dir"
 
 # Build and install project
@@ -120,16 +120,16 @@ ARG BUILD_BASE_IMAGE
 ARG FINAL_BASE_IMAGE
 ARG FINAL_BASE_IMAGE_DIGEST
 
-ARG GIT_HASH
-ARG GIT_SHORT_HASH
+ARG NCHG_GIT_HASH
+ARG NCHG_GIT_SHORT_HASH
 ARG VERSION
 ARG CREATION_DATE
 
 RUN if [ -z "$BUILD_BASE_IMAGE" ]; then echo "Missing BUILD_BASE_IMAGE --build-arg" && exit 1; fi \
 &&  if [ -z "$FINAL_BASE_IMAGE" ]; then echo "Missing FINAL_BASE_IMAGE --build-arg" && exit 1; fi \
 &&  if [ -z "$FINAL_BASE_IMAGE_DIGEST" ]; then echo "Missing FINAL_BASE_IMAGE_DIGEST --build-arg" && exit 1; fi \
-&&  if [ -z "$GIT_HASH" ]; then echo "Missing GIT_HASH --build-arg" && exit 1; fi \
-&&  if [ -z "$GIT_SHORT_HASH" ]; then echo "Missing GIT_SHORT_HASH --build-arg" && exit 1; fi \
+&&  if [ -z "$NCHG_GIT_HASH" ]; then echo "Missing NCHG_GIT_HASH --build-arg" && exit 1; fi \
+&&  if [ -z "$NCHG_GIT_SHORT_HASH" ]; then echo "Missing NCHG_GIT_SHORT_HASH --build-arg" && exit 1; fi \
 &&  if [ -z "$CREATION_DATE" ]; then echo "Missing CREATION_DATE --build-arg" && exit 1; fi
 
 # Export project binaries to the final build stage
@@ -153,6 +153,6 @@ LABEL org.opencontainers.image.base.digest="$FINAL_BASE_IMAGE_DIGEST"
 LABEL org.opencontainers.image.base.name="$FINAL_BASE_IMAGE"
 LABEL paulsengroup.nchg.image.build-base="$BUILD_BASE_IMAGE"
 
-LABEL org.opencontainers.image.revision="$GIT_HASH"
+LABEL org.opencontainers.image.revision="$NCHG_GIT_HASH"
 LABEL org.opencontainers.image.created="$CREATION_DATE"
-LABEL org.opencontainers.image.version="${VERSION:-sha-$GIT_SHORT_HASH}"
+LABEL org.opencontainers.image.version="${VERSION:-sha-$NCHG_GIT_SHORT_HASH}"

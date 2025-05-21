@@ -496,6 +496,13 @@ jobs:
 
           rm *.bedpe
 
+      - name: Test NCHG checksum
+        run: |
+          bin/NCHG checksum \
+            "$DATA_DIR/compute/ENCFF447ERX.1000000.json" |
+            test/scripts/validate_nchg_output.py checksum \
+            4a1647c87b983aecd7b555988fc173c2
+
       - name: Test NCHG compute (mt)
         run: |
           bin/NCHG compute                                     \

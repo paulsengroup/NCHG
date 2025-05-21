@@ -33,9 +33,20 @@ if(NOT CMAKE_FIND_PACKAGE_PREFER_CONFIG)
   set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
 endif()
 
-# include(cmake/Versioning.cmake)
+set(NCHG_PROJECT_VERSION_MAJOR 0)
+set(NCHG_PROJECT_VERSION_MINOR 0)
+set(NCHG_PROJECT_VERSION_PATCH 2)
+set(NCHG_PROJECT_VERSION_SUFFIX "")
 
-project(NCHG LANGUAGES CXX VERSION 0.0.2)
+project(
+  NCHG
+  LANGUAGES
+    C
+    CXX
+  VERSION "${NCHG_PROJECT_VERSION_MAJOR}.${NCHG_PROJECT_VERSION_MINOR}.${NCHG_PROJECT_VERSION_PATCH}"
+  HOMEPAGE_URL https://github.com/paulsengroup/NCHG
+  # DESCRIPTION "TODO"
+)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -149,6 +160,7 @@ if(MSVC)
 endif()
 
 option(BUILD_SHARED_LIBS "Build shared library" OFF)
+option(NCHG_ENABLE_GIT_VERSION_TRACKING "Retrieve project version and metadata from git" ON)
 option(NCHG_ENABLE_TESTING "Build unit tests" ON)
 option(NCHG_USE_PIDFD_OPEN "Use pidfd_open() when available" ON)
 

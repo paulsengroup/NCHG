@@ -1,0 +1,101 @@
+// Copyright (C) 2025 Roberto Rossini <roberros@uio.no>
+//
+// SPDX-License-Identifier: GPL-3.0
+//
+// This library is free software: you can redistribute it and/or
+// modify it under the terms of the GNU Public License as published
+// by the Free Software Foundation; either version 3 of the License,
+// or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+// Library General Public License for more details.
+//
+// You should have received a copy of the GNU Public License along
+// with this library.  If not, see
+// <https://www.gnu.org/licenses/>.
+
+// This file was generated automatically by CMake.
+
+#pragma once
+
+#include <fmt/format.h>
+
+#include <cassert>
+#include <cstdint>
+#include <string>
+#include <string_view>
+
+#include "nchg/git.hpp"
+
+namespace nchg::config::version {
+
+// clang-format off
+[[nodiscard]] constexpr std::uint_fast8_t major() noexcept { return @NCHG_PROJECT_VERSION_MAJOR@; }
+[[nodiscard]] constexpr std::uint_fast8_t minor() noexcept { return @NCHG_PROJECT_VERSION_MINOR@; }
+[[nodiscard]] constexpr std::uint_fast8_t patch() noexcept { return @NCHG_PROJECT_VERSION_PATCH@; }
+// clang-format on
+
+namespace internal {
+
+[[nodiscard]] inline std::string generate_suffix() {
+  namespace git = nchg::config::git;
+  constexpr std::string_view raw_suffix{"@NCHG_PROJECT_VERSION_SUFFIX@"};  // NOLINT
+  if (!git::state_available()) {
+    return std::string{raw_suffix};
+  }
+
+  const std::string is_dirty_suffix = git::is_dirty() ? "-dirty" : "";
+  const auto short_hash_suffix = std::string{"-"} + std::string{git::describe()};
+  const auto short_version = fmt::format(FMT_STRING("{}.{}.{}"), major(), minor(), patch());
+
+  std::string buff{};
+  const auto expected_release_tag =
+      "v" + short_version + (raw_suffix.empty() ? "" : "-" + std::string{raw_suffix});
+  if (git::tag() == expected_release_tag) {
+    buff = std::string{raw_suffix};
+  } else {
+    buff = std::string{raw_suffix} + short_hash_suffix;
+  }
+  buff.append(is_dirty_suffix);
+
+  if (!buff.empty() && buff.front() == '-') {
+    buff.erase(0, 1);
+  }
+
+  return buff;
+}
+
+}  // namespace internal
+
+[[nodiscard]] inline std::string_view suffix() {
+  static const std::string buff{internal::generate_suffix()};
+  return buff;
+}
+
+[[nodiscard]] inline std::string_view str() {
+  static const std::string buff =
+      suffix().empty()
+          ? fmt::format(FMT_STRING("{}.{}.{}"), major(), minor(), patch())
+          : fmt::format(FMT_STRING("{}.{}.{}-{}"), major(), minor(), patch(), suffix());
+  return buff;
+}
+
+[[nodiscard]] inline std::string_view str_long(std::string_view prefix = "NCHG") {
+  assert(!prefix.empty());
+  static const std::string buff{fmt::format(FMT_STRING("{}-v{}"), prefix, str())};
+  return buff;
+}
+
+}  // namespace nchg::config::version
+
+
+namespace nchg {
+
+// NOLINTBEGIN(cert-err58-cpp)
+inline const std::string_view NCHG_VERSION_STRING{nchg::config::version::str()};
+inline const std::string_view NCHG_VERSION_STRING_LONG{nchg::config::version::str_long()};
+// NOLINTEND(cert-err58-cpp)
+
+}

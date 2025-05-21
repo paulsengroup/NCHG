@@ -58,6 +58,7 @@ target_link_libraries(
     nchg::genomic_domains
     nchg::hypothesis_testing
     nchg::io
+    nchg::version
     Boost::headers
     Boost::filesystem # Required by boost::process::v2
     bshoshany-thread-pool::bshoshany-thread-pool

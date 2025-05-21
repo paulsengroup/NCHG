@@ -83,7 +83,7 @@ class NCHGResultMetadata {
   std::filesystem::path _path{};
   std::string _format{"NCHG metadata"};
   std::string _format_version{"1.0"};
-  std::string _created_by{"NCHG v0.0.2"};  // TODO fixme
+  std::string _created_by{};
   std::string _creation_time{};
   XXH3Digest _digest{};
   std::string _digest_algorithm{"XXH3 (128 bits)"};
@@ -91,7 +91,7 @@ class NCHGResultMetadata {
   phmap::btree_set<FileMetadata, FileMetadataCmp> _records{};
 
  public:
-  NCHGResultMetadata() = default;
+  NCHGResultMetadata();
   // Note that this ctor does not do any validation on its params
   NCHGResultMetadata(const std::filesystem::path& path_, std::string format_,
                      std::string format_version_, std::string created_by_,

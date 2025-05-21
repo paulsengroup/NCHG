@@ -42,7 +42,10 @@
 #include <unistd.h>
 #endif
 
+#include "nchg/common.hpp"
+#include "nchg/license.hpp"
 #include "nchg/tools/config.hpp"
+#include "nchg/version.hpp"
 
 namespace nchg {
 
@@ -57,6 +60,10 @@ auto Cli::parse_arguments() -> Config {
   try {
     _cli.name(_exec_name);
     _cli.parse(_argc, _argv);
+
+    if (handle_help_flags()) {
+      return _config;
+    }
 
     using enum subcommand;
     if (_cli.get_subcommand("cartesian-product")->parsed()) {
@@ -74,7 +81,16 @@ auto Cli::parse_arguments() -> Config {
     } else if (_cli.get_subcommand("view")->parsed()) {
       _subcommand = view;
     } else {
-      _subcommand = help;
+      _subcommand = subcommand::none;
+      for (const auto *opt : {"--help", "--version"}) {
+        if (!_cli.get_option(opt)->empty()) {
+          _exit_code = 0;
+          return _config;
+        }
+      }
+      fmt::print(stderr, "A subcommand is required\nRun with --help for more information.\n");
+      _exit_code = 1;
+      return _config;
     }
   } catch (const CLI::ParseError &e) {
     //  This takes care of formatting and printing error messages (if any)
@@ -106,24 +122,25 @@ int Cli::exit(const CLI::ParseError &e) const { return _cli.exit(e); }
 int Cli::exit() const noexcept { return _exit_code; }
 
 std::string_view Cli::subcommand_to_str(subcommand s) noexcept {
+  using sc = subcommand;
   switch (s) {
-    case cartesian_product:
+    case sc::cartesian_product:
       return "cartesian-product";
-    case checksum:
+    case sc::checksum:
       return "checksum";
-    case compute:
+    case sc::compute:
       return "compute";
-    case expected:
+    case sc::expected:
       return "expected";
-    case filter:
+    case sc::filter:
       return "filter";
-    case merge:
+    case sc::merge:
       return "merge";
-    case view:
+    case sc::view:
       return "view";
     default:
-      assert(s == help);
-      return "--help";
+      assert(s == sc::none);
+      return "";
   }
 }
 
@@ -137,8 +154,21 @@ void Cli::log_warnings() const noexcept {
 void Cli::make_cli() {
   _cli.name(_exec_name);
   _cli.description("NCHG.");
-  _cli.set_version_flag("-V,--version", "0.0.2");
-  _cli.require_subcommand(1);
+  _cli.set_version_flag("-V,--version", std::string{config::version::str()});
+
+  auto *grp = _cli.add_option_group("help");
+  grp->require_option(0, 1);
+
+  /*
+  grp->add_flag_callback(
+      "--help-cite", [this]() { _help_flag = "cite"; },
+      "Print NCHG's citation in Bibtex format and exit.");
+  */
+  grp->add_flag_callback(
+      "--help-docs", [this]() { _help_flag = "docs"; },
+      "Print the URL to NCHG's documentation and exit.");
+  grp->add_flag_callback(
+      "--help-license", [this]() { _help_flag = "license"; }, "Print the NCHG license and exit.");
 
   make_cartesian_product_subcommand();
   make_checksum_subcommand();
@@ -765,23 +795,31 @@ void Cli::make_view_subcommand() {
 }
 
 void Cli::validate_args() const {
+  using sc = subcommand;
   switch (get_subcommand()) {
-    case cartesian_product:
-      return validate_cartesian_product_subcommand();  // NOLINT
-    case checksum:
-      return validate_checksum_subcommand();  // NOLINT
-    case compute:
-      return validate_compute_subcommand();  // NOLINT
-    case expected:
-      return validate_expected_subcommand();  // NOLINT
-    case filter:
-      return validate_filter_subcommand();  // NOLINT
-    case merge:
-      return validate_merge_subcommand();  // NOLINT
-    case view:
-      return validate_view_subcommand();  // NOLINT
-    case help:
-      return;
+    case sc::cartesian_product:
+      validate_cartesian_product_subcommand();  // NOLINT
+      break;
+    case sc::checksum:
+      validate_checksum_subcommand();  // NOLINT
+      break;
+    case sc::compute:
+      validate_compute_subcommand();  // NOLINT
+      break;
+    case sc::expected:
+      validate_expected_subcommand();  // NOLINT
+      break;
+    case sc::filter:
+      validate_filter_subcommand();  // NOLINT
+      break;
+    case sc::merge:
+      validate_merge_subcommand();  // NOLINT
+      break;
+    case sc::view:
+      validate_view_subcommand();  // NOLINT
+      break;
+    case sc::none:
+      break;
   }
 }
 
@@ -893,23 +931,31 @@ void Cli::validate_merge_subcommand() const {
 void Cli::validate_view_subcommand() const {}
 
 void Cli::transform_args() {
+  using sc = subcommand;
   switch (get_subcommand()) {
-    case cartesian_product:
-      return transform_args_cartesian_product_subcommand();  // NOLINT
-    case checksum:
-      return transform_args_checksum_subcommand();  // NOLINT
-    case compute:
-      return transform_args_compute_subcommand();  // NOLINT
-    case expected:
-      return transform_args_expected_subcommand();  // NOLINT
-    case filter:
-      return transform_args_filter_subcommand();  // NOLINT
-    case merge:
-      return transform_args_merge_subcommand();  // NOLINT
-    case view:
-      return transform_args_view_subcommand();  // NOLINT
-    case help:
-      return;
+    case sc::cartesian_product:
+      transform_args_cartesian_product_subcommand();  // NOLINT
+      break;
+    case sc::checksum:
+      transform_args_checksum_subcommand();  // NOLINT
+      break;
+    case sc::compute:
+      transform_args_compute_subcommand();  // NOLINT
+      break;
+    case sc::expected:
+      transform_args_expected_subcommand();  // NOLINT
+      break;
+    case sc::filter:
+      transform_args_filter_subcommand();  // NOLINT
+      break;
+    case sc::merge:
+      transform_args_merge_subcommand();  // NOLINT
+      break;
+    case sc::view:
+      transform_args_view_subcommand();  // NOLINT
+      break;
+    case sc::none:
+      break;
   }
 }
 
@@ -1031,5 +1077,27 @@ void Cli::transform_args_merge_subcommand() {
 }
 
 void Cli::transform_args_view_subcommand() {}
+
+bool Cli::handle_help_flags() {
+  if (_help_flag.empty()) {
+    return false;
+  }
+
+  if (_help_flag == "license") {
+    fmt::print("{}", config::license::license);
+    /*
+    } else if (_help_flag == "cite") {
+      fmt::print("{}", get_citation());
+    */
+  } else if (_help_flag == "docs") {
+    fmt::println("https://github.com/paulsengroup/NCHG?tab=readme-ov-file#NCHG");
+  } else {
+    unreachable_code();
+  }
+
+  _subcommand = subcommand::none;
+  _exit_code = 0;
+  return true;
+}
 
 }  // namespace nchg

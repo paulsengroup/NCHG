@@ -39,9 +39,9 @@
 #include <vector>
 
 #include "nchg/parquet_stats_file_reader.hpp"
+#include "nchg/version.hpp"
 
 namespace nchg {
-
 static std::shared_ptr<arrow::Array> make_chrom_dict(const hictk::Reference &chroms) {
   arrow::StringBuilder builder{};
   for (const auto &chrom : chroms) {
@@ -93,7 +93,7 @@ ParquetStatsFileWriter::ParquetStatsFileWriter(hictk::Reference chroms,
                                                std::size_t batch_size)
     : _path(path),
       _props(parquet::WriterProperties::Builder()
-                 .created_by("NCHG v0.0.2")  // TODO fixme
+                 .created_by(std::string{config::version::str_long()})
                  ->version(parquet::ParquetVersion::PARQUET_2_6)
                  ->data_page_version(parquet::ParquetDataPageVersion::V2)
                  ->compression(parse_parquet_compression(compression_method))

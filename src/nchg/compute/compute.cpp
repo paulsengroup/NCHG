@@ -313,9 +313,9 @@ static void validate_expected_values(const ExpectedValues &expected_values,
                                                   bool init_file_store) {
   struct Plan {
     std::unique_ptr<FileStore> file_store;
-    ChromosomePairs chrom_pairs{};
-    std::optional<ExpectedValues> expected_values{};
-    std::optional<GenomicDomains> domains{};
+    ChromosomePairs chrom_pairs;
+    std::optional<ExpectedValues> expected_values;
+    std::optional<GenomicDomains> domains;
   };
 
   const hictk::File f(c.path_to_hic.string(), c.resolution);
@@ -348,6 +348,7 @@ static void validate_expected_values(const ExpectedValues &expected_values,
   return plan;
 }
 
+// NOLINTNEXTLINE(*-use-internal-linkage)
 int run_command(const ComputePvalConfig &c) {
   const auto t0 = std::chrono::steady_clock::now();
 

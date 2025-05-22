@@ -413,9 +413,10 @@ bool NCHGResultMetadata::contains(const std::filesystem::path& name) const {
   return it != _records.end();
 }
 
-void NCHGResultMetadata::add_record(std::filesystem::path path, XXH3Digest digest,
+void NCHGResultMetadata::add_record(const std::filesystem::path& path, XXH3Digest digest,
                                     std::size_t size) {
-  FileMetadata record{normalize_path(std::move(path), _root_dir), std::move(digest), size};
+  FileMetadata record{
+      .name = normalize_path(path, _root_dir), .digest = std::move(digest), .size = size};
   record.validate("", _root_dir);
   if (_records.contains(record.name)) {
     throw std::runtime_error(fmt::format("entry for \"{}\" already exists", record.name));

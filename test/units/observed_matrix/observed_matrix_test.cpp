@@ -29,6 +29,7 @@
 
 namespace nchg::test {
 
+// NOLINTBEGIN(*-avoid-magic-numbers, readability-function-cognitive-complexity)
 TEST_CASE("ObservedMatrix (cis)", "[short][observed_matrix]") {
   const std::uint32_t resolution = 5;
 
@@ -207,5 +208,7 @@ TEST_CASE("ObservedMatrix (trans)", "[short][observed_matrix]") {
     CHECK(m.nnz() == 0);
   }
 }
+
+// NOLINTEND(*-avoid-magic-numbers, readability-function-cognitive-complexity)
 
 }  // namespace nchg::test

@@ -31,6 +31,7 @@
 
 namespace nchg::test {
 
+// NOLINTBEGIN(*-avoid-magic-numbers, readability-function-cognitive-complexity)
 static std::filesystem::path stage_file(const std::filesystem::path& src, const FileStore& store) {
   return stage_file(src, store.root());
 }
@@ -206,5 +207,7 @@ TEST_CASE("FileStore", "[short][io][file_store]") {
     CHECK(report.digest_sample_size() == 512UL << 20UL);
   }
 }
+
+// NOLINTEND(*-avoid-magic-numbers, readability-function-cognitive-complexity)
 
 }  // namespace nchg::test

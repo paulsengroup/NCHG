@@ -29,7 +29,7 @@
 namespace nchg {
 
 std::vector<bool> mad_max_filtering(std::vector<double>& margs, double mad_max) {
-  auto mad = [&](const auto vin) {
+  auto mad = [&](const auto& vin) {
     const auto median_ = median(vin);
     auto vout = vin;
 
@@ -61,7 +61,7 @@ std::vector<bool> mad_max_filtering(std::vector<double>& margs, double mad_max) 
   const auto median_log_nz_marg = median(log_nz_marg);
   const auto dev_log_nz_marg = mad(log_nz_marg);
 
-  const auto cutoff = std::exp(median_log_nz_marg - mad_max * dev_log_nz_marg);
+  const auto cutoff = std::exp(median_log_nz_marg - (mad_max * dev_log_nz_marg));
 
   for (std::size_t i = 0; i < margs.size(); ++i) {
     if (margs[i] < cutoff) {

@@ -78,7 +78,7 @@ class ProcessContext {
 
  public:
   ProcessContext() = default;
-  [[nodiscard]] LockedContext operator()() { return std::make_pair(std::unique_lock{_mtx}, &_ctx); }
+  [[nodiscard]] LockedContext operator()() { return {std::unique_lock{_mtx}, &_ctx}; }
 };
 
 [[nodiscard]] static auto init_nchg(const std::shared_ptr<const hictk::File> &f,
@@ -89,8 +89,8 @@ class ProcessContext {
 
   struct Result {
     NCHG nchg;
-    std::shared_ptr<const std::vector<bool>> bin1_mask{};
-    std::shared_ptr<const std::vector<bool>> bin2_mask{};
+    std::shared_ptr<const std::vector<bool>> bin1_mask;
+    std::shared_ptr<const std::vector<bool>> bin2_mask;
   };
 
   const auto &chrom1 = f->chromosomes().at(*c.chrom1);
@@ -572,8 +572,10 @@ static std::size_t process_queries_mt(BS::light_thread_pool &tpool, FileStore &f
       const auto &[chrom1, chrom2] = chrom_pair;
       SPDLOG_DEBUG("submitting task {}/{} ({}:{})...", tasks_submitted + 1, workers.size(),
                    chrom1.name(), chrom2.name());
+      // NOLINTBEGIN(clang-analyzer-unix.BlockInCriticalSection)
       return worker_fx(file_store, chrom1, chrom2, domains, tmpdir, msg_queue, ctx, base_config,
                        user_provided_expected_values, early_return);
+      // NOLINTEND(clang-analyzer-unix.BlockInCriticalSection)
     }));
     ++tasks_submitted;
     sleep_time = std::chrono::milliseconds{2};

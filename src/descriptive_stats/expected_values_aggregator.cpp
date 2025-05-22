@@ -30,6 +30,7 @@
 #include <hictk/chromosome.hpp>
 #include <limits>
 #include <memory>
+#include <ranges>
 #include <stdexcept>
 #include <vector>
 
@@ -150,8 +151,8 @@ std::size_t ExpectedValuesAggregator::aggregate_low_cov_bins(
     ++i;
   }
 
-  auto last_nnz = std::find_if(_observed_distances.rbegin(), _observed_distances.rend(),
-                               [](const auto n) { return n != 0; });
+  auto last_nnz = std::ranges::find_if(std::ranges::reverse_view(_observed_distances),
+                                       [](const auto n) { return n != 0; });
   if (last_nnz != _observed_distances.rbegin()) {
     --last_nnz;
   }

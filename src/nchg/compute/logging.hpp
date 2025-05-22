@@ -82,9 +82,9 @@ namespace nchg {
 
 class MessageQueue {
   std::string _name;
-  std::unique_ptr<boost::interprocess::message_queue> _queue{};
+  std::unique_ptr<boost::interprocess::message_queue> _queue;
   std::mutex _mtx;
-  std::string _eoq_signal{};
+  std::string _eoq_signal;
   const std::atomic<bool> *_early_return{};
   bool _destroy_queue{false};
 

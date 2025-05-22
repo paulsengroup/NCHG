@@ -54,7 +54,7 @@ class ParquetFileMerger {
   using Record = std::tuple<hictk::Chromosome, hictk::Chromosome, std::filesystem::path>;
 
   std::queue<Record> _files;
-  hictk::Chromosome _chrom1{};
+  hictk::Chromosome _chrom1;
 
  public:
   ParquetFileMerger(const hictk::Reference &chroms, std::vector<std::filesystem::path> files)
@@ -432,10 +432,10 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
 [[nodiscard]] static auto classify_invalid_records(
     const NCHGResultMetadata::ValidationResult &res) {
   struct InvalidRecordsReport {
-    std::vector<std::pair<std::filesystem::path, std::string>> missing_files{};
-    std::vector<std::pair<std::filesystem::path, std::string>> size_mismatch{};
-    std::vector<std::pair<std::filesystem::path, std::string>> checksum_mismatch{};
-    std::vector<std::pair<std::filesystem::path, std::string>> other_errors{};
+    std::vector<std::pair<std::filesystem::path, std::string>> missing_files;
+    std::vector<std::pair<std::filesystem::path, std::string>> size_mismatch;
+    std::vector<std::pair<std::filesystem::path, std::string>> checksum_mismatch;
+    std::vector<std::pair<std::filesystem::path, std::string>> other_errors;
   };
 
   InvalidRecordsReport result{};
@@ -613,7 +613,7 @@ static void validate_input_files(const std::filesystem::path &input_prefix, std:
 
   const auto t0 = std::chrono::steady_clock::now();
   const auto metadata = NCHGResultMetadata::from_file(path_to_report, false);
-  std::unique_ptr<BS::light_thread_pool> tpool =
+  const std::unique_ptr<BS::light_thread_pool> tpool =
       threads > 1 ? std::make_unique<BS::light_thread_pool>(threads) : nullptr;
   const auto validation_result = metadata.validate(tpool.get());
   handle_validation_errors(path_to_report, validation_result);
@@ -645,8 +645,8 @@ int run_command(const MergeConfig &c) {
   const auto chroms = import_chromosomes(c.input_prefix);
   const auto parquet_files = enumerate_parquet_tables(chroms, c);
 
-  moodycamel::BlockingConcurrentQueue<NCHGResult> queue(64 * 1024);
-  std::atomic<bool> early_return{false};
+  moodycamel::BlockingConcurrentQueue<NCHGResult> queue(64UZ * 1024UZ);
+  std::atomic early_return{false};
 
   auto producer = std::async(std::launch::deferred, [&] {
     SPDLOG_DEBUG("spawning producer thread...");

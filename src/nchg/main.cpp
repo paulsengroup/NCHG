@@ -45,10 +45,10 @@ class GlobalLogger {
   //                                   [2021-08-12 17:49:34.581] [info]: my log msg
   static constexpr auto *_msg_pattern{"[%Y-%m-%d %T.%e] %^[%l]%$: %v"};
   using NCHGLogMsg = std::pair<spdlog::level::level_enum, std::string>;
-  std::deque<NCHGLogMsg> _msg_buffer{};
+  std::deque<NCHGLogMsg> _msg_buffer;
 
   std::mutex _mtx;
-  std::atomic<std::size_t> _num_msg_enqueued{};
+  std::atomic<std::size_t> _num_msg_enqueued{0};
   std::atomic<bool> _ok{false};
 
   [[nodiscard]] static std::shared_ptr<spdlog::sinks::stderr_color_sink_mt> init_stderr_sink() {

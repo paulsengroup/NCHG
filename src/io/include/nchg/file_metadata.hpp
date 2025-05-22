@@ -38,8 +38,8 @@ namespace nchg {
 class NCHGResultMetadata {
  public:
   struct FileMetadata {
-    std::filesystem::path name{};
-    XXH3Digest digest{};
+    std::filesystem::path name;
+    XXH3Digest digest;
     std::size_t size{};
 
     bool operator==(const std::filesystem::path& other) const noexcept;
@@ -60,12 +60,12 @@ class NCHGResultMetadata {
 
   struct ValidationResult {
     bool successfully_finalized{};
-    std::string expected_checksum{};
-    std::string computed_checksum{};
-    std::vector<std::string> report_validation_failures{};
-    std::vector<std::pair<std::filesystem::path, std::string>> record_validation_failures{};
+    std::string expected_checksum;
+    std::string computed_checksum;
+    std::vector<std::string> report_validation_failures;
+    std::vector<std::pair<std::filesystem::path, std::string>> record_validation_failures;
     std::size_t num_records{};
-    std::exception_ptr unhandled_exception{};
+    std::exception_ptr unhandled_exception{};  // NOLINT(*-redundant-member-init)
 
     explicit operator bool() const noexcept;
     [[noreturn]] void throw_exception() const;
@@ -79,16 +79,16 @@ class NCHGResultMetadata {
     bool operator()(const std::filesystem::path& lhs, const FileMetadata& rhs) const noexcept;
   };
 
-  std::filesystem::path _root_dir{};
-  std::filesystem::path _path{};
+  std::filesystem::path _root_dir;
+  std::filesystem::path _path;
   std::string _format{"NCHG metadata"};
   std::string _format_version{"1.0"};
-  std::string _created_by{};
-  std::string _creation_time{};
-  XXH3Digest _digest{};
+  std::string _created_by;
+  std::string _creation_time;
+  XXH3Digest _digest;
   std::string _digest_algorithm{"XXH3 (128 bits)"};
   std::size_t _digest_sample_size{512UL << 20UL};
-  phmap::btree_set<FileMetadata, FileMetadataCmp> _records{};
+  phmap::btree_set<FileMetadata, FileMetadataCmp> _records;
 
  public:
   NCHGResultMetadata();
@@ -121,7 +121,7 @@ class NCHGResultMetadata {
   [[nodiscard]] auto at(const std::filesystem::path& name) const -> const FileMetadata&;
   [[nodiscard]] bool contains(const std::filesystem::path& name) const;
 
-  void add_record(std::filesystem::path path, XXH3Digest digest, std::size_t size);
+  void add_record(const std::filesystem::path& path, XXH3Digest digest, std::size_t size);
 
   struct glaze {
     friend class NCHGResultMetadata;

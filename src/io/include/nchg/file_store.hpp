@@ -27,9 +27,9 @@
 namespace nchg {
 
 class FileStore {
-  NCHGResultMetadata _metadata{};
-  mutable std::mutex _mtx{};
-  std::ofstream _report_fs{};
+  NCHGResultMetadata _metadata;
+  mutable std::mutex _mtx;
+  std::ofstream _report_fs;
   bool _finalized{false};
 
  public:

@@ -97,6 +97,7 @@ using FlatPvalueMap = phmap::flat_hash_map<std::size_t, double>;
 
   std::size_t i = 0;
   ParquetStatsFileReader f{path, ParquetStatsFileReader::RecordType::NCHGCompute};
+  // NOLINTNEXTLINE(*-use-ranges)
   std::for_each(f.begin<NCHGResult>(), f.end<NCHGResult>(), [&](const NCHGResult& record) {
     const auto& chrom1 = record.pixel.coords.bin1.chrom();
     const auto& chrom2 = record.pixel.coords.bin2.chrom();
@@ -123,7 +124,7 @@ using FlatPvalueMap = phmap::flat_hash_map<std::size_t, double>;
 [[nodiscard]] static FlatPvalueMap alloc_pvalue_hashmap(const ChromChromPvalueMap& records) {
   auto sizes =
       records | std::views::values | std::views::transform([](const auto& v) { return v.size(); });
-  const auto num_records = std::accumulate(sizes.begin(), sizes.end(), 0uz);
+  const auto num_records = std::accumulate(sizes.begin(), sizes.end(), 0UZ);
 
   return FlatPvalueMap{num_records};
 }
@@ -217,7 +218,7 @@ using FlatPvalueMap = phmap::flat_hash_map<std::size_t, double>;
 }
 
 struct NCHGFilterResult {
-  hictk::Pixel<std::uint64_t> pixel{};
+  hictk::Pixel<std::uint64_t> pixel;
   double expected{};
   double pval{};
   double pval_corrected{};
@@ -330,8 +331,8 @@ int run_command(const FilterConfig& c) {
   const auto t0 = std::chrono::steady_clock::now();
   const auto corrected_pvalues = correct_pvalues(read_records(c.input_path), c);
 
-  RecordQueue queue{64uz * 1024uz};
-  std::atomic<bool> early_return{};
+  RecordQueue queue{64UZ * 1024UZ};
+  std::atomic early_return{false};
 
   auto producer = std::async(std::launch::deferred, [&] {
     SPDLOG_DEBUG("spawning producer thread...");

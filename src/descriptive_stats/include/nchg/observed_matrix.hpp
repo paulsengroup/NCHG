@@ -34,13 +34,13 @@ class ObservedMatrix {
   using N = std::uint32_t;
   using MarginalBuff = std::vector<std::uint64_t>;
 
-  hictk::Chromosome _chrom1{};
-  hictk::Chromosome _chrom2{};
+  hictk::Chromosome _chrom1;
+  hictk::Chromosome _chrom2;
 
-  hictk::BinTable _bins{};
+  hictk::BinTable _bins;
 
-  std::shared_ptr<const MarginalBuff> _marginals1{};
-  std::shared_ptr<const MarginalBuff> _marginals2{};
+  std::shared_ptr<const MarginalBuff> _marginals1;
+  std::shared_ptr<const MarginalBuff> _marginals2;
 
   double _mad_max{};
   std::uint64_t _min_delta{};

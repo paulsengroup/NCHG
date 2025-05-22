@@ -59,7 +59,7 @@ inline auto BH_FDR<Stats>::correct(UnaryOperation op) -> std::vector<Stats> {
   }
 
   _idx.resize(_pvalues.size());
-  std::iota(_idx.begin(), _idx.end(), 0);
+  std::iota(_idx.begin(), _idx.end(), 0);  // NOLINT(*-use-ranges)
 
   std::ranges::sort(_idx, std::less{}, [&](const auto i) { return op(_pvalues[i]); });
 

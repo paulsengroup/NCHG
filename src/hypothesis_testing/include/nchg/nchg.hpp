@@ -42,7 +42,7 @@
 namespace nchg {
 
 struct NCHGResult {
-  hictk::Pixel<std::uint64_t> pixel{};
+  hictk::Pixel<std::uint64_t> pixel;
   double expected{};
   double pval{};
   double log_ratio{};
@@ -65,14 +65,14 @@ class NCHG {
  private:
   std::shared_ptr<const hictk::File> _fp;
 
-  hictk::Chromosome _chrom1{};
-  hictk::Chromosome _chrom2{};
+  hictk::Chromosome _chrom1;
+  hictk::Chromosome _chrom2;
 
-  std::shared_ptr<const ExpectedMatrixStats> _exp_matrix{};
-  std::shared_ptr<const ObservedMatrix> _obs_matrix{};
-  ExpectedValues _expected_values{};
+  std::shared_ptr<const ExpectedMatrixStats> _exp_matrix;
+  std::shared_ptr<const ObservedMatrix> _obs_matrix;
+  ExpectedValues _expected_values;
 
-  mutable std::vector<double> _nchg_pval_buffer{};
+  mutable std::vector<double> _nchg_pval_buffer;
 
  public:
   using IteratorVariant =
@@ -155,15 +155,15 @@ class NCHG {
   template <typename PixelSelector>
   class iterator {
     using PixelIt = decltype(std::declval<PixelSelector>().template begin<N>());
-    std::shared_ptr<const PixelSelector> _sel{};
+    std::shared_ptr<const PixelSelector> _sel;
     PixelIt _pixel_it{};
     PixelIt _sentinel_it{};
 
-    std::shared_ptr<const ObservedMatrix> _obs{};
-    std::shared_ptr<const ExpectedMatrixStats> _exp{};
+    std::shared_ptr<const ObservedMatrix> _obs;
+    std::shared_ptr<const ExpectedMatrixStats> _exp;
 
-    std::shared_ptr<const std::vector<bool>> _bin_mask1{};
-    std::shared_ptr<const std::vector<bool>> _bin_mask2{};
+    std::shared_ptr<const std::vector<bool>> _bin_mask1;
+    std::shared_ptr<const std::vector<bool>> _bin_mask2;
 
     std::shared_ptr<std::vector<double>> _buffer{std::make_shared<std::vector<double>>()};
 

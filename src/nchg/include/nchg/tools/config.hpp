@@ -27,12 +27,13 @@
 
 namespace nchg {
 
+// NOLINTBEGIN(clang-analyzer-optin.performance.Padding)
 struct CartesianProductConfig {
-  std::filesystem::path path_to_domains{};
-  std::filesystem::path path_to_chrom_sizes{};
+  std::filesystem::path path_to_domains;
+  std::filesystem::path path_to_chrom_sizes;
 
-  std::optional<std::string> chrom1{};
-  std::optional<std::string> chrom2{};
+  std::optional<std::string> chrom1;
+  std::optional<std::string> chrom2;
 
   bool process_cis{true};
   bool process_trans{true};
@@ -41,7 +42,7 @@ struct CartesianProductConfig {
 };
 
 struct ChecksumConfig {
-  std::vector<std::filesystem::path> files{};
+  std::vector<std::filesystem::path> files;
 
   std::uint8_t verbosity{3};
 };
@@ -49,17 +50,17 @@ struct ChecksumConfig {
 struct ComputePvalConfig {
   enum class DomainAggregationStrategy : std::uint8_t { AUTO, SINGLE_PASS, MULTI_PASS };
 
-  std::filesystem::path exec{};
-  std::filesystem::path path_to_hic{};
-  std::filesystem::path output_prefix{};
-  std::filesystem::path output_path{};
+  std::filesystem::path exec;
+  std::filesystem::path path_to_hic;
+  std::filesystem::path output_prefix;
+  std::filesystem::path output_path;
   bool force{false};
 
-  std::optional<std::uint32_t> resolution{};
-  std::optional<std::string> chrom1{};
-  std::optional<std::string> chrom2{};
-  std::filesystem::path path_to_expected_values{};
-  std::filesystem::path path_to_domains{};
+  std::optional<std::uint32_t> resolution;
+  std::optional<std::string> chrom1;
+  std::optional<std::string> chrom2;
+  std::filesystem::path path_to_expected_values;
+  std::filesystem::path path_to_domains;
 
   bool compute_cis{true};
   bool compute_trans{true};
@@ -74,20 +75,20 @@ struct ComputePvalConfig {
   double interpolation_qtile{0.975};
   std::uint32_t interpolation_window_size{750'000};
   double bad_bin_fraction{0.1};
-  std::filesystem::path path_to_bin_mask{};
+  std::filesystem::path path_to_bin_mask;
 
   std::string compression_method{"zstd"};
   std::uint8_t compression_lvl{9};
   std::size_t threads{1};
 
   std::uint8_t verbosity{3};
-  std::string log_message_queue{};
+  std::string log_message_queue;
 };
 
 struct FilterConfig {
-  std::filesystem::path input_path{};
-  std::filesystem::path output_path{};
-  bool force{};
+  std::filesystem::path input_path;
+  std::filesystem::path output_path;
+  bool force{false};
 
   double fdr{0.01};
   double log_ratio{2.0};
@@ -104,10 +105,10 @@ struct FilterConfig {
 };
 
 struct ExpectedConfig {
-  std::filesystem::path input_path{};
-  std::optional<std::uint32_t> resolution{};
+  std::filesystem::path input_path;
+  std::optional<std::uint32_t> resolution;
 
-  std::filesystem::path output_path{};
+  std::filesystem::path output_path;
   bool force{false};
 
   std::string chrom1{"all"};
@@ -123,14 +124,14 @@ struct ExpectedConfig {
   bool interpolate_expected_values{true};
   double interpolation_qtile{0.975};
   std::uint32_t interpolation_window_size{750'000};
-  std::filesystem::path path_to_bin_mask{};
+  std::filesystem::path path_to_bin_mask;
 
   std::uint8_t verbosity{3};
 };
 
 struct MergeConfig {
-  std::filesystem::path input_prefix{};
-  std::filesystem::path output_path{};
+  std::filesystem::path input_prefix;
+  std::filesystem::path output_path;
   bool force{false};
   bool ignore_report_file{false};
 
@@ -142,7 +143,7 @@ struct MergeConfig {
 };
 
 struct ViewConfig {
-  std::filesystem::path input_path{};
+  std::filesystem::path input_path;
 
   std::string range1{"all"};
   std::string range2{"all"};
@@ -154,6 +155,8 @@ struct ViewConfig {
 
   std::uint8_t verbosity{3};
 };
+
+// NOLINTEND(clang-analyzer-optin.performance.Padding)
 
 // clang-format off
 using Config = std::variant<

@@ -27,7 +27,7 @@
 
 namespace nchg::test {
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+// NOLINTBEGIN(*-avoid-magic-numbers, readability-function-cognitive-complexity)
 TEST_CASE("FDR", "[short][fdr]") {
   SECTION("floating point") {
     SECTION("unique values") {
@@ -68,8 +68,9 @@ TEST_CASE("FDR", "[short][fdr]") {
       double pval{};
     };
 
+    // NOLINTNEXTLINE(*-use-designated-initializers)
     const std::vector<Stats> pvalues{{0, 0.05}, {1, 0.1}, {2, 0.0}};
-    const std::vector<double> corrected_pvalues_expected{0.075, 0.1, 0.0};
+    const std::vector corrected_pvalues_expected{0.075, 0.1, 0.0};
 
     BH_FDR fdr(pvalues);
 
@@ -82,5 +83,7 @@ TEST_CASE("FDR", "[short][fdr]") {
     }
   }
 }
+
+// NOLINTEND(*-avoid-magic-numbers, readability-function-cognitive-complexity)
 
 }  // namespace nchg::test

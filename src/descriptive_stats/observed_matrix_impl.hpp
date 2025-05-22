@@ -44,7 +44,7 @@ inline ObservedMatrix::ObservedMatrix(const Pixels &pixels, hictk::Chromosome ch
       _mad_max(mad_max_),
       _min_delta(min_delta_),
       _max_delta(max_delta_) {
-  MatrixStats<N> stats(_chrom1, _chrom2, bin_mask1, bin_mask2, bins.resolution(), _min_delta,
+  MatrixStats<N> stats(_chrom1, _chrom2, bin_mask1, bin_mask2, _bins.resolution(), _min_delta,
                        _max_delta);
   stats.add(pixels);
 

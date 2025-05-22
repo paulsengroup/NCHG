@@ -37,7 +37,7 @@ NCHG_DISABLE_WARNING_POP
 namespace nchg {
 
 class XXH3Digest {
-  std::string _digest{};
+  std::string _digest;
 
  public:
   static constexpr std::size_t WIDTH = 128;

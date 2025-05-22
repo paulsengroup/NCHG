@@ -40,8 +40,10 @@ template <typename Pixels>
   const auto num_bins1 = (chrom1.size() + resolution - 1) / resolution;
   const auto num_bins2 = (chrom2.size() + resolution - 1) / resolution;
 
-  std::vector<double> margs1(num_bins1, 0);
-  std::vector<double> margs2(num_bins2, 0);
+  // NOLINTBEGIN(*-const-correctness)
+  std::vector margs1(num_bins1, 0.0);
+  std::vector margs2(num_bins2, 0.0);
+  // NOLINTEND(*-const-correctness)
 
   for (const auto& p : pixels) {
     margs1[p.coords.bin1.rel_id()] += conditional_static_cast<double>(p.count);
@@ -53,7 +55,7 @@ template <typename Pixels>
     }
   }
 
-  return {margs1, margs2};
+  return {std::move(margs1), std::move(margs2)};
 }
 }  // namespace internal
 
@@ -77,7 +79,7 @@ inline std::pair<std::vector<bool>, std::vector<bool>> mad_max_filtering(
               mask1.size(), chrom1.name(), std::accumulate(mask2.begin(), mask2.end(), 0),
               mask2.size(), chrom2.name());
 
-  return {mask1, mask2};
+  return {std::move(mask1), std::move(mask2)};
 }
 
 template <typename Pixels>

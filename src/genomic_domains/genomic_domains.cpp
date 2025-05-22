@@ -155,6 +155,7 @@ std::span<const BEDPE> GenomicDomains::equal_range(const hictk::Chromosome& chro
   return {first, last};
 }
 
+// NOLINTBEGIN(*-member-functions-to-static)
 hictk::Chromosome& BEDPE::chrom1() { throw std::runtime_error("not implemented!"); }
 
 std::uint32_t& BEDPE::start1() { chrom1(); }
@@ -166,5 +167,6 @@ hictk::Chromosome& BEDPE::chrom2() { chrom1(); }
 std::uint32_t& BEDPE::start2() { start1(); }
 
 std::uint32_t& BEDPE::end2() { end1(); }
+// NOLINTEND(*-member-functions-to-static)
 
 }  // namespace nchg

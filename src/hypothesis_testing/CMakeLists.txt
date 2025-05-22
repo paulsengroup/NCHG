@@ -67,3 +67,8 @@ target_link_libraries(
     hictk::libhictk
     phmap
 )
+
+# Disable clang-tidy on randomc and stocc
+# This seems to be the only reliable way to do so...
+configure_file("${PROJECT_SOURCE_DIR}/cmake/.clang-tidy.in" "${randomc_SOURCE_DIR}/.clang-tidy" COPYONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/.clang-tidy.in" "${stocc_SOURCE_DIR}/.clang-tidy" COPYONLY)

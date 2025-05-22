@@ -25,6 +25,7 @@ Checks: >
   -llvm-*,
   -llvmlibc-*,
   -altera-*,
+  -boost-use-ranges,
   -bugprone-easily-swappable-parameters,
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
@@ -38,11 +39,11 @@ Checks: >
   -readability-magic-numbers,
   -readability-static-definition-in-anonymous-namespace
 WarningsAsErrors: ""
-HeaderFilterRegex: ""
+HeaderFilterRegex: "(^\\.\\/.*)|(.*nchg.*)"
 FormatStyle: none
 CheckOptions:
   - key: cppcoreguidelines-macro-usage.AllowedRegexp
-    value: "DISABLE_WARNING_.*"
+    value: "NCHG_DISABLE_WARNING_.*"
   - key: misc-include-cleaner.IgnoreHeaders
     value: "fmt/.*"
   - key: misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic

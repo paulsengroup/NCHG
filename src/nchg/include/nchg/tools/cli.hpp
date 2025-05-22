@@ -34,7 +34,7 @@ namespace nchg {
 
 class CoolerFileValidator : public CLI::Validator {
  public:
-  inline CoolerFileValidator() : Validator("Cooler") {
+  CoolerFileValidator() : Validator("Cooler") {
     func_ = [](std::string& uri) -> std::string {
       if (!hictk::cooler::utils::is_cooler(uri)) {
         if (hictk::cooler::utils::is_multires_file(uri)) {
@@ -56,7 +56,7 @@ class CoolerFileValidator : public CLI::Validator {
 
 class MultiresCoolerFileValidator : public CLI::Validator {
  public:
-  inline MultiresCoolerFileValidator() : Validator("Multires-cooler") {
+  MultiresCoolerFileValidator() : Validator("Multires-cooler") {
     func_ = [](std::string& uri) -> std::string {
       const auto path = hictk::cooler::parse_cooler_uri(uri).file_path;
       if (!std::filesystem::exists(path)) {
@@ -72,7 +72,7 @@ class MultiresCoolerFileValidator : public CLI::Validator {
 
 class SingleCellCoolerFileValidator : public CLI::Validator {
  public:
-  inline SingleCellCoolerFileValidator() : Validator("Single-cell-cooler") {
+  SingleCellCoolerFileValidator() : Validator("Single-cell-cooler") {
     func_ = [](std::string& uri) -> std::string {
       const auto path = hictk::cooler::parse_cooler_uri(uri).file_path;
       if (!std::filesystem::exists(path)) {
@@ -88,7 +88,7 @@ class SingleCellCoolerFileValidator : public CLI::Validator {
 
 class HiCFileValidator : public CLI::Validator {
  public:
-  inline HiCFileValidator() : Validator("HiC") {
+  HiCFileValidator() : Validator("HiC") {
     func_ = [](std::string& uri) -> std::string {
       const auto path = hictk::cooler::parse_cooler_uri(uri).file_path;
       if (!std::filesystem::exists(path)) {
@@ -136,11 +136,11 @@ class Cli {
   char** _argv;
   std::string _exec_name;
   int _exit_code{1};
-  Config _config{};
-  CLI::App _cli{};
+  Config _config;
+  CLI::App _cli;
   subcommand _subcommand{subcommand::none};
-  mutable std::vector<std::string> _warnings{};
-  std::string_view _help_flag{};
+  mutable std::vector<std::string> _warnings;
+  std::string_view _help_flag;
 
   void make_cartesian_product_subcommand();
   void make_checksum_subcommand();

@@ -34,19 +34,19 @@
 namespace nchg {
 
 class ExpectedValuesAggregator {
-  std::shared_ptr<const hictk::BinTable> _bins{};
+  std::shared_ptr<const hictk::BinTable> _bins;
   std::size_t _num_bins_gw{};
 
   using CisKey = hictk::Chromosome;
   using TransKey = std::pair<CisKey, CisKey>;
-  phmap::flat_hash_map<CisKey, double> _cis_sum{};
-  phmap::flat_hash_map<TransKey, double> _trans_sum{};
+  phmap::flat_hash_map<CisKey, double> _cis_sum;
+  phmap::flat_hash_map<TransKey, double> _trans_sum;
 
-  std::vector<double> _possible_distances{};
-  std::vector<double> _observed_distances{};
+  std::vector<double> _possible_distances;
+  std::vector<double> _observed_distances;
 
-  std::vector<double> _weights{};
-  phmap::btree_map<hictk::Chromosome, double> _scaling_factors{};
+  std::vector<double> _weights;
+  phmap::btree_map<hictk::Chromosome, double> _scaling_factors;
 
  public:
   ExpectedValuesAggregator() = default;

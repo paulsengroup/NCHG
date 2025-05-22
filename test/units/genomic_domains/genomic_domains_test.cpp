@@ -27,6 +27,7 @@
 
 namespace nchg::test {
 
+// NOLINTBEGIN(*-avoid-magic-numbers, readability-function-cognitive-complexity)
 TEST_CASE("GenomicDomains", "[short][genomic_domains]") {
   const hictk::Chromosome chrom1{0, "chr1", 1'000};
   const hictk::Chromosome chrom2{1, "chr2", 500};
@@ -203,5 +204,7 @@ TEST_CASE("GenomicDomainsIndexed", "[short][genomic_domains]") {
     }
   }
 }
+
+// NOLINTEND(*-avoid-magic-numbers, readability-function-cognitive-complexity)
 
 }  // namespace nchg::test

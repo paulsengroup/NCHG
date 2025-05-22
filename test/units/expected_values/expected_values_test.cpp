@@ -29,6 +29,7 @@
 
 namespace nchg::test {
 
+// NOLINTBEGIN(*-avoid-magic-numbers, readability-function-cognitive-complexity)
 static void compare_weights(const std::vector<double>& weights, const std::vector<double>& expected,
                             double tol = 1.0e-6) {
   REQUIRE(weights.size() == expected.size());
@@ -177,5 +178,7 @@ TEST_CASE("ExpectedValues: chromosome pair", "[medium][expected_values]") {
     CHECK(evs2.expected_matrix(chrom1, chrom2).nnz_avg() == evs2.expected_value(chrom1, chrom2));
   }
 }
+
+// NOLINTEND(*-avoid-magic-numbers, readability-function-cognitive-complexity)
 
 }  // namespace nchg::test

@@ -33,6 +33,7 @@
 
 namespace nchg::test {
 
+// NOLINTBEGIN(*-avoid-magic-numbers, readability-function-cognitive-complexity)
 TEST_CASE("FileResultMetadata", "[short][io][file_store]") {
   boost::mt19937_64 rand_eng{3294462971978216056ULL};  // NOLINT
 
@@ -189,21 +190,21 @@ TEST_CASE("FileResultMetadata", "[short][io][file_store]") {
     };
 
     const NCHGResultMetadata::FileMetadata invalid_file1{
-      "not-a-file",
-      XXH3Digest{"99aa06d3014798d86001c324468d497f"},
-      0
+      .name="not-a-file",
+      .digest=XXH3Digest{"99aa06d3014798d86001c324468d497f"},
+      .size=0
     };
 
     const NCHGResultMetadata::FileMetadata invalid_file2{
-      path1,
-      XXH3Digest{checksum2},
-      size1
+      .name=path1,
+      .digest=XXH3Digest{checksum2},
+      .size=size1
     };
 
     const NCHGResultMetadata::FileMetadata invalid_file3{
-      path1,
-      XXH3Digest{checksum1},
-      123
+      .name=path1,
+      .digest=XXH3Digest{checksum1},
+      .size=123
     };
 
     const NCHGResultMetadata invalid_files1{
@@ -288,5 +289,7 @@ TEST_CASE("FileResultMetadata", "[short][io][file_store]") {
 
   std::filesystem::current_path(cwd);
 }
+
+// NOLINTEND(*-avoid-magic-numbers, readability-function-cognitive-complexity)
 
 }  // namespace nchg::test

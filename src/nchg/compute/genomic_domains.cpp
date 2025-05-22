@@ -98,12 +98,12 @@ struct GIEqOperator {
 class IntervalStore {
   using GenomicInterval = std::shared_ptr<const hictk::GenomicInterval>;
 
-  hictk::Reference _chroms{};
-  phmap::flat_hash_set<GenomicInterval, GIHasher, GIEqOperator> _intervals{};
+  hictk::Reference _chroms;
+  phmap::flat_hash_set<GenomicInterval, GIHasher, GIEqOperator> _intervals;
 
  public:
   IntervalStore() = default;
-  IntervalStore(hictk::Reference chroms) : _chroms(std::move(chroms)) {}
+  explicit IntervalStore(hictk::Reference chroms) : _chroms(std::move(chroms)) {}
 
   [[nodiscard]] GenomicInterval emplace(std::shared_ptr<const hictk::GenomicInterval> domain) {
     assert(domain);
@@ -117,13 +117,13 @@ class IntervalStore {
     return *it;
   }
 
-  const hictk::Reference &chromosomes() const noexcept { return _chroms; }
+  [[nodiscard]] const hictk::Reference &chromosomes() const noexcept { return _chroms; }
 };
 
 class DomainParser {
-  IntervalStore _intervals{};
-  std::optional<hictk::Chromosome> _chrom1{};
-  std::optional<hictk::Chromosome> _chrom2{};
+  IntervalStore _intervals;
+  std::optional<hictk::Chromosome> _chrom1;
+  std::optional<hictk::Chromosome> _chrom2;
 
   bool _keep_cis{true};
   bool _keep_trans{true};
@@ -203,12 +203,14 @@ static void generate_domain_parsing_report(const DomainParser &parser,
 
   if (parser.domains_dropped() != 0) {
     if (parser.chrom1().has_value()) {
+      // NOLINTBEGIN(*-unchecked-optional-access)
       assert(parser.chrom2().has_value());
       SPDLOG_DEBUG(
           "[{}:{}]: {}/{} domain(s) were dropped because they did not map to the specified "
           "chromosome(s)",
           parser.chrom1()->name(), parser.chrom2()->name(), parser.domains_dropped(),
           parser.domains_parsed());
+      // NOLINTEND(*-unchecked-optional-access)
     } else {
       SPDLOG_WARN("{}/{} domain(s) were dropped because they did not map to any known chromosome",
                   parser.domains_dropped(), parser.domains_parsed());

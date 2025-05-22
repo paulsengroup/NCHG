@@ -39,14 +39,16 @@ struct MatrixStats {
   using T = std::conditional_t<std::is_floating_point_v<N>, N, std::uint64_t>;
   using MarginalBuff = std::vector<T>;
 
-  std::shared_ptr<MarginalBuff> marginals1{};
-  std::shared_ptr<MarginalBuff> marginals2{};
+  // NOLINTBEGIN(*-non-private-member-variables-in-classes)
+  std::shared_ptr<MarginalBuff> marginals1;
+  std::shared_ptr<MarginalBuff> marginals2;
   T sum{};
   std::uint64_t nnz{};
+  // NOLINTEND(*-non-private-member-variables-in-classes)
 
  private:
-  bool _intra_matrix{};
-  std::span<const double> _weights{};
+  bool _intra_matrix{false};
+  std::span<const double> _weights;
   const std::vector<bool> *_bin_mask1{};
   const std::vector<bool> *_bin_mask2{};
   std::uint64_t _min_delta{};
@@ -69,7 +71,7 @@ struct MatrixStats {
   [[nodiscard]] static constexpr std::size_t compute_num_bins(const hictk::Chromosome &chrom,
                                                               std::uint32_t bin_size) noexcept;
   [[nodiscard]] bool is_masked(const hictk::Bin &bin1, const hictk::Bin &bin2) const noexcept;
-  constexpr auto get_count(const hictk::Pixel<N> &p) const noexcept -> T;
+  [[nodiscard]] constexpr auto get_count(const hictk::Pixel<N> &p) const noexcept -> T;
 };
 
 }  // namespace nchg

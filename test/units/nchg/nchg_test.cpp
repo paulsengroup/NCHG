@@ -28,6 +28,7 @@
 
 namespace nchg::test {
 
+// NOLINTBEGIN(*-avoid-magic-numbers, readability-function-cognitive-complexity)
 TEST_CASE("NCHG", "[medium][nchg]") {
   const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
 
@@ -58,5 +59,7 @@ TEST_CASE("NCHG", "[medium][nchg]") {
     CHECK(s.pval > 0.05);
   }
 }
+
+// NOLINTEND(*-avoid-magic-numbers, readability-function-cognitive-complexity)
 
 }  // namespace nchg::test

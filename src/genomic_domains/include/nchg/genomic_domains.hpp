@@ -49,9 +49,10 @@ using ChromPair = std::pair<hictk::Chromosome, hictk::Chromosome>;
 using ChromosomePairs = phmap::btree_set<ChromPair>;
 
 class BEDPE {
-  std::shared_ptr<const hictk::GenomicInterval> _range1{};
-  std::shared_ptr<const hictk::GenomicInterval> _range2{};
+  std::shared_ptr<const hictk::GenomicInterval> _range1;
+  std::shared_ptr<const hictk::GenomicInterval> _range2;
 
+  // NOLINTNEXTLINE(cert-err58-cpp)
   inline static const auto _null_range = std::make_shared<const hictk::GenomicInterval>();
 
  public:
@@ -92,14 +93,14 @@ class BEDPE {
 template <typename N>
   requires arithmetic<N>
 class GenomicDomainsIndexed {
-  hictk::Chromosome _chrom1{};
-  hictk::Chromosome _chrom2{};
+  hictk::Chromosome _chrom1;
+  hictk::Chromosome _chrom2;
 
   using Value = std::pair<BEDPE, std::size_t>;
   using RTree = boost::geometry::index::rtree<Value, boost::geometry::index::rstar<16>>;
 
-  std::shared_ptr<const RTree> _domains{};
-  std::vector<N> _counts{};
+  std::shared_ptr<const RTree> _domains;
+  std::vector<N> _counts;
 
  public:
   GenomicDomainsIndexed() = default;

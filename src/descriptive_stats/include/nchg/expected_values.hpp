@@ -38,17 +38,17 @@ namespace nchg {
 
 class ExpectedValues {
   using N = double;
-  std::shared_ptr<const hictk::File> _fp{};
+  std::shared_ptr<const hictk::File> _fp;
   std::uint32_t _resolution{};
 
   using ChromPair = std::pair<hictk::Chromosome, hictk::Chromosome>;
   using BinMask = std::shared_ptr<const std::vector<bool>>;
 
-  std::vector<double> _expected_weights{};
-  phmap::btree_map<hictk::Chromosome, double> _expected_scaling_factors{};
-  phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>> _bin_masks{};
+  std::vector<double> _expected_weights;
+  phmap::btree_map<hictk::Chromosome, double> _expected_scaling_factors;
+  phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>> _bin_masks;
 
-  phmap::btree_map<ChromPair, double> _expected_values_trans{};
+  phmap::btree_map<ChromPair, double> _expected_values_trans;
 
   double _mad_max{};
   std::uint64_t _min_delta{};

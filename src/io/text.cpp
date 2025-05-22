@@ -91,7 +91,7 @@ phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> parse_bin_mask(
 
   std::size_t num_bad_bins = 0;
   for (const auto &[_, v] : mask) {
-    num_bad_bins += std::accumulate(v.begin(), v.end(), 0uz);
+    num_bad_bins += std::accumulate(v.begin(), v.end(), 0UZ);
   }
 
   SPDLOG_INFO("masked {} bad bins based on {} domains read from {}...", num_bad_bins, i - 1, path);

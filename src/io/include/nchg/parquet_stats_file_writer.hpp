@@ -36,32 +36,32 @@
 namespace nchg {
 
 class ParquetStatsFileWriter {
-  std::filesystem::path _path{};
-  std::shared_ptr<parquet::WriterProperties> _props{};
-  std::shared_ptr<arrow::io::FileOutputStream> _fp{};
-  std::unique_ptr<parquet::arrow::FileWriter> _writer{};
+  std::filesystem::path _path;
+  std::shared_ptr<parquet::WriterProperties> _props;
+  std::shared_ptr<arrow::io::FileOutputStream> _fp;
+  std::unique_ptr<parquet::arrow::FileWriter> _writer;
 
   std::size_t _chunk_size{};
   std::size_t _chunk_capacity{};
   std::size_t _size{};
 
-  hictk::Reference _chroms{};
+  hictk::Reference _chroms;
 
   arrow::StringDictionary32Builder _chrom1{};
-  arrow::UInt32Builder _start1{};
-  arrow::UInt32Builder _end1{};
+  arrow::UInt32Builder _start1;
+  arrow::UInt32Builder _end1;
 
   arrow::StringDictionary32Builder _chrom2{};
-  arrow::UInt32Builder _start2{};
-  arrow::UInt32Builder _end2{};
+  arrow::UInt32Builder _start2;
+  arrow::UInt32Builder _end2;
 
-  arrow::DoubleBuilder _pvalue{};
-  std::optional<arrow::DoubleBuilder> _pvalue_corrected{};
-  arrow::UInt64Builder _observed{};
-  arrow::DoubleBuilder _expected{};
-  arrow::DoubleBuilder _log_ratio{};
-  arrow::DoubleBuilder _odds{};
-  arrow::DoubleBuilder _omega{};
+  arrow::DoubleBuilder _pvalue;
+  std::optional<arrow::DoubleBuilder> _pvalue_corrected;
+  arrow::UInt64Builder _observed;
+  arrow::DoubleBuilder _expected;
+  arrow::DoubleBuilder _log_ratio;
+  arrow::DoubleBuilder _odds;
+  arrow::DoubleBuilder _omega;
 
  public:
   ParquetStatsFileWriter() = delete;

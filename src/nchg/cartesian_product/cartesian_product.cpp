@@ -315,12 +315,12 @@ enum class ParseStatus : std::uint_fast8_t { PARSED, SKIPPED, DUPLICATE };
 }
 
 struct ChromIndex {
-  std::string chrom{};
+  std::string chrom;
   std::size_t start_offset{};
   std::size_t end_offset{};
 };
 
-[[nodiscard]] std::vector<ChromIndex> index_chromosomes(const std::vector<Domain>& domains) {
+[[nodiscard]] static std::vector<ChromIndex> index_chromosomes(const std::vector<Domain>& domains) {
   std::vector<ChromIndex> index{};
 
   for (std::size_t i = 0; i < domains.size(); ++i) {

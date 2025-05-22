@@ -36,17 +36,17 @@ namespace nchg {
 class ExpectedMatrixStats {
   using MarginalBuff = std::vector<double>;
 
-  hictk::Chromosome _chrom1{};
-  hictk::Chromosome _chrom2{};
+  hictk::Chromosome _chrom1;
+  hictk::Chromosome _chrom2;
 
-  hictk::BinTable _bins{};
-  std::vector<double> _weights{};
+  hictk::BinTable _bins;
+  std::vector<double> _weights;
 
   std::uint64_t _min_delta{};
   std::uint64_t _max_delta{};
 
-  std::shared_ptr<const MarginalBuff> _marginals1{};
-  std::shared_ptr<const MarginalBuff> _marginals2{};
+  std::shared_ptr<const MarginalBuff> _marginals1;
+  std::shared_ptr<const MarginalBuff> _marginals2;
 
   std::uint64_t _nnz{};
   double _sum{};

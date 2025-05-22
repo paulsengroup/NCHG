@@ -174,14 +174,14 @@ ExpectedValues ExpectedValues::deserialize(const std::filesystem::path &path) {
 std::uint32_t ExpectedValues::resolution() const noexcept { return _resolution; }
 
 auto ExpectedValues::params() const noexcept -> Params {
-  return {_mad_max,
-          _min_delta,
-          _max_delta,
-          _bin_aggregation_possible_distances_cutoff,
-          _bin_aggregation_observed_distances_cutoff,
-          _interpolate,
-          _interpolation_qtile,
-          _interpolation_window_size};
+  return {.mad_max = _mad_max,
+          .min_delta = _min_delta,
+          .max_delta = _max_delta,
+          .bin_aggregation_possible_distances_cutoff = _bin_aggregation_possible_distances_cutoff,
+          .bin_aggregation_observed_distances_cutoff = _bin_aggregation_observed_distances_cutoff,
+          .interpolate = _interpolate,
+          .interpolation_qtile = _interpolation_qtile,
+          .interpolation_window_size = _interpolation_window_size};
 }
 
 std::shared_ptr<const std::vector<bool>> ExpectedValues::bin_mask(

@@ -29,8 +29,8 @@ namespace nchg {
 template <typename Stats>
 class BH_FDR {
   std::vector<Stats> _pvalues{};
-  std::vector<std::size_t> _idx{};
-  std::vector<std::size_t> _ranks{};
+  std::vector<std::size_t> _idx;
+  std::vector<std::size_t> _ranks;
 
  public:
   BH_FDR() = default;

@@ -187,10 +187,10 @@ void FileStore::move_file_and_register(const std::filesystem::path& path,
     rename_file(path, dest);
   } catch (const std::exception& e) {
     throw std::runtime_error(
-        fmt::format("failed to move file from \"{}\" to \"{}\": {}", path, dest, e.what()));
+        fmt::format(R"(failed to move file from "{}" to "{}": {})", path, dest, e.what()));
   } catch (...) {
     throw std::runtime_error(
-        fmt::format("failed to move file from \"{}\" to \"{}\": unknown error", path, dest));
+        fmt::format(R"(failed to move file from "{}" to "{}": unknown error)", path, dest));
   }
 
   register_file(dest);

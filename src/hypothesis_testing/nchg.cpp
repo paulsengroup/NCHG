@@ -178,7 +178,7 @@ auto NCHG::aggregate_pixels(const hictk::GenomicInterval &range1,
     const auto [obs, exp] = aggregate_pixels_cis(*_fp, *_exp_matrix, range1, range2,
                                                  params().min_delta, params().max_delta, *mask);
 
-    return Result{obs, exp};
+    return Result{obs, exp};  // NOLINT(*-designated-initializers)
   }
 
   const auto &[mask1, mask2] = _expected_values.bin_mask(range1.chrom(), range2.chrom());
@@ -189,7 +189,7 @@ auto NCHG::aggregate_pixels(const hictk::GenomicInterval &range1,
   const auto [obs, exp] =
       aggregate_pixels_trans(*_fp, *_exp_matrix, range1, range2, *mask1, *mask2);
 
-  return Result{obs, exp};
+  return Result{obs, exp};  // NOLINT(*-designated-initializers)
 }
 
 NCHG::NCHG(const std::shared_ptr<const hictk::File> &f, const hictk::Chromosome &chrom1,
@@ -202,14 +202,16 @@ NCHG::NCHG(std::shared_ptr<const hictk::File> f, hictk::Chromosome chrom1, hictk
       _chrom1(std::move(chrom1)),
       _chrom2(std::move(chrom2)),
       _expected_values(std::move(expected_values)) {
-  const auto &[bin1_mask, bin2_mask] = _expected_values.bin_mask(chrom1, chrom2);
+  const auto &[bin1_mask, bin2_mask] = _expected_values.bin_mask(_chrom1, _chrom2);
   auto [obs_matrix, exp_matrix] = init_matrices(
       _chrom1, _chrom2, *_fp, _expected_values, bin1_mask ? *bin1_mask : std::vector<bool>{},
       bin2_mask ? *bin2_mask : std::vector<bool>{}, _expected_values.params().mad_max,
       _expected_values.params().min_delta, _expected_values.params().max_delta);
 
+  // NOLINTBEGIN(*-prefer-member-initializer)
   _obs_matrix = std::move(obs_matrix);
   _exp_matrix = std::move(exp_matrix);
+  // NOLINTEND(*-prefer-member-initializer)
 }
 
 auto NCHG::params() const noexcept -> Params { return _expected_values.params(); }
@@ -298,8 +300,7 @@ auto NCHG::init_matrices(const hictk::Chromosome &chrom1, const hictk::Chromosom
   MatrixStats<std::uint32_t> obs_stats{chrom1,         chrom2,     bin1_mask, bin2_mask,
                                        f.resolution(), min_delta_, max_delta_};
 
-  const auto weights =
-      chrom1 == chrom2 ? expected_values.expected_values(chrom1) : std::vector<double>{};
+  auto weights = chrom1 == chrom2 ? expected_values.expected_values(chrom1) : std::vector<double>{};
   MatrixStats<double> exp_stats{chrom1,         chrom2,     bin1_mask,  bin2_mask,
                                 f.resolution(), min_delta_, max_delta_, weights};
 
@@ -414,7 +415,7 @@ double NCHG::compute_pvalue_nchg(std::vector<double> &buffer, std::uint64_t obs,
 
 template <typename N>
   requires arithmetic<N>
-[[nodiscard]] constexpr double compute_odds_ratio(N n, N total_sum, N sum1, N sum2) {
+[[nodiscard]] static constexpr double compute_odds_ratio(N n, N total_sum, N sum1, N sum2) {
   if constexpr (std::is_floating_point_v<N>) {
     if (std::isnan(n)) [[unlikely]] {
       return std::numeric_limits<double>::quiet_NaN();
@@ -443,10 +444,9 @@ template <typename N>
 template <typename N1,
           typename N2 = std::conditional_t<std::is_floating_point_v<N1>, double, std::uint64_t>>
   requires arithmetic<N1>
-constexpr std::pair<double, N2> aggregate_marginals(const hictk::GenomicInterval &range,
-                                                    std::uint32_t resolution,
-                                                    const std::vector<N1> &marginals,
-                                                    const std::vector<bool> &bin_mask) noexcept {
+[[nodiscard]] static constexpr std::pair<double, N2> aggregate_marginals(
+    const hictk::GenomicInterval &range, std::uint32_t resolution, const std::vector<N1> &marginals,
+    const std::vector<bool> &bin_mask) noexcept {
   assert(resolution > 0);
 
   const auto i1 = range.start() / resolution;

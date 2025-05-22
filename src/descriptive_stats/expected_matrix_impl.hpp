@@ -80,7 +80,7 @@ inline ExpectedMatrixStats::ExpectedMatrixStats(const Pixels &pixels, hictk::Chr
     });
   }
 
-  MatrixStats<double> stats(_chrom1, _chrom2, bin_mask1, bin_mask2, bins.resolution(), min_delta_,
+  MatrixStats<double> stats(_chrom1, _chrom2, bin_mask1, bin_mask2, _bins.resolution(), min_delta_,
                             max_delta_, _weights);
   stats.add(pixels);
 

@@ -151,7 +151,7 @@ class TmpDir {
     prefix.copy(str.data(), prefix.size());
 
     std::generate(str.begin() + static_cast<std::ptrdiff_t>(prefix.size()), str.end(), [&] {
-      const auto i = std::uniform_int_distribution{std::size_t{0}, alphabet.size() - 1}(rand_eng);
+      const auto i = std::uniform_int_distribution{0UZ, alphabet.size() - 1}(rand_eng);
       return alphabet[i];
     });
 

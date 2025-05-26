@@ -28,8 +28,9 @@ set(HICTK_ENABLE_GIT_VERSION_TRACKING OFF)
 
 FetchContent_Declare(
   hictk
-  GIT_REPOSITORY https://github.com/paulsengroup/hictk.git
-  GIT_TAG v2.1.1
+  URL
+    "${PROJECT_SOURCE_DIR}/external/hictk-v2.1.2.tar.xz"
+  URL_HASH "SHA256=82cb76d595c0760eb1dffbcd09b98141797bd231aa269aef76e1f9b63f8e0ee5"
   EXCLUDE_FROM_ALL
   OVERRIDE_FIND_PACKAGE
   SYSTEM

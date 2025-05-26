@@ -16,6 +16,14 @@
 # with this library.  If not, see
 # <https://www.gnu.org/licenses/>
 
+if(NOT WIN32)
+  file(LOCK "${PROJECT_SOURCE_DIR}/test/data/" DIRECTORY GUARD FILE)
+endif()
+
+set(TEST_DATASET_TAR "${PROJECT_SOURCE_DIR}/test/data/nchg_test_data.tar.zst")
+
+message(STATUS "Fetching the test dataset")
+
 # gersemi: off
 file(
   DOWNLOAD https://zenodo.org/records/15462237/files/nchg_test_data.tar.zst?download=1
@@ -24,4 +32,11 @@ file(
 )
 # gersemi: on
 
-file(ARCHIVE_EXTRACT INPUT "${PROJECT_SOURCE_DIR}/test/data/nchg_test_data.tar.zst" DESTINATION "${PROJECT_SOURCE_DIR}")
+message(STATUS "Fetching the test dataset - done")
+
+message(STATUS "Extracting the test dataset")
+
+file(ARCHIVE_EXTRACT INPUT "${TEST_DATASET_TAR}" DESTINATION "${PROJECT_SOURCE_DIR}")
+
+message(STATUS "Extracting the test dataset - done")
+message(STATUS "Test datasets can be found under \"${PROJECT_SOURCE_DIR}/test/data/\"")

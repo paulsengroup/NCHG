@@ -266,11 +266,8 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Generate build args
-        id: build-args
+      - name: Collect metadata
+        id: collect-metadata
         run: |
           set -e
           set -u
@@ -280,19 +277,6 @@ jobs:
           REPO_LOWERCASE="${REPO,,}"
 
           echo "REPO_LOWERCASE=$REPO_LOWERCASE" | tee -a "$GITHUB_OUTPUT"
-
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
-        with:
-          # images: ${{ steps.build-args.outputs.REPO_LOWERCASE }},ghcr.io/${{ steps.build-args.outputs.REPO_LOWERCASE }}
-          images: ghcr.io/${{ steps.build-args.outputs.REPO_LOWERCASE }}
-          flavor: latest=true
-          tags: |
-            type=semver,priority=1000,pattern={{version}}
-            type=sha,priority=900
-            type=ref,priority=700,event=branch
-            type=ref,priority=600,event=pr
 
       - name: Download digests
         uses: actions/download-artifact@v4
@@ -333,10 +317,10 @@ jobs:
         run: |
           # https://docs.docker.com/build/ci/github-actions/multi-platform/#distribute-build-across-multiple-runners
           docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '  ghcr.io/${{ steps.build-args.outputs.REPO_LOWERCASE }}@sha256:%s ' *)
+            $(printf '  ghcr.io/${{ steps.collect-metadata.outputs.REPO_LOWERCASE }}@sha256:%s ' *)
 
       - name: Inspect image (GHCR.io)
-        run: docker buildx imagetools inspect ghcr.io/${{ steps.build-args.outputs.REPO_LOWERCASE }}
+        run: docker buildx imagetools inspect ghcr.io/${{ steps.collect-metadata.outputs.REPO_LOWERCASE }}
 
   build-dockerfile-status-check:
     name: Status Check (Build Dockerfile)

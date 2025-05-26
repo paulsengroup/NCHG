@@ -21,6 +21,5 @@ add_subdirectory(units)
 option(NCHG_DOWNLOAD_TEST_DATASET "Download datasets required by unit and integration tests" ON)
 
 if(NCHG_DOWNLOAD_TEST_DATASET)
-  message(STATUS "Downloading test dataset...")
   include(${PROJECT_SOURCE_DIR}/cmake/FetchTestDataset.cmake)
 endif()

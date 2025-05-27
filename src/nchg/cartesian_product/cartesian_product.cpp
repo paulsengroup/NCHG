@@ -42,6 +42,7 @@
 #include <utility>
 #include <vector>
 
+#include "nchg/common.hpp"
 #include "nchg/hash.hpp"
 #include "nchg/text.hpp"
 #include "nchg/tools/common.hpp"
@@ -270,7 +271,7 @@ enum class ParseStatus : std::uint_fast8_t { PARSED, SKIPPED, DUPLICATE };
           break;
         }
         default:
-          hictk::unreachable_code();  // TODO fixme
+          unreachable_code();
       }
     }
   } catch (const std::exception& e) {

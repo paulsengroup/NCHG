@@ -231,7 +231,7 @@ void Cli::make_cartesian_product_subcommand() {
     "-v,--verbosity",
     c.verbosity,
     "Set verbosity of output to the console.")
-    ->check(CLI::Range(1, 4))
+    ->check(CLI::Range(1, 5))
     ->capture_default_str();
   // clang-format on
 
@@ -271,7 +271,7 @@ void Cli::make_checksum_subcommand() {
       "-v,--verbosity",
       c.verbosity,
       "Set verbosity of output to the console.")
-      ->check(CLI::Range(1, 4))
+      ->check(CLI::Range(1, 5))
       ->capture_default_str();
   //clang-format on
 
@@ -450,7 +450,7 @@ void Cli::make_compute_subcommand() {
     "-v,--verbosity",
     c.verbosity,
     "Set verbosity of output to the console.")
-    ->check(CLI::Range(1, 4))
+    ->check(CLI::Range(1, 5))
     ->capture_default_str();
   // clang-format on
 

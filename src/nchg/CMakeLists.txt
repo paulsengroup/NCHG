@@ -73,12 +73,7 @@ target_link_libraries(
     Threads::Threads
 )
 
-target_compile_definitions(
-  NCHG
-  PRIVATE
-    SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
-    "$<$<NOT:$<BOOL:${NCHG_USE_PIDFD_OPEN}>>:BOOST_PROCESS_V2_DISABLE_PIDFD_OPEN>"
-)
+target_compile_definitions(NCHG PRIVATE "$<$<NOT:$<BOOL:${NCHG_USE_PIDFD_OPEN}>>:BOOST_PROCESS_V2_DISABLE_PIDFD_OPEN>")
 
 include(GNUInstallDirs)
 

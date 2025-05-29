@@ -35,6 +35,11 @@ int run_command(const ChecksumConfig& c) {
       try {
         const auto metadata = NCHGResultMetadata::from_file(p, false);
         const auto digest = metadata.checksum();
+        if (metadata.digest() != digest) {
+          SPDLOG_WARN(
+              "checksum for \"{}\" did not match the precomputed checksum: expected {}, found {}",
+              p.string(), metadata.digest(), digest);
+        }
         fmt::print("{}  {}\n", p.string(), digest);
         continue;
         // NOLINTNEXTLINE

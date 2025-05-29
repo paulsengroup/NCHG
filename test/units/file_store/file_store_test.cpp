@@ -16,12 +16,13 @@
 // with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
+#include "nchg/file_store.hpp"
+
 #include <cassert>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 #include <filesystem>
 #include <glaze/glaze_exceptions.hpp>
-#include <nchg/file_store.hpp>
 #include <stdexcept>
 #include <string_view>
 
@@ -48,17 +49,11 @@ static void validate_report_placeholder(const std::filesystem::path& path) {
 
 TEST_CASE("FileStore", "[short][io][file_store]") {
   const auto test_file1 = datadir / "ENCFF447ERX.1000000.compartments.bed";
-  const auto test_file2 = datadir / "ENCFF447ERX.1000000.cool";
+  const auto test_file2 = datadir / "ENCFF447ERX.minified.mcool";
 
   // xxhsum -H128 myfile
   constexpr std::string_view test_hash1{"5b521558895b0836d2cad90530e970bf"};
-  constexpr std::string_view test_hash2{"53723b55cdd873ae74a63493432c7579"};
-
-  // xxhsum -H128 <(cat <(head -c 524288 myfile) <(tail -c 524288 myfile))
-  // 1048576 bytes are enough to hash test_file1 in its entirety, but only hash parts of test_file2
-  // constexpr std::size_t sample_size_bytes = 1'048'576;
-  // constexpr std::string_view test_hash3 = test_hash1;
-  // constexpr std::string_view test_hash4{"bd371616784813f444d389668fc14fef"};
+  constexpr std::string_view test_hash2{"154545297622748d3dc1608a11b256c1"};
 
   SECTION("Ctor") {
     const auto store_dir = testdir() / "file_store_001";

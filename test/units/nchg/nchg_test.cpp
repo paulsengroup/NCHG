@@ -30,33 +30,66 @@ namespace nchg::test {
 
 // NOLINTBEGIN(*-avoid-magic-numbers, readability-function-cognitive-complexity)
 TEST_CASE("NCHG", "[medium][nchg]") {
-  const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
+  const auto test_file = datadir / "ENCFF447ERX.minified.mcool";
 
-  const auto clr = std::make_shared<const hictk::File>(test_file.string());
+  const auto clr = std::make_shared<const hictk::File>(test_file.string(), 1'000'000);
 
   auto params = NCHG::DefaultParams;
   params.mad_max = 0.0;
 
-  const auto chr1 = clr->chromosomes().at("chr1");
-  const NCHG nchg(clr, chr1, chr1, params);
+  SECTION("cis") {
+    const auto chr21 = clr->chromosomes().at("chr21");
+    const NCHG nchg(clr, chr21, chr21, params);
 
-  SECTION("significant") {
-    const BEDPE domain{{chr1, 14'000'000, 18'000'000}, {chr1, 233'000'000, 236'000'000}};
+    SECTION("significant") {
+      const BEDPE domain{{chr21, 6'000'000, 7'000'000}, {chr21, 43'000'000, 44'000'000}};
 
-    constexpr std::uint64_t obs = 204693;
-    constexpr double exp = 24444.163382290564;
-    const auto s = nchg.compute(domain, obs, exp, 1.0);
+      constexpr std::uint64_t obs = 335769;
+      constexpr double exp = 12578.709427;
+      const auto s = nchg.compute(domain, obs, exp, 1.0);
 
-    CHECK(s.pval <= 0.05);
+      CHECK(s.pval <= 0.05);
+      CHECK(s.log_ratio > 2.0);
+    }
+    SECTION("not significant") {
+      const BEDPE domain{{chr21, 6'000'000, 7'000'000}, {chr21, 10'000'000, 11'000'000}};
+
+      constexpr std::uint64_t obs = 1945;
+      constexpr double exp = 19098.256428;
+      const auto s = nchg.compute(domain, obs, exp, 1.0);
+
+      CHECK(s.pval > 0.05);
+      CHECK(s.log_ratio < 2.0);
+    }
   }
-  SECTION("not significant") {
-    const BEDPE domain{{chr1, 0, 10'000'000}, {chr1, 95'000'000, 105'000'000}};
 
-    constexpr std::uint64_t obs = 80550;
-    constexpr double exp = 190955.4493385836;
-    const auto s = nchg.compute(domain, obs, exp, 1.0);
+  SECTION("trans") {
+    const auto chr21 = clr->chromosomes().at("chr21");
+    const auto chr22 = clr->chromosomes().at("chr22");
+    const NCHG nchg(clr, chr21, chr22, params);
 
-    CHECK(s.pval > 0.05);
+    SECTION("significant") {
+      const BEDPE domain{{chr21, 10'000'000, 11'000'000}, {chr22, 11'000'000, 12'000'000}};
+
+      constexpr std::uint64_t obs = 165978;
+      constexpr double exp = 1859.162821;
+      const auto s = nchg.compute(domain, obs, exp, 1.0);
+
+      CHECK(s.pval <= 0.05);
+      CHECK(s.log_ratio > 2.0);
+      CHECK(s.omega == 1);
+    }
+    SECTION("not significant") {
+      const BEDPE domain{{chr21, 21'000'000, 22'000'000}, {chr22, 22'000'000, 23'000'000}};
+
+      constexpr std::uint64_t obs = 163;
+      constexpr double exp = 1859.162821;
+      const auto s = nchg.compute(domain, obs, exp, 1.0);
+
+      CHECK(s.pval > 0.05);
+      CHECK(s.log_ratio < 2.0);
+      CHECK(s.omega == 1);
+    }
   }
 }
 

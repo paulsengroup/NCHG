@@ -30,16 +30,20 @@
 namespace nchg::test {
 
 // NOLINTBEGIN(*-avoid-magic-numbers, readability-function-cognitive-complexity)
+
+static void compare_fp(double n1, double n2, double tol = 1.0e-6) {
+  if (std::isnan(n1)) {
+    CHECK(std::isnan(n2));
+  } else {
+    CHECK_THAT(n1, Catch::Matchers::WithinRel(n2, tol));
+  }
+}
+
 static void compare_weights(const std::vector<double>& weights, const std::vector<double>& expected,
                             double tol = 1.0e-6) {
   REQUIRE(weights.size() == expected.size());
-
   for (std::size_t i = 0; i < weights.size(); ++i) {
-    if (std::isnan(weights[i])) {
-      CHECK(std::isnan(expected[i]));
-    } else {
-      CHECK_THAT(weights[i], Catch::Matchers::WithinRel(expected[i], tol));
-    }
+    compare_fp(weights[i], expected[i], tol);
   }
 }
 
@@ -58,9 +62,9 @@ static void compare_masks(const std::vector<bool>& mask, const std::vector<bool>
 
 TEST_CASE("ExpectedValues: genome-wide", "[long][expected_values]") {
   spdlog::default_logger()->set_level(spdlog::level::warn);
-  const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
+  const auto test_file = datadir / "ENCFF447ERX.minified.mcool";
 
-  const auto clr = std::make_shared<const hictk::File>(test_file.string());
+  const auto clr = std::make_shared<const hictk::File>(test_file.string(), 1'000'000);
 
   const ExpectedValues evs(clr);
 
@@ -88,12 +92,12 @@ TEST_CASE("ExpectedValues: genome-wide", "[long][expected_values]") {
 
     CHECK(evs.scaling_factors().size() == evs_gw_serde.scaling_factors().size());
     for (const auto& [chrom, sf] : evs.scaling_factors()) {
-      CHECK(evs_gw_serde.scaling_factors().at(chrom) == sf);
+      compare_fp(evs_gw_serde.scaling_factors().at(chrom), sf);
     }
 
     const auto chrom1 = clr->chromosomes().at("chr21");
     const auto chrom2 = clr->chromosomes().at("chr22");
-    CHECK(evs.expected_value(chrom1, chrom2) == evs_gw_serde.expected_value(chrom1, chrom2));
+    compare_fp(evs.expected_value(chrom1, chrom2), evs_gw_serde.expected_value(chrom1, chrom2));
 
     compare_masks(*evs_gw_serde.bin_mask(chrom1, chrom2).first,
                   *evs.bin_mask(chrom1, chrom2).first);
@@ -104,9 +108,9 @@ TEST_CASE("ExpectedValues: genome-wide", "[long][expected_values]") {
 
 TEST_CASE("ExpectedValues: cis-only", "[medium][expected_values]") {
   spdlog::default_logger()->set_level(spdlog::level::warn);
-  const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
+  const auto test_file = datadir / "ENCFF447ERX.minified.mcool";
 
-  const auto clr = std::make_shared<const hictk::File>(test_file.string());
+  const auto clr = std::make_shared<const hictk::File>(test_file.string(), 1'000'000);
 
   const auto evs = ExpectedValues::cis_only(clr);
 
@@ -138,9 +142,9 @@ TEST_CASE("ExpectedValues: cis-only", "[medium][expected_values]") {
 
 TEST_CASE("ExpectedValues: trans-only", "[long][expected_values]") {
   spdlog::default_logger()->set_level(spdlog::level::warn);
-  const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
+  const auto test_file = datadir / "ENCFF447ERX.minified.mcool";
 
-  const auto clr = std::make_shared<const hictk::File>(test_file.string());
+  const auto clr = std::make_shared<const hictk::File>(test_file.string(), 1'000'000);
 
   auto params = ExpectedValues::DefaultParams;
   params.mad_max = 0.0;
@@ -155,9 +159,9 @@ TEST_CASE("ExpectedValues: trans-only", "[long][expected_values]") {
 
 TEST_CASE("ExpectedValues: chromosome pair", "[medium][expected_values]") {
   spdlog::default_logger()->set_level(spdlog::level::warn);
-  const auto test_file = datadir / "ENCFF447ERX.1000000.cool";
+  const auto test_file = datadir / "ENCFF447ERX.minified.mcool";
 
-  const auto clr = std::make_shared<const hictk::File>(test_file.string());
+  const auto clr = std::make_shared<const hictk::File>(test_file.string(), 1'000'000);
   const auto chrom1 = clr->chromosomes().at("chr21");
   const auto chrom2 = clr->chromosomes().at("chr22");
   const auto chrom3 = clr->chromosomes().at("chrX");

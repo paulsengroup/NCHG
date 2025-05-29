@@ -842,7 +842,8 @@ void Cli::validate_compute_subcommand() const {
         "--resolution is a mandatory argument when the input file is in .hic or .mcool format.");
   }
 
-  if (c.output_prefix.parent_path().empty()) {
+  if (c.output_prefix.parent_path().empty() && !c.chrom1.has_value()) {
+    assert(!c.chrom2.has_value());
     errors.emplace_back(
         fmt::format("invalid output prefix \"{}\": the output prefix should have a folder "
                     "component (e.g. \"output_folder/prefix\")",

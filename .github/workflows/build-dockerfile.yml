@@ -201,7 +201,7 @@ jobs:
             VERSION=${{ steps.build-args.outputs.VERSION }}
 
       - name: Extract the test dataset
-        run: tar -xf test/data/nchg_test_data.tar.zst test/data/ENCFF447ERX.1000000.cool
+        run: tar -xf test/data/nchg_test_data.tar.zst test/data/ENCFF447ERX.minified.mcool
 
       - name: Test Docker image
         run: utils/devel/test_docker_image.sh '${{ steps.build-image.outputs.imageid }}'

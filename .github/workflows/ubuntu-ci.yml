@@ -492,7 +492,7 @@ jobs:
       - name: Setup test environment
         run: |
           echo "DATA_DIR=$PWD/test/data/integration_tests" | tee -a "$GITHUB_ENV"
-          echo "OUT_PREFIX=ENCFF447ERX.1000000" | tee -a "$GITHUB_ENV"
+          echo "OUT_PREFIX=ENCFF447ERX.minified" | tee -a "$GITHUB_ENV"
 
       - name: Test NCHG cartesian-product (gw)
         run: |
@@ -558,16 +558,17 @@ jobs:
         run: |
           sudo -u devel     \
           bin/NCHG checksum \
-            "$DATA_DIR/compute/ENCFF447ERX.1000000.json" |
+            "$DATA_DIR/compute/ENCFF447ERX.minified.json" |
             test/scripts/validate_nchg_output.py checksum \
-            4a1647c87b983aecd7b555988fc173c2
+            59304c87ec9d2de46ca03ea6479c5811
 
       - name: Test NCHG compute (mt)
         run: |
           sudo -u devel                                        \
           bin/NCHG compute                                     \
-            test/data/ENCFF447ERX.1000000.cool                 \
+            test/data/ENCFF447ERX.minified.mcool               \
             "out/$OUT_PREFIX"                                  \
+            --resolution 1000000                               \
             --threads "$(nproc)"
 
           test/scripts/validate_nchg_output.py compute \
@@ -580,8 +581,9 @@ jobs:
         run: |
           sudo -u devel                                        \
           bin/NCHG compute                                     \
-            test/data/ENCFF447ERX.1000000.cool                 \
+            test/data/ENCFF447ERX.minified.mcool               \
             "out/$OUT_PREFIX"                                  \
+            --resolution 1000000                               \
             --cis-only                                         \
             --threads 1
 
@@ -591,8 +593,9 @@ jobs:
         run: |
           sudo -u devel                                        \
           bin/NCHG compute                                     \
-            test/data/ENCFF447ERX.1000000.cool                 \
+            test/data/ENCFF447ERX.minified.mcool               \
             "out/$OUT_PREFIX"                                  \
+            --resolution 1000000                               \
             --threads "$(nproc)"                               \
             --domains test/data/ENCFF447ERX.1000000.domains.bedpe
 
@@ -671,7 +674,8 @@ jobs:
 
           sudo -u devel \
           bin/NCHG expected                                    \
-            test/data/ENCFF447ERX.1000000.cool                 \
+            test/data/ENCFF447ERX.minified.mcool               \
+            --resolution 1000000                               \
             --output "$OUT_PREFIX.h5"                          \
             --bin-mask mask.bed
 
@@ -681,7 +685,8 @@ jobs:
         run: |
           sudo -u devel \
           bin/NCHG expected                                    \
-            test/data/ENCFF447ERX.1000000.cool                 \
+            test/data/ENCFF447ERX.minified.mcool               \
+            --resolution 1000000                               \
             --output "$OUT_PREFIX.h5"
 
           test/scripts/validate_nchg_output.py expected  \

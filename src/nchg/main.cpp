@@ -52,9 +52,10 @@ class GlobalLogger {
   std::atomic<bool> _ok{false};
 
   [[nodiscard]] static std::shared_ptr<spdlog::sinks::stderr_color_sink_mt> init_stderr_sink() {
+    constexpr spdlog::level::level_enum level{SPDLOG_ACTIVE_LEVEL};
     auto stderr_sink = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
     stderr_sink->set_pattern(_msg_pattern);
-    stderr_sink->set_level(spdlog::level::debug);
+    stderr_sink->set_level(level);
 
     return stderr_sink;
   }

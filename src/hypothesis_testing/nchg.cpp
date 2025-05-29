@@ -225,6 +225,7 @@ auto NCHG::compute(const BEDPE &domain, std::uint64_t obs, double exp,
   if (bad_bin_fraction < 0.0 || bad_bin_fraction > 1.0) [[unlikely]] {
     throw std::logic_error("bad_bin_fraction should be between 0 and 1");
   }
+  SPDLOG_TRACE("[{:ucsc}; {:ucsc}]: obs={}; exp={}", domain.range1(), domain.range2(), obs, exp);
 
   const auto &range1 = domain.range1();
   const auto &range2 = domain.range2();
@@ -241,6 +242,8 @@ auto NCHG::compute(const BEDPE &domain, std::uint64_t obs, double exp,
   const auto range2_masked = N2 == std::numeric_limits<decltype(N2)>::max();
 
   if (range1_masked || range2_masked) [[unlikely]] {
+    SPDLOG_TRACE("[{:ucsc}; {:ucsc}]: masked: domain overlaps with too many bad bins",
+                 domain.range1(), domain.range2());
     obs = 0;
     exp = 0.0;
   }
@@ -562,6 +565,8 @@ NCHGResult NCHG::compute_stats(hictk::Pixel<std::uint64_t> pixel, double exp, st
   const auto log_ratio = std::log2(static_cast<double>(pixel.count)) - std::log2(exp);
 
   if (!std::isfinite(odds_ratio) || !std::isfinite(omega)) [[unlikely]] {
+    SPDLOG_TRACE("[{:ucsc}; {:ucsc}]: odds_ratio={}; omega={}; forcing p-value to 1.0",
+                 pixel.coords.bin1.interval(), pixel.coords.bin2.interval(), odds_ratio, omega);
     return {.pixel = std::move(pixel),
             .expected = exp,
             .pval = 1.0,
@@ -570,7 +575,9 @@ NCHGResult NCHG::compute_stats(hictk::Pixel<std::uint64_t> pixel, double exp, st
             .omega = omega};
   }
 
-  if (!std::isfinite(omega) || omega > odds_ratio) [[unlikely]] {
+  if (omega > odds_ratio) [[unlikely]] {
+    SPDLOG_TRACE("[{:ucsc}; {:ucsc}]: omega={} > odds_ratio={}; forcing p-value to 1.0",
+                 pixel.coords.bin1.interval(), pixel.coords.bin2.interval(), omega, odds_ratio);
     return {.pixel = std::move(pixel),
             .expected = exp,
             .pval = 1.0,
@@ -584,6 +591,9 @@ NCHGResult NCHG::compute_stats(hictk::Pixel<std::uint64_t> pixel, double exp, st
   }
 
   const auto pvalue = compute_pvalue_nchg(buffer, pixel.count, N1, N2, obs_sum, omega);
+  SPDLOG_TRACE("[{:ucsc}; {:ucsc}]: odds_ratio={}; omega={}; log_ratio={}; p-value={}",
+               pixel.coords.bin1.interval(), pixel.coords.bin2.interval(), odds_ratio, omega,
+               log_ratio, pvalue);
   return {.pixel = std::move(pixel),
           .expected = exp,
           .pval = pvalue,

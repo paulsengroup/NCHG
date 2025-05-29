@@ -512,6 +512,8 @@ def run_nchg_expected(
 def generate_all_files(nchg_bin: pathlib.Path, force: bool, timeout: float, args: Dict[str, Any]):
     suffix = pathlib.Path(args["cool-uri"].partition("::")[0]).stem
 
+    (args["output-dir"] / "cartesian_product").mkdir(exist_ok=True, parents=True)
+
     for dom_type in ["gw", "cis", "trans"]:
         output = args["output-dir"] / "cartesian_product" / f"{suffix}.{dom_type}-domains.bedpe"
         generate_2d_domains(args["domains"], output, dom_type, args["force"])

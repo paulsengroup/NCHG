@@ -371,7 +371,7 @@ jobs:
           NCPUS="$(nproc)"
 
           echo "DATA_DIR=$PWD/test/data/integration_tests" | tee -a "$GITHUB_ENV"
-          echo "OUT_PREFIX=ENCFF447ERX.1000000" | tee -a "$GITHUB_ENV"
+          echo "OUT_PREFIX=ENCFF447ERX.minified" | tee -a "$GITHUB_ENV"
           echo "LLVM_PROFILE_POOL_SIZE=$(( NCPUS + 1))" | tee -a "$GITHUB_ENV"
 
       - name: Test NCHG cartesian-product (gw)
@@ -450,12 +450,12 @@ jobs:
         run: |
           LLVM_PROFILE_FILE="$PWD/nchg.checksum.profraw"
 
-          sudo -u devel                                   \
-          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"   \
-          build/src/nchg/NCHG checksum                    \
-            "$DATA_DIR/compute/ENCFF447ERX.1000000.json"  |
-            test/scripts/validate_nchg_output.py checksum \
-            4a1647c87b983aecd7b555988fc173c2
+          sudo -u devel                                    \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"    \
+          build/src/nchg/NCHG checksum                     \
+            "$DATA_DIR/compute/ENCFF447ERX.minified.json"  |
+            test/scripts/validate_nchg_output.py checksum  \
+            86bd6f9a08541eec341ce482c5fa8f5a
 
       - name: Test NCHG compute (mt)
         run: |
@@ -464,8 +464,9 @@ jobs:
           sudo -u devel                                        \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
           build/src/nchg/NCHG compute                          \
-            test/data/ENCFF447ERX.1000000.cool                 \
+            test/data/ENCFF447ERX.minified.mcool               \
             "out/$OUT_PREFIX"                                  \
+            --resolution 1000000                               \
             --threads "$(nproc)"
 
           test/scripts/validate_nchg_output.py compute \
@@ -481,8 +482,9 @@ jobs:
           sudo -u devel                                        \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
           build/src/nchg/NCHG compute                          \
-            test/data/ENCFF447ERX.1000000.cool                 \
+            test/data/ENCFF447ERX.minified.mcool               \
             "out/$OUT_PREFIX"                                  \
+            --resolution 1000000                               \
             --cis-only                                         \
             --threads 1
 
@@ -495,8 +497,9 @@ jobs:
           sudo -u devel                                        \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
           build/src/nchg/NCHG compute                          \
-            test/data/ENCFF447ERX.1000000.cool                 \
+            test/data/ENCFF447ERX.minified.mcool               \
             "out/$OUT_PREFIX"                                  \
+            --resolution 1000000                               \
             --threads "$(nproc)"                               \
             --domains test/data/ENCFF447ERX.1000000.domains.bedpe
 
@@ -593,7 +596,8 @@ jobs:
           sudo -u devel \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
           build/src/nchg/NCHG expected                         \
-            test/data/ENCFF447ERX.1000000.cool                 \
+            test/data/ENCFF447ERX.minified.mcool               \
+            --resolution 1000000                               \
             --output "$OUT_PREFIX.h5"                          \
             --bin-mask mask.bed
 
@@ -606,7 +610,8 @@ jobs:
           sudo -u devel \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
           build/src/nchg/NCHG expected                         \
-            test/data/ENCFF447ERX.1000000.cool                 \
+            test/data/ENCFF447ERX.minified.mcool               \
+            --resolution 1000000                               \
             --output "$OUT_PREFIX.h5"
 
           test/scripts/validate_nchg_output.py expected  \

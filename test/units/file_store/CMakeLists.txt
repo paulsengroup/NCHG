@@ -27,6 +27,7 @@ add_executable(nchg_file_store_tests)
 target_sources(
   nchg_file_store_tests
   PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/file_hashing_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/file_result_metadata_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/file_store_test.cpp
 )

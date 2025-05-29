@@ -515,7 +515,7 @@ static void process_log_messages(MessageQueue &msg_queue, std::atomic<bool> &ear
   std::size_t num_except = 0;
   SPDLOG_DEBUG("starting logger thread...");
 
-  for (std::size_t i = 0; !early_return; ++i) {
+  for ([[maybe_unused]] std::size_t i = 0; !early_return; ++i) {
     try {
       if (!msg_queue.receive()) {
         SPDLOG_DEBUG("logger thread is returning: processed a total of {} records", i);
@@ -569,6 +569,7 @@ static std::size_t process_queries_mt(BS::light_thread_pool &tpool, FileStore &f
       continue;
     }
     workers.emplace_back(tpool.submit_task([&, tasks_submitted, chrom_pair = *it++] {
+      std::ignore = tasks_submitted;
       const auto &[chrom1, chrom2] = chrom_pair;
       SPDLOG_DEBUG("submitting task {}/{} ({}:{})...", tasks_submitted + 1, workers.size(),
                    chrom1.name(), chrom2.name());

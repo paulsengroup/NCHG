@@ -333,7 +333,7 @@ std::filesystem::path write_domains_to_file(const GenomicDomains &domains,
   SPDLOG_DEBUG("[{}:{}]: writing domains to temporary file \"{}\"...", chrom1.name(), chrom2.name(),
                dest.string());
 
-  const auto t0 = std::chrono::steady_clock::now();
+  [[maybe_unused]] const auto t0 = std::chrono::steady_clock::now();
 
   if (!force && std::filesystem::exists(dest)) {
     throw std::runtime_error(
@@ -387,7 +387,7 @@ std::filesystem::path write_domains_to_file(const GenomicDomains &domains,
                     chrom1.name(), chrom2.name(), dest.string()));
   }
 
-  const auto t1 = std::chrono::steady_clock::now();
+  [[maybe_unused]] const auto t1 = std::chrono::steady_clock::now();
 
   SPDLOG_DEBUG("[{}:{}]: written {} domains to \"{}\" in {}", chrom1.name(), chrom2.name(),
                domains_processed, dest.string(), format_duration(t1 - t0));
@@ -521,7 +521,7 @@ void write_chrom_sizes_to_file(const hictk::Reference &chroms, const std::filesy
     const hictk::Chromosome &chrom1, const hictk::Chromosome &chrom2, std::uint64_t min_delta,
     std::uint64_t max_delta, const std::vector<bool> &bin1_mask, const std::vector<bool> &bin2_mask,
     DomainAggregationStrategy aggregation_stategy) {
-  const auto t0 = std::chrono::system_clock::now();
+  [[maybe_unused]] const auto t0 = std::chrono::system_clock::now();
 
   if (chrom1 != chrom2) {
     min_delta = 0;
@@ -543,7 +543,7 @@ void write_chrom_sizes_to_file(const hictk::Reference &chroms, const std::filesy
                                           : DomainAggregationStrategy::MULTI_PASS;
   }
 
-  const auto tot_interactions =
+  [[maybe_unused]] const auto tot_interactions =
       aggregation_stategy == DomainAggregationStrategy::SINGLE_PASS
           ? map_interactions_to_domains_one_pass(f, obs_domains, exp_domains, expected_matrix,
                                                  min_delta, max_delta, bin1_mask, bin2_mask)

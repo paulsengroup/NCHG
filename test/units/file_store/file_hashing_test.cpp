@@ -27,6 +27,7 @@
 
 namespace nchg::test {
 
+// NOLINTBEGIN(readability-function-cognitive-complexity)
 TEST_CASE("File hashing", "[short][io][file_hashing]") {
   const auto test_file1 = datadir / "ENCFF447ERX.1000000.compartments.bed";
   const auto test_file2 = datadir / "ENCFF447ERX.minified.mcool";
@@ -60,6 +61,6 @@ TEST_CASE("File hashing", "[short][io][file_hashing]") {
   }
 }
 
-// NOLINTEND(*-avoid-magic-numbers, readability-function-cognitive-complexity)
+// NOLINTEND(readability-function-cognitive-complexity)
 
 }  // namespace nchg::test

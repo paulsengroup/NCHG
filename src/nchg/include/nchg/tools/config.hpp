@@ -112,8 +112,8 @@ struct ExpectedConfig {
   std::filesystem::path output_path;
   bool force{false};
 
-  std::string chrom1{"all"};
-  std::string chrom2{"all"};
+  std::optional<std::string> chrom1;
+  std::optional<std::string> chrom2;
   bool cis_only{false};
   bool trans_only{false};
 

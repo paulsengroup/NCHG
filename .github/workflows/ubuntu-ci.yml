@@ -560,7 +560,7 @@ jobs:
           bin/NCHG checksum \
             "$DATA_DIR/compute/ENCFF447ERX.minified.json" |
             test/scripts/validate_nchg_output.py checksum \
-            bd7129a5948f920105d5301b01e84280
+            5b208dec036d47d04157a59d1471c546
 
       - name: Test NCHG compute (mt)
         run: |

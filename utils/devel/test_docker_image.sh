@@ -44,7 +44,6 @@ if NCHG compute \
   /tmp/data/ENCFF447ERX.minified.mcool \
   --resolution 1000000 \
   --threads "$(nproc)" \
-  --cis-only \
   out/ENCFF447ERX.1000000; then
   2>&1 echo "### SUCCESS ###"
 else

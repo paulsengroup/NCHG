@@ -305,8 +305,15 @@ void ExpectedValues::init_bin_masks(
     auto last = sel.template end<N>();
 
     if (!_bin_masks.contains(std::make_pair(chrom, chrom))) {
-      const hictk::transformers::JoinGenomicCoords jsel(first, last, f.bins_ptr());
-      add_bin_mask(chrom, mad_max_filtering(jsel, chrom, f.resolution(), _mad_max), bin_mask_seed);
+      if (first == last) {
+        SPDLOG_DEBUG("[{}]: no interactions found: masking the entire chromosome!", chrom.name());
+        const auto num_bins = (chrom.size() + f.resolution() - 1) / f.resolution();
+        add_bin_mask(chrom, std::vector(num_bins, true), bin_mask_seed);
+      } else {
+        const hictk::transformers::JoinGenomicCoords jsel(first, last, f.bins_ptr());
+        add_bin_mask(chrom, mad_max_filtering(jsel, chrom, f.resolution(), _mad_max),
+                     bin_mask_seed);
+      }
     }
   }
 }
@@ -366,12 +373,14 @@ void ExpectedValues::compute_expected_values_cis(
     if (!_expected_scaling_factors.contains(chrom)) {
       _expected_scaling_factors.emplace(chrom, std::numeric_limits<double>::quiet_NaN());
     }
+    SPDLOG_DEBUG("[{}]: scaling_factor={}", chrom.name(), _expected_scaling_factors.at(chrom));
   }
 
   _expected_weights = aggr.weights();
   const auto &chrom = _fp->chromosomes().longest_chromosome();
   const auto num_bins = (chrom.size() + _resolution - 1) / _resolution;
   _expected_weights.resize(num_bins, std::numeric_limits<double>::quiet_NaN());
+  SPDLOG_INFO("finished computing the expected value profile for cis interactions");
 }
 
 void ExpectedValues::compute_expected_values_trans(
@@ -387,21 +396,35 @@ void ExpectedValues::compute_expected_values_trans(
           if (chrom1 == chrom2) {
             continue;
           }
-          SPDLOG_INFO("processing {}:{}...", chrom1.name(), chrom2.name());
 
           const auto sel = f.fetch(chrom1.name(), chrom2.name());
           const hictk::transformers::JoinGenomicCoords jsel(sel.template begin<N>(),
                                                             sel.template end<N>(), f.bins_ptr());
 
           if (!_bin_masks.contains(std::make_pair(chrom1, chrom2))) {
-            add_bin_mask(chrom1, chrom2,
-                         mad_max_filtering(jsel, chrom1, chrom2, _resolution, _mad_max),
-                         bin_mask_seed);
+            if (sel.empty()) {
+              SPDLOG_DEBUG(
+                  "[{}:{}]: no interactions found: masking the entire chromosome-chromosome "
+                  "matrix!",
+                  chrom1.name(), chrom2.name());
+              const auto num_bins1 = (chrom1.size() + f.resolution() - 1) / f.resolution();
+              const auto num_bins2 = (chrom2.size() + f.resolution() - 1) / f.resolution();
+              auto masks =
+                  std::make_pair(std::vector(num_bins1, true), std::vector(num_bins2, true));
+              add_bin_mask(chrom1, chrom2, std::move(masks), bin_mask_seed);
+            } else {
+              SPDLOG_INFO("[{}:{}]: begin computing expected value...", chrom1.name(),
+                          chrom2.name());
+              add_bin_mask(chrom1, chrom2,
+                           mad_max_filtering(jsel, chrom1, chrom2, _resolution, _mad_max),
+                           bin_mask_seed);
+            }
           }
 
           const ExpectedMatrixStats em(
               jsel, chrom1, chrom2, f.bins(), std::vector<N>{}, 0, *bin_mask(chrom1, chrom2).first,
               *bin_mask(chrom1, chrom2).second, std::numeric_limits<std::uint64_t>::max());
+          SPDLOG_DEBUG("[{}:{}]: expected_value={}", chrom1.name(), chrom2.name(), em.nnz_avg());
           _expected_values_trans.emplace(std::make_pair(chrom1, chrom2), em.nnz_avg());
         }
       },

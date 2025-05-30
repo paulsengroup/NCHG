@@ -38,6 +38,10 @@ std::vector<bool> mad_max_filtering(std::vector<double>& margs, double mad_max) 
     return median(vout);
   };
 
+  if (std::ranges::all_of(margs, [](const auto n) { return n == 0; })) {
+    return std::vector(margs.size(), true);
+  }
+
   std::vector<double> cmargs{};
   std::ranges::copy_if(margs, std::back_inserter(cmargs), [](const auto n) { return n > 0; });
 

@@ -44,7 +44,10 @@ concept HictkSingleResFilePtr = requires(FPtr fp) {
 
 template <typename FilePtr>
   requires HictkSingleResFilePtr<FilePtr>
-static void process_all_chromosomes(const FilePtr &f, const ExpectedConfig &c) {
+static void process_all_chromosomes(const FilePtr &f, const ExpectedConfig &c,
+                                    const std::chrono::steady_clock::time_point &t0) {
+  assert(!c.chrom1.has_value());
+  assert(!c.chrom2.has_value());
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
   const ExpectedValues evs(
       f,
@@ -61,12 +64,15 @@ static void process_all_chromosomes(const FilePtr &f, const ExpectedConfig &c) {
     std::filesystem::remove(c.output_path);  // NOLINT
   }
   evs.serialize(c.output_path);
+  const auto t1 = std::chrono::steady_clock::now();
+  SPDLOG_INFO("expected values have been written to \"{}\". Computation took {}", c.output_path,
+              format_duration(t1 - t0));
 }
 
 template <typename FilePtr>
   requires HictkSingleResFilePtr<FilePtr>
-static void process_cis_chromosomes(const FilePtr &f, const ExpectedConfig &c) {
-  const auto t0 = std::chrono::steady_clock::now();
+static void process_cis_chromosomes(const FilePtr &f, const ExpectedConfig &c,
+                                    const std::chrono::steady_clock::time_point &t0) {
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
   const auto evs = ExpectedValues::cis_only(
@@ -91,8 +97,8 @@ static void process_cis_chromosomes(const FilePtr &f, const ExpectedConfig &c) {
 
 template <typename FilePtr>
   requires HictkSingleResFilePtr<FilePtr>
-static void process_trans_chromosomes(const FilePtr &f, const ExpectedConfig &c) {
-  const auto t0 = std::chrono::steady_clock::now();
+static void process_trans_chromosomes(const FilePtr &f, const ExpectedConfig &c,
+                                      const std::chrono::steady_clock::time_point &t0) {
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
   const auto evs = ExpectedValues::trans_only(
@@ -117,13 +123,14 @@ static void process_trans_chromosomes(const FilePtr &f, const ExpectedConfig &c)
 
 template <typename FilePtr>
   requires HictkSingleResFilePtr<FilePtr>
-static void process_one_chromosome_pair(const FilePtr &f, const ExpectedConfig &c) {
-  const auto t0 = std::chrono::steady_clock::now();
+static void process_one_chromosome_pair(const FilePtr &f, const ExpectedConfig &c,
+                                        const std::chrono::steady_clock::time_point &t0) {
+  assert(c.chrom1.has_value());
+  assert(c.chrom2.has_value());
   const auto mask = parse_bin_mask(f->chromosomes(), f->resolution(), c.path_to_bin_mask);
 
-  assert(c.chrom1 != "all");
-  const auto &chrom1 = f->chromosomes().at(c.chrom1);
-  const auto &chrom2 = f->chromosomes().at(c.chrom2);
+  const auto &chrom1 = f->chromosomes().at(*c.chrom1);
+  const auto &chrom2 = f->chromosomes().at(*c.chrom2);
 
   const auto evs = ExpectedValues::chromosome_pair(
       f, chrom1, chrom2,
@@ -146,22 +153,22 @@ static void process_one_chromosome_pair(const FilePtr &f, const ExpectedConfig &
 }
 
 int run_command(const ExpectedConfig &c) {
+  const auto t0 = std::chrono::steady_clock::now();
   const auto f = std::make_shared<const hictk::File>(c.input_path.string(), c.resolution);
 
   if (c.cis_only) {
-    process_cis_chromosomes(f, c);
+    process_cis_chromosomes(f, c, t0);
     return 0;
   }
   if (c.trans_only) {
-    process_trans_chromosomes(f, c);
+    process_trans_chromosomes(f, c, t0);
     return 0;
   }
-  if (c.chrom1 == "all") {
-    assert(c.chrom2 == "all");
-    process_all_chromosomes(f, c);
+  if (!c.chrom1.has_value()) {
+    process_all_chromosomes(f, c, t0);
     return 0;
   }
-  process_one_chromosome_pair(f, c);
+  process_one_chromosome_pair(f, c, t0);
 
   return 0;
 }

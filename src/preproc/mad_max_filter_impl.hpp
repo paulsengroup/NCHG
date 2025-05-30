@@ -20,10 +20,10 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <hictk/chromosome.hpp>
-#include <numeric>
 #include <utility>
 #include <vector>
 
@@ -57,6 +57,11 @@ template <typename Pixels>
 
   return {std::move(margs1), std::move(margs2)};
 }
+
+[[nodiscard]] inline std::size_t count_bad_bins(const std::vector<bool>& mask) noexcept {
+  return static_cast<std::size_t>(std::ranges::count_if(mask, [](const auto x) { return !!x; }));
+}
+
 }  // namespace internal
 
 template <typename Pixels>
@@ -74,10 +79,17 @@ inline std::pair<std::vector<bool>, std::vector<bool>> mad_max_filtering(
   auto mask1 = mad_max_filtering(margs1, mad_max);
   auto mask2 = chrom1 == chrom2 ? mask1 : mad_max_filtering(margs2, mad_max);
 
-  SPDLOG_INFO("[{}:{}]: MAD-max masking procedure flagged {}/{} bins for {} and {}/{} for {}",
-              chrom1.name(), chrom2.name(), std::accumulate(mask1.begin(), mask1.end(), 0),
-              mask1.size(), chrom1.name(), std::accumulate(mask2.begin(), mask2.end(), 0),
-              mask2.size(), chrom2.name());
+  [[maybe_unused]] const auto bad_bins1 = internal::count_bad_bins(mask1);
+  [[maybe_unused]] const auto bad_bins2 = internal::count_bad_bins(mask2);
+
+  if (bad_bins1 == mask1.size() && bad_bins2 == mask2.size()) {
+    SPDLOG_INFO("[{}:{}]: MAD-max masking procedure flagged the entire matrix", chrom1.name(),
+                chrom2.name());
+  } else {
+    SPDLOG_INFO("[{}:{}]: MAD-max masking procedure flagged {}/{} bins for {} and {}/{} for {}",
+                chrom1.name(), chrom2.name(), bad_bins1, mask1.size(), chrom1.name(), bad_bins2,
+                mask2.size(), chrom2.name());
+  }
 
   return {std::move(mask1), std::move(mask2)};
 }
@@ -90,11 +102,16 @@ inline std::vector<bool> mad_max_filtering(const Pixels& pixels, const hictk::Ch
     const auto num_bins = (chrom.size() + resolution - 1) / resolution;
     return std::vector<bool>(num_bins, false);  // NOLINT
   }
-  auto [margs, _] = internal::compute_marginals(pixels, chrom, chrom, resolution);
+  auto margs = internal::compute_marginals(pixels, chrom, chrom, resolution).first;
 
   auto mask = mad_max_filtering(margs, mad_max);
-  SPDLOG_INFO("[{}]: MAD-max masking procedure flagged {}/{} bins", chrom.name(),
-              std::accumulate(mask.begin(), mask.end(), 0), mask.size());
+  [[maybe_unused]] const auto bad_bins = internal::count_bad_bins(mask);
+  if (mask.size() == bad_bins) {
+    SPDLOG_INFO("[{}]: MAD-max masking procedure flagged the entire matrix", chrom.name());
+  } else {
+    SPDLOG_INFO("[{}]: MAD-max masking procedure flagged {}/{} bins", chrom.name(), bad_bins,
+                mask.size());
+  }
   return mask;
 }
 }  // namespace nchg

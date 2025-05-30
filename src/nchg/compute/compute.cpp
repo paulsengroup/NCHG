@@ -48,64 +48,169 @@
 
 namespace nchg {
 
-[[nodiscard]] static ChromosomePairs init_cis_chromosomes(
-    const hictk::Reference &chroms, const std::optional<GenomicDomains> &domains) {
+[[nodiscard]] static bool chrom_pair_is_empty(const hictk::File &f, const hictk::Chromosome &chrom1,
+                                              const hictk::Chromosome &chrom2) {
+  const auto sel = f.fetch(chrom1.name(), chrom2.name());
+  return sel.begin<int>() == sel.end<int>();
+}
+
+template <typename Pairs>
+[[nodiscard]] static ChromosomePairs drop_empty_pairs(const hictk::File &f, Pairs chrom_pairs) {
+  // NOLINTNEXTLINE(*-const-correctness)
+  std::vector chrom_pairs_flat(chrom_pairs.begin(), chrom_pairs.end());
+
+  ChromosomePairs buff;
+  bool cis = true;
+  for (auto &&[chrom1, chrom2] : chrom_pairs) {
+    cis &= chrom1 == chrom2;
+    if (!chrom_pair_is_empty(f, chrom1, chrom2)) {
+      buff.emplace(std::move(chrom1), std::move(chrom2));
+    }
+  }
+
+  if (chrom_pairs_flat.size() != buff.size()) {
+    SPDLOG_INFO(
+        "dropped {}/{} {} chromosome pair(s) because their corresponding matrix has no "
+        "interactions",
+        chrom_pairs_flat.size() - buff.size(), chrom_pairs_flat.size(), cis ? "cis" : "trans");
+  }
+
+  return buff;
+}
+
+[[nodiscard]] static ChromosomePairs init_cis_chrom_pairs(const hictk::File &f,
+                                                          const GenomicDomains &domains,
+                                                          bool skip_empty_matrices) {
   ChromosomePairs buffer{};
+  [[maybe_unused]] const auto &chroms = f.chromosomes();
 
-  if (domains.has_value()) {
-    for (const auto &domain : (*domains)()) {
-      const auto &domain1 = domain.range1();
-      const auto &domain2 = domain.range2();
-      assert(chroms.contains(domain1.chrom().name()));
-      assert(chroms.contains(domain2.chrom().name()));
+  for (const auto &domain : domains()) {
+    const auto &domain1 = domain.range1();
+    const auto &domain2 = domain.range2();
+    assert(chroms.contains(domain1.chrom().name()));
+    assert(chroms.contains(domain2.chrom().name()));
 
-      if (domain1.chrom() == domain2.chrom()) {
-        buffer.emplace(domain1.chrom(), domain2.chrom());
-      }
+    if (domain1.chrom() == domain2.chrom()) {
+      buffer.emplace(domain1.chrom(), domain2.chrom());
     }
-  } else {
-    for (const auto &chrom : chroms) {
-      if (chrom.is_all()) [[unlikely]] {
-        continue;
-      }
-      buffer.emplace(chrom, chrom);
-    }
+  }
+
+  if (skip_empty_matrices) {
+    return drop_empty_pairs(f, std::move(buffer));
   }
 
   return buffer;
 }
 
-[[nodiscard]] static ChromosomePairs init_trans_chromosomes(
-    const hictk::Reference &chroms, const std::optional<GenomicDomains> &domains) {
+[[nodiscard]] static ChromosomePairs init_cis_chrom_pairs(const hictk::File &f,
+                                                          bool skip_empty_matrices) {
   ChromosomePairs buffer{};
-
-  if (domains.has_value()) {
-    for (const auto &domain : (*domains)()) {
-      const auto &domain1 = domain.range1();
-      const auto &domain2 = domain.range2();
-      assert(chroms.contains(domain1.chrom().name()));
-      assert(chroms.contains(domain2.chrom().name()));
-
-      if (domain1.chrom() != domain2.chrom()) {
-        buffer.emplace(domain1.chrom(), domain2.chrom());
-      }
+  [[maybe_unused]] std::size_t num_pairs = 0;
+  [[maybe_unused]] std::size_t dropped_pairs = 0;
+  const auto &chroms = f.chromosomes();
+  for (const auto &chrom : chroms) {
+    if (chrom.is_all()) [[unlikely]] {
+      continue;
     }
-  } else {
-    for (std::uint32_t chrom1_id = 0; chrom1_id < chroms.size(); ++chrom1_id) {
-      const auto &chrom1 = chroms.at(chrom1_id);
-      if (chrom1.is_all()) [[unlikely]] {
+
+    const auto keep = !skip_empty_matrices || !chrom_pair_is_empty(f, chrom, chrom);
+    num_pairs += keep;       // NOLINT(*-implicit-bool-conversion)
+    dropped_pairs += !keep;  // NOLINT(*-implicit-bool-conversion)
+    if (keep) {
+      buffer.emplace(chrom, chrom);
+    }
+  }
+
+  if (dropped_pairs != 0) {
+    SPDLOG_INFO(
+        "dropped {}/{} cis chromosome pair(s) because their corresponding matrix has no "
+        "interactions",
+        dropped_pairs, num_pairs + dropped_pairs);
+  }
+
+  return buffer;
+}
+
+[[nodiscard]] static ChromosomePairs init_trans_chrom_pairs(const hictk::File &f,
+                                                            const GenomicDomains &domains,
+                                                            bool skip_empty_matrices) {
+  ChromosomePairs buffer{};
+  [[maybe_unused]] const auto &chroms = f.chromosomes();
+  for (const auto &domain : domains()) {
+    const auto &domain1 = domain.range1();
+    const auto &domain2 = domain.range2();
+    assert(chroms.contains(domain1.chrom().name()));
+    assert(chroms.contains(domain2.chrom().name()));
+
+    if (domain1.chrom() != domain2.chrom()) {
+      buffer.emplace(domain1.chrom(), domain2.chrom());
+    }
+  }
+
+  if (skip_empty_matrices) {
+    return drop_empty_pairs(f, std::move(buffer));
+  }
+
+  return buffer;
+}
+
+[[nodiscard]] static ChromosomePairs init_trans_chrom_pairs(const hictk::File &f,
+                                                            bool skip_empty_matrices) {
+  ChromosomePairs buffer{};
+  const auto &chroms = f.chromosomes();
+  [[maybe_unused]] std::size_t num_pairs = 0;
+  [[maybe_unused]] std::size_t dropped_pairs = 0;
+  for (std::uint32_t chrom1_id = 0; chrom1_id < chroms.size(); ++chrom1_id) {
+    const auto &chrom1 = chroms.at(chrom1_id);
+    if (chrom1.is_all()) [[unlikely]] {
+      continue;
+    }
+    for (std::uint32_t chrom2_id = chrom1_id + 1; chrom2_id < chroms.size(); ++chrom2_id) {
+      const auto &chrom2 = chroms.at(chrom2_id);
+      if (chrom2.is_all()) [[unlikely]] {
         continue;
       }
-      for (std::uint32_t chrom2_id = chrom1_id + 1; chrom2_id < chroms.size(); ++chrom2_id) {
-        const auto &chrom2 = chroms.at(chrom2_id);
-        if (chrom2.is_all()) [[unlikely]] {
-          continue;
-        }
+      const auto keep = !skip_empty_matrices || !chrom_pair_is_empty(f, chrom1, chrom2);
+      num_pairs += keep;       // NOLINT(*-implicit-bool-conversion)
+      dropped_pairs += !keep;  // NOLINT(*-implicit-bool-conversion)
+      if (keep) {
         buffer.emplace(chrom1, chrom2);
       }
     }
   }
+
+  if (dropped_pairs != 0) {
+    SPDLOG_INFO(
+        "dropped {}/{} trans chromosome pair(s) because their corresponding matrix has no "
+        "interactions",
+        dropped_pairs, num_pairs + dropped_pairs);
+  }
+
   return buffer;
+}
+
+[[nodiscard]] static ChromosomePairs init_cis_chrom_pairs(
+    const hictk::File &f, const std::optional<GenomicDomains> &domains, bool skip_empty_matrices) {
+  auto pairs = domains.has_value() ? init_cis_chrom_pairs(f, *domains, skip_empty_matrices)
+                                   : init_cis_chrom_pairs(f, skip_empty_matrices);
+  if (pairs.empty()) {
+    SPDLOG_WARN(
+        "all cis chromosome pair(s) have been discarded because they have no interactions. "
+        "Is this intended?");
+  }
+  return pairs;
+}
+
+[[nodiscard]] static ChromosomePairs init_trans_chrom_pairs(
+    const hictk::File &f, const std::optional<GenomicDomains> &domains, bool skip_empty_matrices) {
+  auto pairs = domains.has_value() ? init_trans_chrom_pairs(f, *domains, skip_empty_matrices)
+                                   : init_trans_chrom_pairs(f, skip_empty_matrices);
+  if (pairs.empty()) {
+    SPDLOG_WARN(
+        "all trans chromosome pair(s) have been discarded because they have no interactions. "
+        "Is this intended?");
+  }
+  return pairs;
 }
 
 [[nodiscard]] static ExpectedValues init_cis_expected_values(const ComputePvalConfig &c) {
@@ -262,22 +367,30 @@ static void validate_expected_values(const ExpectedValues &expected_values,
 }
 
 [[nodiscard]] static ChromosomePairs init_chromosome_pairs(
-    const ComputePvalConfig &c, const hictk::Reference &chroms,
+    const ComputePvalConfig &c, const hictk::File &f,
     const std::optional<GenomicDomains> &domains) {
+  const auto &chroms = f.chromosomes();
+
   if (c.chrom1.has_value()) {
     assert(c.chrom2.has_value());
-    return {{std::make_pair(chroms.at(*c.chrom1), chroms.at(*c.chrom2))}};
+    const auto &chrom1 = chroms.at(*c.chrom1);
+    const auto &chrom2 = chroms.at(*c.chrom2);
+
+    if (chrom_pair_is_empty(f, chrom1, chrom2)) {
+      return {};
+    }
+    return {std::make_pair(chrom1, chrom2)};
   }
 
   assert(!c.chrom2.has_value());
   ChromosomePairs chrom_pairs;
 
   if (c.compute_cis) {
-    chrom_pairs = init_cis_chromosomes(chroms, domains);
+    chrom_pairs = init_cis_chrom_pairs(f, domains, c.skip_empty_matrices);
   }
 
   if (c.compute_trans) {
-    std::ranges::move(init_trans_chromosomes(chroms, domains),
+    std::ranges::move(init_trans_chrom_pairs(f, domains, c.skip_empty_matrices),
                       std::inserter(chrom_pairs, chrom_pairs.end()));
   }
 
@@ -309,6 +422,10 @@ static void validate_expected_values(const ExpectedValues &expected_values,
                                      fmt::format("{}.json", prefix.filename().string()));
 }
 
+[[nodiscard]] static bool plan_includes_cis_chrom_pairs(const ChromosomePairs &pairs) {
+  return std::ranges::any_of(pairs, [](const auto &cp) { return cp.first == cp.second; });
+}
+
 [[nodiscard]] static auto generate_execution_plan(const ComputePvalConfig &c,
                                                   bool init_file_store) {
   struct Plan {
@@ -326,7 +443,7 @@ static void validate_expected_values(const ExpectedValues &expected_values,
 
   Plan plan{};
   plan.domains = try_parse_genomic_domains(c, f.chromosomes());
-  plan.chrom_pairs = init_chromosome_pairs(c, f.chromosomes(), plan.domains);
+  plan.chrom_pairs = init_chromosome_pairs(c, f, plan.domains);
 
   if (init_file_store) {
     process_file_collisions(c.output_prefix, plan.chrom_pairs, c.force);
@@ -341,38 +458,45 @@ static void validate_expected_values(const ExpectedValues &expected_values,
     plan.file_store = create_file_store(c.output_prefix);
   }
 
-  if (!plan.expected_values.has_value() && c.compute_cis) {
+  if (!plan.expected_values.has_value() && plan_includes_cis_chrom_pairs(plan.chrom_pairs)) {
     plan.expected_values = init_cis_expected_values(c);
   }
 
   return plan;
 }
 
-// NOLINTNEXTLINE(*-use-internal-linkage)
-int run_command(const ComputePvalConfig &c) {
-  const auto t0 = std::chrono::steady_clock::now();
+[[nodiscard]] static int process_one_chromosme_pair(
+    const ComputePvalConfig &c, [[maybe_unused]] const std::chrono::steady_clock::time_point &t0) {
+  assert(c.chrom1.has_value());
+  assert(c.chrom2.has_value());
+  assert(!c.output_path.empty());
 
-  if (!c.log_message_queue.empty()) {
-    setup_beve_logger(c.log_message_queue);
+  const auto plan = generate_execution_plan(c, false);
+
+  if (c.skip_empty_matrices) {
+    const hictk::File hf{c.path_to_hic.string(), c.resolution};
+    const auto &chrom1 = hf.chromosomes().at(*c.chrom1);
+    const auto &chrom2 = hf.chromosomes().at(*c.chrom2);
+    if (chrom_pair_is_empty(hf, chrom1, chrom2)) {
+      SPDLOG_WARN("[{}:{}]: matrix has no interactions: returning immediately!", *c.chrom1,
+                  *c.chrom2);
+      return 0;
+    }
   }
 
-  if (c.chrom1.has_value()) {
-    assert(c.chrom2.has_value());
-    assert(!c.output_path.empty());
+  const auto interactions_processed =
+      process_chromosome_pair(c, plan.domains, plan.expected_values);
+  const auto t1 = std::chrono::steady_clock::now();
+  SPDLOG_INFO("[{}:{}]: processed {} records in {}!", *c.chrom1, *c.chrom2, interactions_processed,
+              format_duration(t1 - t0));
 
-    const auto plan = generate_execution_plan(c, false);
+  SPDLOG_INFO("[{}:{}]: all records have been written to file \"{}\"", *c.chrom1, *c.chrom2,
+              c.output_path.string());
+  return 0;
+}
 
-    const auto interactions_processed =
-        process_chromosome_pair(c, plan.domains, plan.expected_values);
-    const auto t1 = std::chrono::steady_clock::now();
-    SPDLOG_INFO("[{}:{}]: processed {} records in {}!", *c.chrom1, *c.chrom2,
-                interactions_processed, format_duration(t1 - t0));
-
-    SPDLOG_INFO("[{}:{}]: all records have been written to file \"{}\"", *c.chrom1, *c.chrom2,
-                c.output_path.string());
-    return 0;
-  }
-
+[[nodiscard]] static int process_many_chromosome_pairs(
+    const ComputePvalConfig &c, const std::chrono::steady_clock::time_point &t0) {
   const auto log_file_initialized = setup_file_backed_logger(c.output_prefix, c.force);
 
   auto [file_store, chrom_pairs, expected_values, domains] = generate_execution_plan(c, true);
@@ -396,6 +520,20 @@ int run_command(const ComputePvalConfig &c) {
   SPDLOG_INFO("created {} new file(s) under prefix \"{}\"", files_created, c.output_prefix);
 
   return 0;
+}
+
+// NOLINTNEXTLINE(*-use-internal-linkage)
+int run_command(const ComputePvalConfig &c) {
+  const auto t0 = std::chrono::steady_clock::now();
+
+  if (!c.log_message_queue.empty()) {
+    setup_beve_logger(c.log_message_queue);
+  }
+
+  if (c.chrom1.has_value()) {
+    return process_one_chromosme_pair(c, t0);
+  }
+  return process_many_chromosome_pairs(c, t0);
 }
 
 }  // namespace nchg

@@ -274,6 +274,7 @@ class ProcessContext {
       fmt::to_string(c.compression_lvl),
       "--compression-method",
       c.compression_method,
+      c.skip_empty_matrices ? "--skip-empty-matrices" : "--keep-empty-matrices",
   };
 
   if (c.resolution.has_value()) {

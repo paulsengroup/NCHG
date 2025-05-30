@@ -62,6 +62,7 @@ struct ComputePvalConfig {
   std::filesystem::path path_to_expected_values;
   std::filesystem::path path_to_domains;
 
+  bool skip_empty_matrices{true};
   bool compute_cis{true};
   bool compute_trans{true};
   DomainAggregationStrategy domain_aggregation_stategy{DomainAggregationStrategy::AUTO};
@@ -111,8 +112,8 @@ struct ExpectedConfig {
   std::filesystem::path output_path;
   bool force{false};
 
-  std::string chrom1{"all"};
-  std::string chrom2{"all"};
+  std::optional<std::string> chrom1;
+  std::optional<std::string> chrom2;
   bool cis_only{false};
   bool trans_only{false};
 

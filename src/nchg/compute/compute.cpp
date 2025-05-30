@@ -423,13 +423,7 @@ static void validate_expected_values(const ExpectedValues &expected_values,
 }
 
 [[nodiscard]] static bool plan_includes_cis_chrom_pairs(const ChromosomePairs &pairs) {
-  for (const auto &[chrom1, chrom2] : pairs) {
-    if (chrom1 == chrom2) {
-      return true;
-    }
-  }
-
-  return false;
+  return std::ranges::any_of(pairs, [](const auto &cp) { return cp.first == cp.second; });
 }
 
 [[nodiscard]] static auto generate_execution_plan(const ComputePvalConfig &c,

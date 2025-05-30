@@ -373,7 +373,13 @@ static void validate_expected_values(const ExpectedValues &expected_values,
 
   if (c.chrom1.has_value()) {
     assert(c.chrom2.has_value());
-    return {{std::make_pair(chroms.at(*c.chrom1), chroms.at(*c.chrom2))}};
+    const auto &chrom1 = chroms.at(*c.chrom1);
+    const auto &chrom2 = chroms.at(*c.chrom2);
+
+    if (chrom_pair_is_empty(f, chrom1, chrom2)) {
+      return {};
+    }
+    return {std::make_pair(chrom1, chrom2)};
   }
 
   assert(!c.chrom2.has_value());
@@ -416,6 +422,16 @@ static void validate_expected_values(const ExpectedValues &expected_values,
                                      fmt::format("{}.json", prefix.filename().string()));
 }
 
+[[nodiscard]] static bool plan_includes_cis_chrom_pairs(const ChromosomePairs &pairs) {
+  for (const auto &[chrom1, chrom2] : pairs) {
+    if (chrom1 == chrom2) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 [[nodiscard]] static auto generate_execution_plan(const ComputePvalConfig &c,
                                                   bool init_file_store) {
   struct Plan {
@@ -448,7 +464,7 @@ static void validate_expected_values(const ExpectedValues &expected_values,
     plan.file_store = create_file_store(c.output_prefix);
   }
 
-  if (!plan.expected_values.has_value() && c.compute_cis) {
+  if (!plan.expected_values.has_value() && plan_includes_cis_chrom_pairs(plan.chrom_pairs)) {
     plan.expected_values = init_cis_expected_values(c);
   }
 

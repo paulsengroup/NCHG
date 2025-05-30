@@ -334,6 +334,12 @@ void Cli::make_compute_subcommand() {
     "For each domain, NCHG will first fetch and aggregate interactions overlapping with the given coordinates.\n"
     "Then, NCHG will asses the statistical significance of the observed interactions after aggregation.")
     ->check(CLI::ExistingFile);
+  sc.add_flag(
+    "--skip-empty-matrices,!--keep-empty-matrices",
+    c.skip_empty_matrices,
+    "Control whether NCHG should create empty .parquet file(s) for chromosome-chromosome\n"
+    "matrices with no interactions.")
+    ->capture_default_str();
   sc.add_flag_function(
     "--cis-only",
     [&c](auto n) { if (n != 0) {c.compute_trans = false;} },

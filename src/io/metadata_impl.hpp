@@ -72,12 +72,17 @@ struct from<JSON, hictk::Reference> {
       return {chrom.id, chrom.name, chrom.size};
     };
 
-    // clang-format off
     std::ranges::sort(buff, [](const auto& c1, const auto& c2) { return c1.id < c2.id; });
+#ifdef __cpp_lib_ranges_to_container
+    // clang-format off
     chroms = buff |
       std::ranges::views::transform(to_hictk_chrom) |
       std::ranges::to<hictk::Reference>();
     // clang-format on
+#else
+    const auto chroms_view = buff | std::ranges::views::transform(to_hictk_chrom);
+    chroms = hictk::Reference(chroms_view.begin(), chroms_view.end());
+#endif
   }
 };
 

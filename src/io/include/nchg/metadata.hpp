@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Roberto Rossini <roberros@uio.no>
+// Copyright (C) 2025 Roberto Rossini <roberros@uio.no>
 //
 // SPDX-License-Identifier: GPL-3.0
 //
@@ -18,28 +18,23 @@
 
 #pragma once
 
-#include <arrow/type_fwd.h>
-#include <arrow/util/key_value_metadata.h>
-#include <parquet/platform.h>
-
-#include <memory>
+#include <glaze/json/json_t.hpp>
+#include <string>
 #include <string_view>
-#include <type_traits>
 
 namespace nchg {
 
-// https://stackoverflow.com/a/16000226
-template <typename T, typename = int>
-struct has_pval_corrected : std::false_type {};
+template <typename T>
+[[nodiscard]] std::string to_json_string(const T &value);
 
 template <typename T>
-struct has_pval_corrected<T, decltype((void)T::pval_corrected, 0)> : std::true_type {};
+void to_json_string(const T &value, std::string &buff);
 
-[[nodiscard]] std::shared_ptr<arrow::Schema> make_schema(
-    std::shared_ptr<const arrow::KeyValueMetadata> metadata = nullptr);
-[[nodiscard]] std::shared_ptr<arrow::Schema> make_schema_with_padj(
-    std::shared_ptr<const arrow::KeyValueMetadata> metadata = nullptr);
+template <typename T>
+[[nodiscard]] T parse_json_string(std::string_view buff);
 
-[[nodiscard]] parquet::Compression::type parse_parquet_compression(std::string_view method);
+[[nodiscard]] glz::json_t parse_json_string(std::string_view buff);
 
 }  // namespace nchg
+
+#include "../../metadata_impl.hpp"

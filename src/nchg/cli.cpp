@@ -592,6 +592,12 @@ void Cli::make_expected_subcommand() {
     c.force,
     "Force overwrite existing output file(s).")
     ->capture_default_str();
+  sc.add_option(
+    "-v,--verbosity",
+    c.verbosity,
+    "Set verbosity of output to the console.")
+    ->check(CLI::Range(1, 5))
+    ->capture_default_str();
   // clang-format on
 
   sc.get_option("--chrom2")->needs("--chrom1");
@@ -682,6 +688,12 @@ void Cli::make_filter_subcommand() {
     "Number of worker threads used for compression.")
     ->check(CLI::Bound(2U, std::thread::hardware_concurrency()))
     ->capture_default_str();
+  sc.add_option(
+    "-v,--verbosity",
+    c.verbosity,
+    "Set verbosity of output to the console.")
+    ->check(CLI::Range(1, 5))
+    ->capture_default_str();
   // clang-format on
 
   sc.get_option("--keep-non-significant")->excludes(sc.get_option("--fdr"));
@@ -743,6 +755,12 @@ void Cli::make_merge_subcommand() {
     c.threads,
     "Number of worker threads.")
     ->check(CLI::Range(2U, std::max(2U, std::thread::hardware_concurrency())))
+    ->capture_default_str();
+  sc.add_option(
+    "-v,--verbosity",
+    c.verbosity,
+    "Set verbosity of output to the console.")
+    ->check(CLI::Range(1, 5))
     ->capture_default_str();
   // clang-format on
 

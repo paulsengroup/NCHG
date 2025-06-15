@@ -26,6 +26,7 @@
 #include <filesystem>
 #include <hictk/chromosome.hpp>
 #include <hictk/reference.hpp>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -40,6 +41,9 @@ template <std::size_t NTOKS>
 
 [[nodiscard]] phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> parse_bin_mask(
     const hictk::Reference &chroms, std::uint32_t bin_size, const std::filesystem::path &path);
+
+[[nodiscard]] phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> parse_bin_mask(
+    const hictk::Reference &chroms, std::uint32_t bin_size, const std::string &payload);
 
 }  // namespace nchg
 

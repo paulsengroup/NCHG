@@ -58,6 +58,7 @@ class ExpectedValues {
   bool _interpolate{};
   double _interpolation_qtile{};
   std::uint32_t _interpolation_window_size{};
+  bool _seeded{};
 
  public:
   struct Params {
@@ -139,6 +140,9 @@ class ExpectedValues {
     requires HictkSingleResFile<File>
   [[nodiscard]] static auto init_pixel_merger_cis(const File& f);
 
+  [[nodiscard]] bool cis_only() const noexcept;
+  [[nodiscard]] bool trans_only() const noexcept;
+
  private:
   void compute_expected_values_cis(
       const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>>& bin_mask);
@@ -156,7 +160,8 @@ class ExpectedValues {
   static void serialize_attributes(HighFive::File& f, const Params& params);
   static void serialize_chromosomes(HighFive::File& f, const hictk::Reference& chroms);
   static void serialize_bin_masks(
-      HighFive::File& f, const phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>>& bin_masks);
+      HighFive::File& f, const phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>>& bin_masks,
+      bool seeded);
   static void serialize_cis_profiles(
       HighFive::File& f, const std::vector<double>& profile,
       const phmap::btree_map<hictk::Chromosome, double>& scaling_factors);

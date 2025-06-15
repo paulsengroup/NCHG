@@ -36,6 +36,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <glaze/glaze.hpp>
 #include <hictk/chromosome.hpp>
 #include <hictk/file.hpp>
 #include <memory>
@@ -55,12 +56,14 @@
 #include "nchg/expected_values.hpp"
 #include "nchg/file_store.hpp"
 #include "nchg/genomic_domains.hpp"
+#include "nchg/metadata.hpp"
 #include "nchg/nchg.hpp"
 #include "nchg/parquet_stats_file_writer.hpp"
 #include "nchg/text.hpp"
 #include "nchg/tools/common.hpp"
 #include "nchg/tools/config.hpp"
 #include "nchg/tools/tmpdir.hpp"
+#include "nchg/version.hpp"
 
 // clang-format off
 // As of HighFive 2.9.0, these headers must be included after HighFive/hictk,
@@ -69,6 +72,112 @@
 #include <boost/process/v2/process.hpp>
 #include <boost/process/v2/stdio.hpp>
 // clang-format on
+
+template <>
+struct glz::meta<nchg::ExpectedConfig> {
+  using T = nchg::ExpectedConfig;
+  static constexpr auto value = object(
+      // clang-format off
+      "resolution", &T::resolution,
+      "chrom1", &T::chrom1,
+      "chrom2", &T::chrom2,
+      "cis-only", &T::cis_only,
+      "trans-only", &T::trans_only,
+      "mad-max", &T::mad_max,
+      "min-delta", &T::min_delta,
+      "max-delta", &T::max_delta,
+      "bin-aggregation-possible-distances-cutoff", &T::bin_aggregation_possible_distances_cutoff,
+      "bin-aggregation-observed-distances-cutoff", &T::bin_aggregation_observed_distances_cutoff,
+      "interpolate-expected-values", &T::interpolate_expected_values,
+      "interpolation-quantile", &T::interpolation_qtile,
+      "interpolation-window-size", &T::interpolation_window_size,
+      "with-seed-bin-mask", [](const T &c) { return !c.path_to_bin_mask.empty(); }
+      // clang-format on
+  );
+};
+
+[[nodiscard]] static nchg::ExpectedConfig extract_expected_values_config(
+    const nchg::ComputePvalConfig &c) {
+  if (!c.path_to_expected_values.empty()) {
+    const auto evs = nchg::ExpectedValues::deserialize(c.path_to_expected_values);
+    return {
+        .input_path = "",
+        .resolution = evs.resolution(),
+        .output_path = "",
+        .force = false,
+        .chrom1 = std::nullopt,
+        .chrom2 = std::nullopt,
+        .cis_only = evs.cis_only(),
+        .trans_only = evs.trans_only(),
+        .mad_max = evs.params().mad_max,
+        .min_delta = evs.params().min_delta,
+        .max_delta = evs.params().max_delta,
+        .bin_aggregation_possible_distances_cutoff =
+            evs.params().bin_aggregation_possible_distances_cutoff,
+        .bin_aggregation_observed_distances_cutoff =
+            evs.params().bin_aggregation_observed_distances_cutoff,
+        .interpolate_expected_values = evs.params().interpolate,
+        .interpolation_qtile = evs.params().interpolation_qtile,
+        .interpolation_window_size = evs.params().interpolation_window_size,
+        .path_to_bin_mask = "",
+        .verbosity = 0,
+
+    };
+  }
+
+  return {
+      .input_path = "",
+      .resolution = c.resolution,
+      .output_path = "",
+      .force = false,
+      .chrom1 = c.chrom1,
+      .chrom2 = c.chrom2,
+      .cis_only = c.compute_cis && !c.compute_trans,
+      .trans_only = c.compute_trans && !c.compute_cis,
+      .mad_max = c.mad_max,
+      .min_delta = c.min_delta,
+      .max_delta = c.max_delta,
+      .bin_aggregation_possible_distances_cutoff = c.bin_aggregation_possible_distances_cutoff,
+      .bin_aggregation_observed_distances_cutoff = c.bin_aggregation_observed_distances_cutoff,
+      .interpolate_expected_values = c.interpolate_expected_values,
+      .interpolation_qtile = c.interpolation_qtile,
+      .interpolation_window_size = c.interpolation_window_size,
+      .path_to_bin_mask = c.path_to_bin_mask,
+      .verbosity = 0,
+  };
+}
+
+[[nodiscard]] static std::string_view to_string(
+    nchg::ComputePvalConfig::DomainAggregationStrategy s) noexcept {
+  using enum nchg::ComputePvalConfig::DomainAggregationStrategy;
+  switch (s) {
+    case AUTO:
+      return "auto";
+    case SINGLE_PASS:
+      return "one-pass";
+    case MULTI_PASS:
+      return "multi-pass";
+  }
+
+  nchg::unreachable_code();
+}
+
+template <>
+struct glz::meta<nchg::ComputePvalConfig> {
+  using T = nchg::ComputePvalConfig;
+  static constexpr auto value = object(
+      // clang-format off
+      "resolution", &T::resolution,
+      "chrom1", &T::chrom1,
+      "chrom2", &T::chrom2,
+      "expected-values-params", [](const T &c) { return extract_expected_values_config(c); },
+      "skip-empty-matrices", &T::skip_empty_matrices,
+      "compute-cis", &T::compute_cis,
+      "compute-trans", &T::compute_trans,
+      "domain-aggregation-strategy", [](const T &c) { return to_string(c.domain_aggregation_stategy); }
+      // clang-format on
+  );
+};
 
 namespace nchg {
 class ProcessContext {
@@ -125,6 +234,19 @@ class ProcessContext {
   return init_nchg(f, evs, c);
 }
 
+[[nodiscard]] static std::string generate_metadata_string(const hictk::Reference &chroms,
+                                                          const ComputePvalConfig &c) {
+  const glz::json_t metadata{
+      {"chromosomes", parse_json_string(to_json_string(chroms))},
+      {"command", "compute"},
+      {"date", fmt::format("{:%FT%T}", fmt::gmtime(std::chrono::system_clock::now()))},
+      {"input-metadata", {}},
+      {"params", parse_json_string(to_json_string(c))},
+      {"version", config::version::str()}};
+
+  return to_json_string(metadata);
+}
+
 [[nodiscard]] static std::size_t process_domains(
     const std::shared_ptr<const hictk::File> &f, const GenomicDomains &domains,
     const std::optional<ExpectedValues> &expected_values, const ComputePvalConfig &c) {
@@ -138,7 +260,8 @@ class ProcessContext {
               c.path_to_domains);
 
   ParquetStatsFileWriter writer(f->chromosomes(), c.output_path, c.force, c.compression_method,
-                                c.compression_lvl, c.threads);
+                                c.compression_lvl, c.threads,
+                                generate_metadata_string(f->chromosomes(), c));
 
   const auto &chrom1 = f->chromosomes().at(*c.chrom1);
   const auto &chrom2 = f->chromosomes().at(*c.chrom2);
@@ -184,7 +307,8 @@ class ProcessContext {
   const auto nchg = init_nchg(f, expected_values, c).nchg;
 
   ParquetStatsFileWriter writer(f->chromosomes(), c.output_path, c.force, c.compression_method,
-                                c.compression_lvl, c.threads);
+                                c.compression_lvl, c.threads,
+                                generate_metadata_string(f->chromosomes(), c));
 
   std::size_t num_records = 0;
   auto first = nchg.begin(chrom1, chrom2);

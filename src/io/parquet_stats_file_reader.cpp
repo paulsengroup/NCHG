@@ -26,6 +26,7 @@
 #include <parquet/arrow/reader.h>
 #include <parquet/file_reader.h>
 #include <parquet/stream_reader.h>
+#include <zstd.h>
 
 #include <algorithm>
 #include <array>
@@ -43,8 +44,14 @@
 #include <vector>
 
 #include "nchg/common.hpp"
+#include "nchg/metadata.hpp"
 
 namespace nchg {
+
+template <typename N>
+[[nodiscard]] static N parse_numeric(std::string_view tok) {
+  return hictk::internal::parse_numeric_or_throw<N>(tok);
+}
 
 [[nodiscard]] static std::shared_ptr<arrow::io::ReadableFile> open_parquet_file(
     const std::filesystem::path &path) {
@@ -92,21 +99,92 @@ namespace nchg {
   }
 }
 
+[[nodiscard]] static glz::json_t strip_keys_from_json(glz::json_t json,
+                                                      const std::vector<std::string> &keys) {
+  auto &map = json.get<glz::json_t::object_t>();
+  for (const auto &k : keys) {
+    if (map.contains(k)) {
+      map.erase(k);
+    }
+  }
+
+  return json;
+}
+
+[[nodiscard]] static std::string read_attribute_or_throw(
+    const std::shared_ptr<const arrow::Schema> &schema, std::string_view key) {
+  auto attr = schema->metadata()->Get(key);
+  if (!attr.ok()) {
+    throw std::runtime_error(
+        fmt::format("failed to read {} attribute: {}", key, attr.status().ToString()));
+  }
+
+  return attr.MoveValueUnsafe();
+}
+
+[[nodiscard]] static std::string read_metadata_or_throw(
+    const std::shared_ptr<arrow::io::ReadableFile> &fp) {
+  try {
+    const auto schema = get_file_schema(fp);
+
+    const auto compression = read_attribute_or_throw(schema, "NCHG:metadata-compression");
+    auto metadata = read_attribute_or_throw(schema, "NCHG:metadata");
+
+    if (compression == "None") {
+      return metadata;
+    }
+
+    if (compression == "zstd") {
+      const auto buffer_size =
+          parse_numeric<std::size_t>(read_attribute_or_throw(schema, "NCHG:metadata-size"));
+      std::string buffer(buffer_size, '\0');
+      const auto decompressed_size =
+          ZSTD_decompress(static_cast<void *>(buffer.data()), buffer.size(),
+                          static_cast<const void *>(metadata.data()), metadata.size());
+      if (ZSTD_isError(decompressed_size)) {  // NOLINT(*-implicit-bool-conversion)
+        throw std::runtime_error(fmt::format("failed to decompress metadata using zstd: {}",
+                                             ZSTD_getErrorName(decompressed_size)));
+      }
+      buffer.resize(decompressed_size);
+      return buffer;
+    }
+
+    throw std::runtime_error(fmt::format("unknown compression method \"{}\"", compression));
+  } catch (const std::exception &e) {
+    throw std::runtime_error(fmt::format("failed to read file metadata: {}", e.what()));
+  } catch (...) {
+    throw std::runtime_error("failed to read file metadata: unknown error");
+  }
+}
+
+[[nodiscard]] static glz::json_t parse_metadata_or_throw(const std::string &s) {
+  try {
+    return parse_json_string(s);
+  } catch (const std::exception &e) {
+    throw std::runtime_error(fmt::format("not a valid JSON string: {}", e.what()));
+  }
+}
+
+[[nodiscard]] static std::string import_metadata_from_parquet(
+    const std::shared_ptr<arrow::io::ReadableFile> &fp,
+    const std::vector<std::string> &ignored_keys) {
+  try {
+    auto json = parse_metadata_or_throw(read_metadata_or_throw(fp));
+    json = strip_keys_from_json(json, ignored_keys);
+    return to_json_string(json);
+  } catch (const std::exception &e) {
+    throw std::runtime_error(fmt::format("failed to read file metadata: {}", e.what()));
+  } catch (...) {
+    throw std::runtime_error("failed to read file metadata: unknown error");
+  }
+}
+
 [[nodiscard]] static std::shared_ptr<const hictk::Reference> import_chromosomes_from_parquet(
     const std::shared_ptr<arrow::io::ReadableFile> &fp) {
   try {
-    auto schema = get_file_schema(fp);
-
-    const auto metadata = schema->field(0)->metadata();
-    const auto chrom_names = metadata->keys();
-    std::vector<std::uint32_t> chrom_sizes(chrom_names.size(), 0);
-    std::ranges::transform(metadata->values(), chrom_sizes.begin(), [](const auto &size) {
-      return hictk::internal::parse_numeric_or_throw<std::uint32_t>(size);
-    });
-
-    return std::make_shared<const hictk::Reference>(chrom_names.begin(), chrom_names.end(),
-                                                    chrom_sizes.begin());
-
+    const auto metadata = parse_json_string(import_metadata_from_parquet(fp, {}));
+    const auto chrom_str = to_json_string(metadata.at("chromosomes"));
+    return std::make_shared<hictk::Reference>(parse_json_string<hictk::Reference>(chrom_str));
   } catch (const std::exception &e) {
     throw std::runtime_error(fmt::format("failed to read chromosomes: {}", e.what()));
   } catch (...) {
@@ -120,8 +198,8 @@ namespace nchg {
   auto props = parquet::default_reader_properties();
   props.set_buffer_size(static_cast<std::int64_t>(buffer_size));
 
-  return std::make_shared<parquet::StreamReader>(
-      parquet::ParquetFileReader::Open(std::move(fp), props));
+  auto reader = parquet::ParquetFileReader::Open(std::move(fp), props);
+  return std::make_shared<parquet::StreamReader>(std::move(reader));
 }
 
 [[nodiscard]] static auto validate_record_type(const std::filesystem::path &path,
@@ -226,6 +304,7 @@ ParquetStatsFileReader::ParquetStatsFileReader(const std::filesystem::path &path
                                                RecordType record_type, std::size_t buffer_size)
     : _type(validate_record_type(path, fp, record_type)),
       _chroms(std::move(chromosomes)),
+      _metadata(import_metadata_from_parquet(fp, {})),
       _sr(init_parquet_stream_reader(std::move(fp), buffer_size)) {}
 
 ParquetStatsFileReader::ParquetStatsFileReader(const std::filesystem::path &path,
@@ -233,6 +312,13 @@ ParquetStatsFileReader::ParquetStatsFileReader(const std::filesystem::path &path
     : ParquetStatsFileReader(path, open_parquet_file(path), record_type, buffer_size) {}
 
 auto ParquetStatsFileReader::record_type() const noexcept -> RecordType { return _type; }
+
+std::string_view ParquetStatsFileReader::metadata() const noexcept { return _metadata; }
+
+std::string ParquetStatsFileReader::read_metadata(const std::filesystem::path &path,
+                                                  const std::vector<std::string> &ignored_keys) {
+  return import_metadata_from_parquet(open_parquet_file(path), ignored_keys);
+}
 
 std::shared_ptr<const hictk::Reference> ParquetStatsFileReader::chromosomes() const noexcept {
   return _chroms;

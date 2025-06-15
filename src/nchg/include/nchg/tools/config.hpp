@@ -42,7 +42,7 @@ struct CartesianProductConfig {
 };
 
 struct ChecksumConfig {
-  std::vector<std::filesystem::path> files;
+  std::vector<std::filesystem::path> files{};
 
   std::uint8_t verbosity{3};
 };

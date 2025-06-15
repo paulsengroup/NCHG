@@ -22,6 +22,8 @@
 #include <arrow/builder.h>
 #include <arrow/io/file.h>
 #include <arrow/record_batch.h>
+#include <arrow/util/key_value_metadata.h>
+#include <parallel_hashmap/btree.h>
 #include <parquet/arrow/writer.h>
 #include <parquet/properties.h>
 
@@ -40,6 +42,7 @@ class ParquetStatsFileWriter {
   std::shared_ptr<parquet::WriterProperties> _props;
   std::shared_ptr<arrow::io::FileOutputStream> _fp;
   std::unique_ptr<parquet::arrow::FileWriter> _writer;
+  std::shared_ptr<const arrow::KeyValueMetadata> _metadata;
 
   std::size_t _chunk_size{};
   std::size_t _chunk_capacity{};
@@ -67,7 +70,8 @@ class ParquetStatsFileWriter {
   ParquetStatsFileWriter() = delete;
   ParquetStatsFileWriter(hictk::Reference chroms, const std::filesystem::path &path, bool force,
                          std::string_view compression_method, std::uint8_t compression_lvl,
-                         std::size_t threads, std::size_t batch_size = 1'000'000);
+                         std::size_t threads, const std::string &metadata,
+                         std::size_t batch_size = 1'000'000);
   ParquetStatsFileWriter(const ParquetStatsFileWriter &other) = delete;
   ParquetStatsFileWriter(ParquetStatsFileWriter &&other) noexcept = delete;
 

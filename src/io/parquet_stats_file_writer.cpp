@@ -23,8 +23,10 @@
 #include <arrow/record_batch.h>
 #include <arrow/util/thread_pool.h>
 #include <fmt/format.h>
+#include <parallel_hashmap/btree.h>
 #include <parquet/properties.h>
 #include <spdlog/spdlog.h>
+#include <zstd.h>
 
 #include <cassert>
 #include <cstddef>
@@ -86,11 +88,43 @@ static std::shared_ptr<arrow::Array> make_chrom_dict(const hictk::Reference &chr
   return f;
 }
 
+[[nodiscard]] static std::shared_ptr<const arrow::KeyValueMetadata> to_arrow_metadata(
+    const std::string &metadata) {
+  if (metadata.empty()) {
+    return nullptr;
+  }
+
+  if (metadata.size() < 1024) {
+    return arrow::KeyValueMetadata::Make(
+        {"NCHG:metadata", "NCHG:metadata-compression", "NCHG:metadata-size"},
+        {metadata, "None", fmt::to_string(metadata.size())});
+  }
+
+  std::string buffer(ZSTD_compressBound(metadata.size()), '\0');
+  const auto compressed_size =
+      ZSTD_compress(static_cast<void *>(buffer.data()), buffer.size(),
+                    static_cast<const void *>(metadata.data()), metadata.size(), 22);
+  if (ZSTD_isError(compressed_size)) {  // NOLINT(*-implicit-bool-conversion)
+    throw std::runtime_error(fmt::format("failed to compress metadata using zstd: {}",
+                                         ZSTD_getErrorName(compressed_size)));
+  }
+  if (compressed_size >= metadata.size()) {
+    return arrow::KeyValueMetadata::Make(
+        {"NCHG:metadata", "NCHG:metadata-compression", "NCHG:metadata-size"},
+        {metadata, "None", fmt::to_string(metadata.size())});
+  }
+
+  buffer.resize(compressed_size);
+  return arrow::KeyValueMetadata::Make(
+      {"NCHG:metadata", "NCHG:metadata-compression", "NCHG:metadata-size"},
+      {buffer, "zstd", fmt::to_string(metadata.size())});
+}
+
 ParquetStatsFileWriter::ParquetStatsFileWriter(hictk::Reference chroms,
                                                const std::filesystem::path &path, bool force,
                                                std::string_view compression_method,
                                                std::uint8_t compression_lvl, std::size_t threads,
-                                               std::size_t batch_size)
+                                               const std::string &metadata, std::size_t batch_size)
     : _path(path),
       _props(parquet::WriterProperties::Builder()
                  .created_by(std::string{config::version::str_long()})
@@ -101,6 +135,7 @@ ParquetStatsFileWriter::ParquetStatsFileWriter(hictk::Reference chroms,
                  ->disable_statistics()
                  ->build()),
       _fp(create_parquet_file(path, force)),
+      _metadata(to_arrow_metadata(metadata)),
       _chunk_capacity(batch_size),
       _chroms(std::move(chroms)) {
   if (_chunk_capacity == 0) {
@@ -209,10 +244,10 @@ std::shared_ptr<arrow::RecordBatch> ParquetStatsFileWriter::finalize_chunk() {
   columns.emplace_back(finalize_chunk(_omega));
 
   if (_pvalue_corrected) {
-    return arrow::RecordBatch::Make(get_schema_padj(_chroms),
+    return arrow::RecordBatch::Make(make_schema_with_padj(_metadata),
                                     static_cast<std::int64_t>(_chunk_size), columns);
   }
-  return arrow::RecordBatch::Make(get_schema(_chroms), static_cast<std::int64_t>(_chunk_size),
+  return arrow::RecordBatch::Make(make_schema(_metadata), static_cast<std::int64_t>(_chunk_size),
                                   columns);
 }
 

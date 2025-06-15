@@ -18,6 +18,9 @@
 
 #pragma once
 
+#include <parallel_hashmap/phmap.h>
+#include <spdlog/spdlog.h>
+
 #include <cstddef>
 #include <hictk/bin_table.hpp>
 #include <hictk/chromosome.hpp>
@@ -28,6 +31,7 @@
 
 #include "nchg/concepts.hpp"
 #include "nchg/expected_matrix.hpp"
+#include "nchg/mad_max_filter.hpp"
 
 namespace nchg {
 
@@ -102,6 +106,34 @@ inline auto ExpectedValues::init_pixel_merger_cis(const File &f) {
 
   return std::make_pair(std::move(selectors),
                         hictk::transformers::PixelMerger{std::move(heads), std::move(tails)});
+}
+
+template <typename File>
+  requires HictkSingleResFile<File>
+inline void ExpectedValues::init_bin_masks(
+    const File &f,
+    const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask_seed) {
+  for (const auto &chrom : f.chromosomes()) {
+    if (chrom.is_all()) [[unlikely]] {
+      continue;
+    }
+    auto sel = f.fetch(chrom.name());
+
+    auto first = sel.template begin<N>();
+    auto last = sel.template end<N>();
+
+    if (!_bin_masks.contains(std::make_pair(chrom, chrom))) {
+      if (first == last) {
+        SPDLOG_DEBUG("[{}]: no interactions found: masking the entire chromosome!", chrom.name());
+        const auto num_bins = (chrom.size() + f.resolution() - 1) / f.resolution();
+        add_bin_mask(chrom, std::vector(num_bins, true), bin_mask_seed);
+      } else {
+        const hictk::transformers::JoinGenomicCoords jsel(first, last, f.bins_ptr());
+        add_bin_mask(chrom, mad_max_filtering(jsel, chrom, f.resolution(), _mad_max),
+                     bin_mask_seed);
+      }
+    }
+  }
 }
 
 }  // namespace nchg

@@ -22,7 +22,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 #include <filesystem>
-#include <glaze/glaze_exceptions.hpp>
+#include <glaze/json.hpp>
 #include <stdexcept>
 #include <string_view>
 

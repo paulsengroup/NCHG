@@ -121,6 +121,20 @@ def make_merge_sc(main_parser):
     add_common_flags(sc)
 
 
+def make_metadata_sc(main_parser):
+    sc: argparse.ArgumentParser = main_parser.add_parser(
+        "metadata",
+        help="Validate the output produced by NCHG metadata.",
+    )
+    sc.add_argument(
+        "test-json",
+        type=existing_file,
+        help="Path to the .json file to be tested.",
+    )
+
+    add_common_flags(sc)
+
+
 def make_filter_sc(main_parser):
     sc: argparse.ArgumentParser = main_parser.add_parser(
         "filter",
@@ -190,6 +204,7 @@ def make_cli() -> argparse.ArgumentParser:
     make_checksum_sc(sub_parser)
     make_compute_sc(sub_parser)
     make_merge_sc(sub_parser)
+    make_metadata_sc(sub_parser)
     make_filter_sc(sub_parser)
     make_view_sc(sub_parser)
     make_expected_sc(sub_parser)
@@ -590,6 +605,17 @@ def validate_nchg_merge(test_file: pathlib.Path, ref_file: pathlib.Path) -> int:
         return 1
 
 
+def validate_nchg_metadata(test_file: pathlib.Path) -> int:
+    logging.info(f"### NCHG metadata: validating {test_file}...")
+    try:
+        with test_file.open() as fp:
+            json.load(fp)
+        return 0
+    except RuntimeError as e:
+        logging.error(e)
+        return 1
+
+
 def validate_nchg_filter(test_file: pathlib.Path, ref_file: pathlib.Path) -> int:
     logging.info(f"### NCHG filter: validating {test_file}...")
     if test_file.resolve() == ref_file.resolve():
@@ -644,6 +670,9 @@ def main() -> int:
 
     if cmd == "merge":
         return validate_nchg_merge(args["test-parquet"], args["ref-parquet"])
+
+    if cmd == "metadata":
+        return validate_nchg_metadata(args["test-json"])
 
     if cmd == "filter":
         return validate_nchg_filter(args["test-parquet"], args["ref-parquet"])

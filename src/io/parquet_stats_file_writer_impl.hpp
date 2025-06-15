@@ -44,8 +44,8 @@ inline void ParquetStatsFileWriter::initialize_writer() {
       throw std::logic_error("ParquetStatsFileWriter has already been initialized");
     }
 
-    const auto schema =
-        has_pval_corrected<Record>::value ? *get_schema_padj(_chroms) : *get_schema(_chroms);
+    const auto schema = has_pval_corrected<Record>::value ? *make_schema_with_padj(_metadata)
+                                                          : *make_schema(_metadata);
 
     if constexpr (has_pval_corrected<Record>::value) {
       _pvalue_corrected = arrow::DoubleBuilder{};

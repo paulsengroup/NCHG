@@ -28,8 +28,8 @@
 #include <cstdint>
 #include <fstream>
 #include <future>
+#include <glaze/json.hpp>
 #include <hictk/chromosome.hpp>
-#include <hictk/numeric_utils.hpp>
 #include <numeric>
 #include <ranges>
 #include <set>
@@ -39,11 +39,39 @@
 #include <vector>
 
 #include "nchg/fdr.hpp"
+#include "nchg/metadata.hpp"
 #include "nchg/nchg.hpp"
 #include "nchg/parquet_stats_file_reader.hpp"
 #include "nchg/parquet_stats_file_writer.hpp"
 #include "nchg/tools/common.hpp"
 #include "nchg/tools/tools.hpp"
+#include "nchg/version.hpp"
+
+template <>
+struct glz::meta<nchg::FilterConfig> {
+  using T = nchg::FilterConfig;
+
+  static constexpr auto value = object(
+      // clang-format off
+      "fdr", &T::fdr,
+      "log-ratio", &T::log_ratio,
+      "drop-non-significant", &T::drop_non_significant,
+      "correction-strategy",
+      // clang-format on
+      [](const T& c) {
+        if (c.correct_chrom_chrom_separately) {
+          assert(!c.correct_cis_trans_separately);
+          return "correct-chromosome-independently";
+        }
+        if (c.correct_cis_trans_separately) {
+          assert(!c.correct_chrom_chrom_separately);
+          return "correct-cis-trans-independently";
+        }
+        return "correct-all-at-once";
+      }
+
+  );
+};
 
 namespace nchg {
 
@@ -75,11 +103,6 @@ struct StringPairCmp {
     return a.first < b.first;
   }
 };
-
-template <typename N>
-[[nodiscard]] static N parse_numeric(std::string_view tok) {
-  return hictk::internal::parse_numeric_or_throw<N>(tok);
-}
 
 using ChromNamePair = std::pair<std::string, std::string>;
 
@@ -285,17 +308,41 @@ using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
   }
 }
 
+[[nodiscard]] static std::string generate_metadata_string(const FilterConfig& c,
+                                                          const hictk::Reference& chroms,
+                                                          std::string_view input_metadata) {
+  auto input_metadata_parsed = parse_json_string(input_metadata);
+  auto& map = std::get<glz::json_t::object_t>(input_metadata_parsed.data);
+  map.erase("chromosomes");
+
+  const glz::json_t metadata{
+      {"chromosomes", parse_json_string(to_json_string(chroms))},
+      {"command", "filter"},
+      {"date", fmt::format("{:%FT%T}", fmt::gmtime(std::chrono::system_clock::now()))},
+      {"input-metadata", input_metadata_parsed},
+      {"params", parse_json_string(to_json_string(c))},
+      {"version", config::version::str()},
+  };
+
+  return to_json_string(metadata);
+}
+
+[[nodiscard]] static std::pair<hictk::Reference, std::string> fetch_metadata(
+    const std::filesystem::path& path) {
+  const ParquetStatsFileReader reader(path, ParquetStatsFileReader::RecordType::NCHGCompute);
+
+  return std::make_pair(*reader.chromosomes(), std::string{reader.metadata()});
+}
+
 [[nodiscard]] static std::size_t consumer_fx(const FilterConfig& c, RecordQueue& queue,
                                              std::atomic<bool>& early_return) {
   SPDLOG_INFO("writing records to output file {}", c.output_path);
   std::size_t records_dequeued{};
   try {
-    const auto chroms =
-        *ParquetStatsFileReader(c.input_path, ParquetStatsFileReader::RecordType::NCHGCompute)
-             .chromosomes();
-
+    const auto [chroms, metadata] = fetch_metadata(c.input_path);
     ParquetStatsFileWriter writer(chroms, c.output_path, c.force, c.compression_method,
-                                  c.compression_lvl, c.threads - 2);
+                                  c.compression_lvl, c.threads - 2,
+                                  generate_metadata_string(c, chroms, metadata));
 
     NCHGFilterResult res{};
 

@@ -26,8 +26,8 @@ message(STATUS "Fetching the test dataset")
 
 # gersemi: off
 file(
-  DOWNLOAD https://zenodo.org/records/15553443/files/nchg_test_data.tar.zst?download=1
-  EXPECTED_HASH SHA256=5f78ff27d00461844d04b046aa7dba7c62dd7a54502c541869c2e4e3b5b86f0f
+  DOWNLOAD https://zenodo.org/records/15669310/files/nchg_test_data.tar.zst?download=1
+  EXPECTED_HASH SHA256=5d2d6e9ae6504d4fd8b0b6c86023691d39f4eaf1c97eaf5daf7b8ee0c54a66bc
   "${PROJECT_SOURCE_DIR}/test/data/nchg_test_data.tar.zst"
 )
 # gersemi: on

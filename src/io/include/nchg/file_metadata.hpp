@@ -25,7 +25,7 @@
 #include <cstddef>
 #include <exception>
 #include <filesystem>
-#include <glaze/glaze_exceptions.hpp>
+#include <glaze/core/common.hpp>
 #include <istream>
 #include <string>
 #include <string_view>

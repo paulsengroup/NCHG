@@ -25,6 +25,7 @@ find_package(phmap REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(Threads REQUIRED)
 find_package(xxHash REQUIRED)
+find_package(zstd REQUIRED)
 
 add_library(nchg_io STATIC)
 add_library(nchg::io ALIAS nchg_io)
@@ -36,6 +37,7 @@ target_sources(
     "${CMAKE_CURRENT_SOURCE_DIR}/file_metadata.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/file_store.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/k_merger_impl.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/metadata_impl.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_helpers.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_reader.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_reader_impl.hpp"
@@ -60,6 +62,7 @@ target_link_libraries(
     nchg::version
     fmt::fmt-header-only
     spdlog::spdlog_header_only
+    zstd::libzstd_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>
   PUBLIC
     nchg::common
     Arrow::arrow_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>

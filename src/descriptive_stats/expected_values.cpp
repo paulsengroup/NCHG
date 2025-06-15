@@ -58,7 +58,8 @@ ExpectedValues::ExpectedValues(
       _bin_aggregation_observed_distances_cutoff(params_.bin_aggregation_observed_distances_cutoff),
       _interpolate(params_.interpolate),
       _interpolation_qtile(params_.interpolation_qtile),
-      _interpolation_window_size(params_.interpolation_window_size) {
+      _interpolation_window_size(params_.interpolation_window_size),
+      _seeded(!bin_mask.empty()) {
   if (_mad_max < 0 || !std::isfinite(_mad_max)) {
     throw std::logic_error("mad_max should be a non-negative value");
   }
@@ -82,6 +83,7 @@ ExpectedValues ExpectedValues::cis_only(
   ExpectedValues ev(nullptr, params_);
   ev._fp = std::move(file);
   ev._resolution = ev._fp->resolution();
+  ev._seeded = !bin_mask.empty();
   if (ev._fp) {
     ev.compute_expected_values_cis(bin_mask);
   }
@@ -101,6 +103,7 @@ ExpectedValues ExpectedValues::trans_only(
                               .interpolation_window_size = 0});
   ev._fp = std::move(file);
   ev._resolution = ev._fp->resolution();
+  ev._seeded = !bin_mask.empty();
   if (ev._fp) {
     ev.compute_expected_values_trans(bin_mask);
   }
@@ -116,6 +119,7 @@ ExpectedValues ExpectedValues::chromosome_pair(
   ExpectedValues ev(nullptr, params);
   ev._fp = std::move(file);
   ev._resolution = ev._fp->resolution();
+  ev._seeded = !bin_mask.empty();
   if (chrom1 == chrom2) {
     ev.compute_expected_values_cis(bin_mask);
     return ev;
@@ -151,6 +155,12 @@ ExpectedValues ExpectedValues::deserialize(const std::filesystem::path &path) {
   HighFive::File f(path.string());
 
   ev._resolution = f.getAttribute("resolution").read<std::uint32_t>();
+
+  try {
+    ev._seeded = f.getGroup("bin-masks").getAttribute("seeded").read<bool>();
+  } catch (const HighFive::Exception &) {
+    ev._seeded = false;
+  }
 
   const auto params = deserialize_attributes(f);
   ev._mad_max = params.mad_max;
@@ -285,37 +295,17 @@ void ExpectedValues::serialize(const std::filesystem::path &path) const {
   serialize_attributes(f, params());
 
   serialize_chromosomes(f, _fp->chromosomes());
-  serialize_bin_masks(f, _bin_masks);
+  serialize_bin_masks(f, _bin_masks, _seeded);
   serialize_cis_profiles(f, _expected_weights, _expected_scaling_factors);
   serialize_trans_profiles(f, _expected_values_trans);
 }
 
-template <typename File>
-  requires HictkSingleResFile<File>
-void ExpectedValues::init_bin_masks(
-    const File &f,
-    const phmap::flat_hash_map<hictk::Chromosome, std::vector<bool>> &bin_mask_seed) {
-  for (const auto &chrom : f.chromosomes()) {
-    if (chrom.is_all()) [[unlikely]] {
-      continue;
-    }
-    auto sel = f.fetch(chrom.name());
+bool ExpectedValues::cis_only() const noexcept {
+  return !_expected_weights.empty() && _expected_values_trans.empty();
+}
 
-    auto first = sel.template begin<N>();
-    auto last = sel.template end<N>();
-
-    if (!_bin_masks.contains(std::make_pair(chrom, chrom))) {
-      if (first == last) {
-        SPDLOG_DEBUG("[{}]: no interactions found: masking the entire chromosome!", chrom.name());
-        const auto num_bins = (chrom.size() + f.resolution() - 1) / f.resolution();
-        add_bin_mask(chrom, std::vector(num_bins, true), bin_mask_seed);
-      } else {
-        const hictk::transformers::JoinGenomicCoords jsel(first, last, f.bins_ptr());
-        add_bin_mask(chrom, mad_max_filtering(jsel, chrom, f.resolution(), _mad_max),
-                     bin_mask_seed);
-      }
-    }
-  }
+bool ExpectedValues::trans_only() const noexcept {
+  return _expected_weights.empty() && !_expected_values_trans.empty();
 }
 
 void ExpectedValues::compute_expected_values_cis(
@@ -501,8 +491,10 @@ void ExpectedValues::serialize_chromosomes(HighFive::File &f, const hictk::Refer
 }
 
 void ExpectedValues::serialize_bin_masks(
-    HighFive::File &f, const phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>> &bin_masks) {
+    HighFive::File &f, const phmap::btree_map<ChromPair, std::pair<BinMask, BinMask>> &bin_masks,
+    bool seeded) {
   auto grp = f.createGroup("bin-masks");
+  grp.createAttribute("seeded", seeded);
   if (bin_masks.empty()) {
     return;
   }

@@ -119,6 +119,7 @@ class Cli {
     expected,
     filter,
     merge,
+    metadata,
     view,
   };
 
@@ -148,6 +149,7 @@ class Cli {
   void make_expected_subcommand();
   void make_filter_subcommand();
   void make_merge_subcommand();
+  void make_metadata_subcommand();
   void make_view_subcommand();
   void make_cli();
 
@@ -157,6 +159,7 @@ class Cli {
   void validate_expected_subcommand() const;
   void validate_filter_subcommand() const;
   void validate_merge_subcommand() const;
+  void validate_metadata_subcommand() const;
   void validate_view_subcommand() const;
   void validate_args() const;
 
@@ -166,6 +169,7 @@ class Cli {
   void transform_args_expected_subcommand();
   void transform_args_filter_subcommand();
   void transform_args_merge_subcommand();
+  void transform_args_metadata_subcommand();
   void transform_args_view_subcommand();
   void transform_args();
 

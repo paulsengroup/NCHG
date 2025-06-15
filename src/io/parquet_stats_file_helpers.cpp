@@ -23,7 +23,6 @@
 #include <fmt/format.h>
 #include <parquet/platform.h>
 
-#include <hictk/reference.hpp>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -33,63 +32,53 @@
 
 namespace nchg {
 
-static std::shared_ptr<arrow::KeyValueMetadata> generate_schema_metadata(
-    const hictk::Reference &chroms) {
-  std::vector<std::string> keys{};
-  std::vector<std::string> values{};
-  for (const auto &chrom : chroms) {
-    if (!chrom.is_all()) {
-      keys.emplace_back(chrom.name());
-      values.emplace_back(fmt::to_string(chrom.size()));
-    }
-  }
+std::shared_ptr<arrow::Schema> make_schema(
+    std::shared_ptr<const arrow::KeyValueMetadata> metadata) {
+  const auto chrom_dtype = arrow::dictionary(arrow::int32(), arrow::utf8());
 
-  return std::make_shared<arrow::KeyValueMetadata>(std::move(keys), std::move(values));
+  return arrow::schema(
+      {
+          // clang-format off
+          arrow::field("chrom1",         chrom_dtype,      false),
+          arrow::field("start1",         arrow::uint32(),  false),
+          arrow::field("end1",           arrow::uint32(),  false),
+          arrow::field("chrom2",         chrom_dtype,      false),
+          arrow::field("start2",         arrow::uint32(),  false),
+          arrow::field("end2",           arrow::uint32(),  false),
+          arrow::field("pvalue",         arrow::float64(), false),
+          arrow::field("observed_count", arrow::uint64(),  false),
+          arrow::field("expected_count", arrow::float64(), false),
+          arrow::field("log_ratio",      arrow::float64(), false),
+          arrow::field("odds_ratio",     arrow::float64(), false),
+          arrow::field("omega",          arrow::float64(), false)
+          // clang-format on
+      },
+      std::move(metadata));
 }
 
-std::shared_ptr<arrow::Schema> get_schema(const hictk::Reference &chroms) {
+std::shared_ptr<arrow::Schema> make_schema_with_padj(
+    std::shared_ptr<const arrow::KeyValueMetadata> metadata) {
   const auto chrom_dtype = arrow::dictionary(arrow::int32(), arrow::utf8());
-  const auto metadata = generate_schema_metadata(chroms);
 
-  return arrow::schema({
-      // clang-format off
-      arrow::field("chrom1",         chrom_dtype,          false, metadata),
-      arrow::field("start1",         arrow::uint32(),  false),
-      arrow::field("end1",           arrow::uint32(),  false),
-      arrow::field("chrom2",         chrom_dtype,          false, metadata),
-      arrow::field("start2",         arrow::uint32(),  false),
-      arrow::field("end2",           arrow::uint32(),  false),
-      arrow::field("pvalue",         arrow::float64(), false),
-      arrow::field("observed_count", arrow::uint64(),  false),
-      arrow::field("expected_count", arrow::float64(), false),
-      arrow::field("log_ratio",      arrow::float64(), false),
-      arrow::field("odds_ratio",     arrow::float64(), false),
-      arrow::field("omega",          arrow::float64(), false)
-      // clang-format on
-  });
-}
-
-std::shared_ptr<arrow::Schema> get_schema_padj(const hictk::Reference &chroms) {
-  const auto chrom_dtype = arrow::dictionary(arrow::int32(), arrow::utf8());
-  const auto metadata = generate_schema_metadata(chroms);
-
-  return arrow::schema({
-      // clang-format off
-      arrow::field("chrom1",           chrom_dtype,          false, metadata),
-      arrow::field("start1",           arrow::uint32(),  false),
-      arrow::field("end1",             arrow::uint32(),  false),
-      arrow::field("chrom2",           chrom_dtype,          false, metadata),
-      arrow::field("start2",           arrow::uint32(),  false),
-      arrow::field("end2",             arrow::uint32(),  false),
-      arrow::field("pvalue",           arrow::float64(), false),
-      arrow::field("pvalue_corrected", arrow::float64(), false),
-      arrow::field("observed_count",   arrow::uint64(),  false),
-      arrow::field("expected_count",   arrow::float64(), false),
-      arrow::field("log_ratio",        arrow::float64(), false),
-      arrow::field("odds_ratio",       arrow::float64(), false),
-      arrow::field("omega",            arrow::float64(), false)
-      // clang-format on
-  });
+  return arrow::schema(
+      {
+          // clang-format off
+          arrow::field("chrom1",           chrom_dtype,      false),
+          arrow::field("start1",           arrow::uint32(),  false),
+          arrow::field("end1",             arrow::uint32(),  false),
+          arrow::field("chrom2",           chrom_dtype,      false),
+          arrow::field("start2",           arrow::uint32(),  false),
+          arrow::field("end2",             arrow::uint32(),  false),
+          arrow::field("pvalue",           arrow::float64(), false),
+          arrow::field("pvalue_corrected", arrow::float64(), false),
+          arrow::field("observed_count",   arrow::uint64(),  false),
+          arrow::field("expected_count",   arrow::float64(), false),
+          arrow::field("log_ratio",        arrow::float64(), false),
+          arrow::field("odds_ratio",       arrow::float64(), false),
+          arrow::field("omega",            arrow::float64(), false)
+          // clang-format on
+      },
+      std::move(metadata));
 }
 
 parquet::Compression::type parse_parquet_compression(std::string_view method) {

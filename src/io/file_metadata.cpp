@@ -27,7 +27,7 @@
 #include <filesystem>
 #include <fstream>
 #include <future>
-#include <glaze/glaze_exceptions.hpp>
+#include <glaze/json.hpp>
 #include <mutex>
 #include <stdexcept>
 #include <string>

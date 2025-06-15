@@ -18,9 +18,12 @@
 
 #pragma once
 
-#include <glaze/json/json_t.hpp>
 #include <string>
 #include <string_view>
+
+namespace glz {
+struct json_t;
+}
 
 namespace nchg {
 

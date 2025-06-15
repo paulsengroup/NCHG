@@ -28,6 +28,7 @@ namespace nchg {
 [[nodiscard]] int run_command(const ExpectedConfig& c);
 [[nodiscard]] int run_command(const FilterConfig& c);
 [[nodiscard]] int run_command(const MergeConfig& c);
+[[nodiscard]] int run_command(const MetadataConfig& c);
 [[nodiscard]] int run_command(const ViewConfig& c);
 
 }  // namespace nchg

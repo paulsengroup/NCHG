@@ -157,6 +157,14 @@ struct ViewConfig {
   std::uint8_t verbosity{3};
 };
 
+struct MetadataConfig {
+  std::filesystem::path input_path;
+
+  bool raw{false};
+
+  std::uint8_t verbosity{0};
+};
+
 // NOLINTEND(clang-analyzer-optin.performance.Padding)
 
 // clang-format off
@@ -168,6 +176,7 @@ using Config = std::variant<
     ExpectedConfig,
     FilterConfig,
     MergeConfig,
+    MetadataConfig,
     ViewConfig>;
 // clang-format on
 

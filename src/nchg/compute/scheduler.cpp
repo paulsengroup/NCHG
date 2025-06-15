@@ -36,7 +36,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
-#include <glaze/glaze.hpp>
+#include <glaze/json.hpp>
 #include <hictk/chromosome.hpp>
 #include <hictk/file.hpp>
 #include <memory>

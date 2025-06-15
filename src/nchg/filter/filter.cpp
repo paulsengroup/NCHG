@@ -28,9 +28,8 @@
 #include <cstdint>
 #include <fstream>
 #include <future>
-#include <glaze/glaze.hpp>
+#include <glaze/json.hpp>
 #include <hictk/chromosome.hpp>
-#include <hictk/numeric_utils.hpp>
 #include <numeric>
 #include <ranges>
 #include <set>

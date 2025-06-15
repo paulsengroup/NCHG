@@ -67,6 +67,7 @@ class ParquetStatsFileWriter {
   arrow::DoubleBuilder _omega;
 
  public:
+  static constexpr std::uint8_t format_version{2};
   ParquetStatsFileWriter() = delete;
   ParquetStatsFileWriter(hictk::Reference chroms, const std::filesystem::path &path, bool force,
                          std::string_view compression_method, std::uint8_t compression_lvl,

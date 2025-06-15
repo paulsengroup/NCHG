@@ -113,13 +113,18 @@ template <typename N>
 
 [[nodiscard]] static std::string read_attribute_or_throw(
     const std::shared_ptr<const arrow::Schema> &schema, std::string_view key) {
-  auto attr = schema->metadata()->Get(key);
-  if (!attr.ok()) {
-    throw std::runtime_error(
-        fmt::format("failed to read {} attribute: {}", key, attr.status().ToString()));
+  const auto &metadata = schema->metadata();
+  int i = -1;
+
+  if (metadata) {
+    i = schema->metadata()->FindKey(key);
   }
 
-  return attr.MoveValueUnsafe();
+  if (i == -1) {
+    throw std::out_of_range(fmt::format("failed to read {} attribute: key not found", key));
+  }
+
+  return schema->metadata()->value(i);
 }
 
 [[nodiscard]] static std::string read_metadata_or_throw(
@@ -177,6 +182,28 @@ template <typename N>
   } catch (...) {
     throw std::runtime_error("failed to read file metadata: unknown error");
   }
+}
+
+[[nodiscard]] std::uint8_t parse_and_validate_format_version(
+    const std::filesystem::path &path, const std::shared_ptr<arrow::io::ReadableFile> &fp) {
+  std::uint8_t format_version = 1;
+  try {
+    format_version = parse_numeric<std::uint8_t>(
+        read_attribute_or_throw(get_file_schema(fp), "NCHG:format-version"));
+  } catch (const std::out_of_range &) {  // NOLINT
+  } catch (const std::exception &e) {
+    throw std::runtime_error(fmt::format("failed to read format-version attribute: {}", e.what()));
+  } catch (...) {
+    throw std::runtime_error("failed to read format-version attribute: unknown error");
+  }
+
+  if (format_version < 2) {
+    throw std::runtime_error(fmt::format(
+        "unable to open file \"{}\": reading files with version={} is no longer supported", path,
+        format_version));
+  }
+
+  return format_version;
 }
 
 [[nodiscard]] static std::shared_ptr<const hictk::Reference> import_chromosomes_from_parquet(
@@ -304,6 +331,8 @@ ParquetStatsFileReader::ParquetStatsFileReader(const std::filesystem::path &path
                                                RecordType record_type, std::size_t buffer_size)
     : _type(validate_record_type(path, fp, record_type)),
       _chroms(std::move(chromosomes)),
+      // It's important that we parse the format version before attempting to read the file metadata
+      _format_version(parse_and_validate_format_version(path, fp)),
       _metadata(import_metadata_from_parquet(fp, {})),
       _sr(init_parquet_stream_reader(std::move(fp), buffer_size)) {}
 
@@ -317,8 +346,12 @@ std::string_view ParquetStatsFileReader::metadata() const noexcept { return _met
 
 std::string ParquetStatsFileReader::read_metadata(const std::filesystem::path &path,
                                                   const std::vector<std::string> &ignored_keys) {
-  return import_metadata_from_parquet(open_parquet_file(path), ignored_keys);
+  const auto fp = open_parquet_file(path);
+  std::ignore = parse_and_validate_format_version(path, fp);
+  return import_metadata_from_parquet(fp, ignored_keys);
 }
+
+std::uint8_t ParquetStatsFileReader::format_version() const noexcept { return _format_version; }
 
 std::shared_ptr<const hictk::Reference> ParquetStatsFileReader::chromosomes() const noexcept {
   return _chroms;

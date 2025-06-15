@@ -19,7 +19,7 @@
 #pragma once
 
 #include <algorithm>
-#include <glaze/glaze.hpp>
+#include <glaze/json.hpp>
 #include <hictk/chromosome.hpp>
 #include <hictk/reference.hpp>
 #include <iterator>

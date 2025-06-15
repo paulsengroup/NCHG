@@ -89,15 +89,28 @@ static std::shared_ptr<arrow::Array> make_chrom_dict(const hictk::Reference &chr
 }
 
 [[nodiscard]] static std::shared_ptr<const arrow::KeyValueMetadata> to_arrow_metadata(
-    const std::string &metadata) {
+    const std::string &metadata, std::uint8_t format_version) {
   if (metadata.empty()) {
-    return nullptr;
+    return arrow::KeyValueMetadata::Make({"NCHG:format-version"}, {fmt::to_string(format_version)});
   }
 
   if (metadata.size() < 1024) {
+    // clang-format off
     return arrow::KeyValueMetadata::Make(
-        {"NCHG:metadata", "NCHG:metadata-compression", "NCHG:metadata-size"},
-        {metadata, "None", fmt::to_string(metadata.size())});
+        {
+          "NCHG:format-version",
+          "NCHG:metadata",
+          "NCHG:metadata-compression",
+          "NCHG:metadata-size"
+        },
+        {
+          fmt::to_string(format_version),
+          metadata,
+          "None",
+          fmt::to_string(metadata.size())
+        }
+    );
+    // clang-format on
   }
 
   std::string buffer(ZSTD_compressBound(metadata.size()), '\0');
@@ -109,15 +122,42 @@ static std::shared_ptr<arrow::Array> make_chrom_dict(const hictk::Reference &chr
                                          ZSTD_getErrorName(compressed_size)));
   }
   if (compressed_size >= metadata.size()) {
+    // clang-format off
     return arrow::KeyValueMetadata::Make(
-        {"NCHG:metadata", "NCHG:metadata-compression", "NCHG:metadata-size"},
-        {metadata, "None", fmt::to_string(metadata.size())});
+        {
+          "NCHG:format-version",
+          "NCHG:metadata",
+          "NCHG:metadata-compression",
+          "NCHG:metadata-size"
+        },
+        {
+          fmt::to_string(format_version),
+          metadata,
+          "None",
+          fmt::to_string(metadata.size())
+        }
+    );
+    // clang-format on
   }
 
   buffer.resize(compressed_size);
+
+  // clang-format off
   return arrow::KeyValueMetadata::Make(
-      {"NCHG:metadata", "NCHG:metadata-compression", "NCHG:metadata-size"},
-      {buffer, "zstd", fmt::to_string(metadata.size())});
+      {
+        "NCHG:format-version",
+        "NCHG:metadata",
+        "NCHG:metadata-compression",
+        "NCHG:metadata-size"
+      },
+      {
+        fmt::to_string(format_version),
+        buffer,
+        "zstd",
+        fmt::to_string(metadata.size())
+      }
+  );
+  // clang-format on
 }
 
 ParquetStatsFileWriter::ParquetStatsFileWriter(hictk::Reference chroms,
@@ -135,7 +175,7 @@ ParquetStatsFileWriter::ParquetStatsFileWriter(hictk::Reference chroms,
                  ->disable_statistics()
                  ->build()),
       _fp(create_parquet_file(path, force)),
-      _metadata(to_arrow_metadata(metadata)),
+      _metadata(to_arrow_metadata(metadata, format_version)),
       _chunk_capacity(batch_size),
       _chroms(std::move(chroms)) {
   if (_chunk_capacity == 0) {

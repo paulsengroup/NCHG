@@ -33,7 +33,7 @@
 #include <cstdint>
 #include <exception>
 #include <filesystem>
-#include <glaze/glaze.hpp>
+#include <glaze/beve.hpp>
 #include <memory>
 #include <mutex>
 #include <stdexcept>

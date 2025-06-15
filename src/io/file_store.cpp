@@ -27,14 +27,13 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <glaze/json.hpp>
 #include <hictk/hic.hpp>
 #include <mutex>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
-
-#include "nchg/text.hpp"
 
 namespace nchg {
 

@@ -18,7 +18,9 @@
 
 #include "nchg/metadata.hpp"
 
+#include <arrow/io/api.h>
 #include <fmt/format.h>
+#include <parquet/arrow/reader.h>
 
 #include <exception>
 #include <filesystem>
@@ -48,8 +50,27 @@ namespace nchg {
   return buff;
 }
 
+static void validate_parquet_file(const std::filesystem::path& path) {
+  try {
+    std::shared_ptr<arrow::io::ReadableFile> fp;
+    PARQUET_ASSIGN_OR_THROW(fp, arrow::io::ReadableFile::Open(path))
+    const auto result = parquet::arrow::OpenFile(fp, arrow::default_memory_pool());
+    if (!result.ok()) {
+      throw std::runtime_error(result.status().ToString());
+    }
+  } catch (const std::exception& e) {
+    throw std::runtime_error(
+        fmt::format("failed to open file \"{}\" for reading: {}", path.string(), e.what()));
+  } catch (...) {
+    throw std::runtime_error(
+        fmt::format("failed to open file \"{}\" for reading: unknown error", path.string()));
+  }
+}
+
 int run_command(const MetadataConfig& c) {
   try {
+    validate_parquet_file(c.input_path);
+
     const auto metadata = c.raw ? fetch_raw_metadata(c.input_path) : fetch_metadata(c.input_path);
 
     fmt::println("{}", metadata);

@@ -57,7 +57,7 @@ template <typename N>
     const std::filesystem::path &path) {
   try {
     std::shared_ptr<arrow::io::ReadableFile> fp;
-    PARQUET_ASSIGN_OR_THROW(fp, arrow::io::ReadableFile::Open(path));
+    PARQUET_ASSIGN_OR_THROW(fp, arrow::io::ReadableFile::Open(path))
     return fp;
   } catch (const std::exception &e) {
     throw std::runtime_error(

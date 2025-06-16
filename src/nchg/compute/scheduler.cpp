@@ -147,6 +147,7 @@ struct glz::meta<nchg::ExpectedConfig> {
   };
 }
 
+// NOLINTNEXTLINE(bugprone-exception-escape)
 [[nodiscard]] static std::string_view to_string(
     nchg::ComputePvalConfig::DomainAggregationStrategy s) noexcept {
   using enum nchg::ComputePvalConfig::DomainAggregationStrategy;

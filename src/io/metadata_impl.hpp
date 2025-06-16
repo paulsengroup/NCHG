@@ -30,9 +30,9 @@ namespace glz {
 
 namespace internal::nchg {
 struct Chromosome {
-  std::uint32_t id;
+  std::uint32_t id{};
   std::string name;
-  std::uint32_t size;
+  std::uint32_t size{};
 };
 
 }  // namespace internal::nchg

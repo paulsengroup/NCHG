@@ -184,7 +184,7 @@ template <typename N>
   }
 }
 
-[[nodiscard]] std::uint8_t parse_and_validate_format_version(
+[[nodiscard]] static std::uint8_t parse_and_validate_format_version(
     const std::filesystem::path &path, const std::shared_ptr<arrow::io::ReadableFile> &fp) {
   std::uint8_t format_version = 1;
   try {

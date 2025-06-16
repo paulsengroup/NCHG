@@ -19,9 +19,9 @@
 #pragma once
 
 #include <arrow/type_fwd.h>
+#include <arrow/util/key_value_metadata.h>
 #include <parquet/platform.h>
 
-#include <hictk/reference.hpp>
 #include <memory>
 #include <string_view>
 #include <type_traits>
@@ -35,8 +35,10 @@ struct has_pval_corrected : std::false_type {};
 template <typename T>
 struct has_pval_corrected<T, decltype((void)T::pval_corrected, 0)> : std::true_type {};
 
-[[nodiscard]] std::shared_ptr<arrow::Schema> get_schema(const hictk::Reference &chroms);
-[[nodiscard]] std::shared_ptr<arrow::Schema> get_schema_padj(const hictk::Reference &chroms);
+[[nodiscard]] std::shared_ptr<arrow::Schema> make_schema(
+    std::shared_ptr<const arrow::KeyValueMetadata> metadata = nullptr);
+[[nodiscard]] std::shared_ptr<arrow::Schema> make_schema_with_padj(
+    std::shared_ptr<const arrow::KeyValueMetadata> metadata = nullptr);
 
 [[nodiscard]] parquet::Compression::type parse_parquet_compression(std::string_view method);
 

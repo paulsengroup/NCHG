@@ -39,6 +39,8 @@ class ParquetStatsFileReader {
  private:
   RecordType _type{RecordType::NCHGCompute};
   std::shared_ptr<const hictk::Reference> _chroms;
+  std::uint8_t _format_version{1};
+  std::string _metadata;
   std::shared_ptr<parquet::StreamReader> _sr;
 
   ParquetStatsFileReader(const std::filesystem::path &path,
@@ -61,6 +63,11 @@ class ParquetStatsFileReader {
   [[nodiscard]] auto begin() -> iterator<Stats>;
   template <typename Stats>
   [[nodiscard]] auto end() -> iterator<Stats>;
+
+  [[nodiscard]] std::string_view metadata() const noexcept;
+  [[nodiscard]] static std::string read_metadata(const std::filesystem::path &path,
+                                                 const std::vector<std::string> &ignored_keys = {});
+  [[nodiscard]] std::uint8_t format_version() const noexcept;
 
   template <typename Stats>
   class iterator {

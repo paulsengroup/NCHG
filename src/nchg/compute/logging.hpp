@@ -24,7 +24,7 @@
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <cstddef>
 #include <filesystem>
-#include <glaze/glaze.hpp>
+#include <glaze/beve.hpp>
 #include <memory>
 #include <mutex>
 #include <string>

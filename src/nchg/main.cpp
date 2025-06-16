@@ -197,7 +197,7 @@ static auto global_logger = std::make_unique<GlobalLogger<256>>();
 static auto acquire_global_logger() noexcept { return std::move(global_logger); }
 
 [[nodiscard]] static bool should_print_welcome_msg(Cli::subcommand subcmd, const Config &config) {
-  if (subcmd == Cli::subcommand::none) {
+  if (subcmd == Cli::subcommand::none || subcmd == Cli::subcommand::metadata) {
     return false;
   }
 

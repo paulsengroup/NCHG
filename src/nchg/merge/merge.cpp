@@ -16,6 +16,7 @@
 // with this library.  If not, see
 // <https://www.gnu.org/licenses/>.
 
+#include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <moodycamel/blockingconcurrentqueue.h>
 #include <spdlog/spdlog.h>
@@ -32,6 +33,7 @@
 #include <future>
 #include <hictk/chromosome.hpp>
 #include <hictk/reference.hpp>
+#include <nchg/version.hpp>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -40,6 +42,7 @@
 
 #include "nchg/file_metadata.hpp"
 #include "nchg/k_merger.hpp"
+#include "nchg/metadata.hpp"
 #include "nchg/nchg.hpp"
 #include "nchg/parquet_stats_file_reader.hpp"
 #include "nchg/parquet_stats_file_writer.hpp"
@@ -72,7 +75,7 @@ class ParquetFileMerger {
 
     std::vector<RecordIterator> heads{};
     std::vector<RecordIterator> tails{};
-    while (std::get<0>(_files.front()) == _chrom1) {
+    while (!_files.empty() && std::get<0>(_files.front()) == _chrom1) {
       const auto &[_, chrom2, path] = _files.front();
       chroms.emplace_back(chrom2.name());
       auto [first, last] = get_iterators_from_file(path);
@@ -233,6 +236,43 @@ class ParquetFileMerger {
   }
 }
 
+[[nodiscard]] static std::string generate_metadata(const hictk::Reference &chroms,
+                                                   const std::vector<glz::json_t> &input_metadata) {
+  const glz::json_t metadata{
+      {"chromosomes", parse_json_string(to_json_string(chroms.remove_ALL()))},
+      {"command", "merge"},
+      {"date", fmt::format("{:%FT%T}", fmt::gmtime(std::chrono::system_clock::now()))},
+      {"input-metadata", parse_json_string(to_json_string(input_metadata))},
+      {"version", config::version::str()}};
+
+  return to_json_string(metadata);
+}
+
+[[nodiscard]] static auto preprocess_parquet_tables(const hictk::Reference &chroms,
+                                                    const MergeConfig &c) {
+  struct Result {
+    std::vector<std::filesystem::path> files;
+    std::string metadata;
+  };
+
+  auto files = enumerate_parquet_tables(chroms, c);
+  std::vector<glz::json_t> old_metadata(files.size());
+  std::ranges::transform(files, old_metadata.begin(), [&](const auto &path) {
+    try {
+      const auto metadata = ParquetStatsFileReader::read_metadata(path, {"chromosomes"});
+      return parse_json_string(metadata);
+    } catch (const std::exception &e) {
+      throw std::runtime_error(
+          fmt::format("failed to read NCHG metadata from file \"{}\": {}", path, e.what()));
+    } catch (...) {
+      throw std::runtime_error(
+          fmt::format("failed to read NCHG metadata from file \"{}\": unknown error", path));
+    }
+  });
+
+  return Result{.files = std::move(files), .metadata = generate_metadata(chroms, old_metadata)};
+}
+
 using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
 
 [[nodiscard]] static std::size_t producer_fx(
@@ -275,10 +315,11 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
 
 [[nodiscard]] static std::size_t consumer_fx(const MergeConfig &c,
                                              const hictk::Reference &chromosomes,
-                                             RecordQueue &queue, std::atomic<bool> &early_return) {
+                                             const std::string &metadata, RecordQueue &queue,
+                                             std::atomic<bool> &early_return) {
   try {
     ParquetStatsFileWriter writer(chromosomes, c.output_path, c.force, c.compression_method,
-                                  c.compression_lvl, c.threads - 2);
+                                  c.compression_lvl, c.threads - 2, metadata);
 
     std::size_t records_dequeued = 0;
     NCHGResult buffer{};
@@ -643,7 +684,7 @@ int run_command(const MergeConfig &c) {
     validate_input_files(c.input_prefix, c.threads);
   }
   const auto chroms = import_chromosomes(c.input_prefix);
-  const auto parquet_files = enumerate_parquet_tables(chroms, c);
+  const auto [parquet_files, metadata] = preprocess_parquet_tables(chroms, c);
 
   moodycamel::BlockingConcurrentQueue<NCHGResult> queue(64UZ * 1024UZ);
   std::atomic early_return{false};
@@ -655,7 +696,7 @@ int run_command(const MergeConfig &c) {
 
   auto consumer = std::async(std::launch::async, [&] {
     SPDLOG_DEBUG("spawning consumer thread...");
-    return consumer_fx(c, chroms, queue, early_return);
+    return consumer_fx(c, chroms, metadata, queue, early_return);
   });
 
   const auto records_enqueued = producer.get();

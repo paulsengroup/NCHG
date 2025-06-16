@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Roberto Rossini <roberros@uio.no>
+// Copyright (C) 2025 Roberto Rossini <roberros@uio.no>
 //
 // SPDX-License-Identifier: GPL-3.0
 //
@@ -18,17 +18,26 @@
 
 #pragma once
 
-#include "nchg/tools/config.hpp"
+#include <string>
+#include <string_view>
+
+namespace glz {
+struct json_t;
+}
 
 namespace nchg {
 
-[[nodiscard]] int run_command(const CartesianProductConfig& c);
-[[nodiscard]] int run_command(const ChecksumConfig& c);
-[[nodiscard]] int run_command(const ComputePvalConfig& c);
-[[nodiscard]] int run_command(const ExpectedConfig& c);
-[[nodiscard]] int run_command(const FilterConfig& c);
-[[nodiscard]] int run_command(const MergeConfig& c);
-[[nodiscard]] int run_command(const MetadataConfig& c);
-[[nodiscard]] int run_command(const ViewConfig& c);
+template <typename T>
+[[nodiscard]] std::string to_json_string(const T &value);
+
+template <typename T>
+void to_json_string(const T &value, std::string &buff);
+
+template <typename T>
+[[nodiscard]] T parse_json_string(std::string_view buff);
+
+[[nodiscard]] glz::json_t parse_json_string(std::string_view buff);
 
 }  // namespace nchg
+
+#include "../../metadata_impl.hpp"

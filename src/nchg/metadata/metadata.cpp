@@ -82,7 +82,7 @@ int run_command(const MetadataConfig& c) {
         fmt::format("failed to read metadata from \"{}\": unknown error", c.input_path.string()));
   }
 
-  return 1;
+  return 0;
 }
 
 }  // namespace nchg

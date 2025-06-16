@@ -555,17 +555,17 @@ jobs:
             tee "$OUT_PREFIX.compute.json"
 
           LLVM_PROFILE_FILE="$PWD/nchg.metadata.merge.profraw"
-          sudo -u devel                                   \
-          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"   \
-          build/src/nchg/NCHG metadata                    \
-            "$DATA_DIR/merge/ENCFF447ERX.minified.parquet |
-            tee "$OUT_PREFIX.merge.json"
-
-          LLVM_PROFILE_FILE="$PWD/nchg.filter.merge.profraw"
           sudo -u devel                                    \
           -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"    \
           build/src/nchg/NCHG metadata                     \
-            "$DATA_DIR/filter/ENCFF447ERX.minified.parquet |
+            "$DATA_DIR/merge/ENCFF447ERX.minified.parquet" |
+            tee "$OUT_PREFIX.merge.json"
+
+          LLVM_PROFILE_FILE="$PWD/nchg.filter.merge.profraw"
+          sudo -u devel                                     \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"     \
+          build/src/nchg/NCHG metadata                      \
+            "$DATA_DIR/filter/ENCFF447ERX.minified.parquet" |
             tee "$OUT_PREFIX.filter.json"
 
           for f in "$OUT_PREFIX"*.json; do

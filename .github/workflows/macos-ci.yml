@@ -577,12 +577,12 @@ jobs:
             "$DATA_DIR/compute/"*.chr21.chr21.parquet |
             tee "$OUT_PREFIX.compute.json"
 
-          bin/NCHG metadata                               \
-            "$DATA_DIR/merge/ENCFF447ERX.minified.parquet |
+          bin/NCHG metadata                                \
+            "$DATA_DIR/merge/ENCFF447ERX.minified.parquet" |
             tee "$OUT_PREFIX.merge.json"
 
-          bin/NCHG metadata                                \
-            "$DATA_DIR/filter/ENCFF447ERX.minified.parquet |
+          bin/NCHG metadata                                 \
+            "$DATA_DIR/filter/ENCFF447ERX.minified.parquet" |
             tee "$OUT_PREFIX.filter.json"
 
           for f in "$OUT_PREFIX"*.json; do

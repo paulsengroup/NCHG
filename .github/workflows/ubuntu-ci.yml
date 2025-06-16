@@ -560,7 +560,7 @@ jobs:
           bin/NCHG checksum \
             "$DATA_DIR/compute/ENCFF447ERX.minified.json" |
             test/scripts/validate_nchg_output.py checksum \
-            5b208dec036d47d04157a59d1471c546
+            c7cb09ffa482e4fd15df9884cba2ed5b
 
       - name: Test NCHG compute (mt)
         run: |
@@ -632,6 +632,29 @@ jobs:
           test/scripts/validate_nchg_output.py merge \
             "$OUT_PREFIX.parquet"                    \
             "$DATA_DIR/merge/$OUT_PREFIX.parquet"
+
+          rm "$OUT_PREFIX"*
+
+      - name: Test NCHG metadata
+        run: |
+          sudo -u devel                               \
+          bin/NCHG metadata                           \
+            "$DATA_DIR/compute/"*.chr21.chr21.parquet |
+            tee "$OUT_PREFIX.compute.json"
+
+          sudo -u devel                                   \
+          bin/NCHG metadata                               \
+            "$DATA_DIR/merge/ENCFF447ERX.minified.parquet |
+            tee "$OUT_PREFIX.merge.json"
+
+          sudo -u devel                                    \
+          bin/NCHG metadata                                \
+            "$DATA_DIR/filter/ENCFF447ERX.minified.parquet |
+            tee "$OUT_PREFIX.filter.json"
+
+          for f in "$OUT_PREFIX"*.json; do
+            test/scripts/validate_nchg_output.py metadata "$f"
+          done
 
           rm "$OUT_PREFIX"*
 

@@ -340,6 +340,11 @@ ParquetStatsFileReader::ParquetStatsFileReader(const std::filesystem::path &path
                                                RecordType record_type, std::size_t buffer_size)
     : ParquetStatsFileReader(path, open_parquet_file(path), record_type, buffer_size) {}
 
+std::shared_ptr<arrow::Schema> ParquetStatsFileReader::get_file_schema(
+    const std::filesystem::path &path) {
+  return nchg::get_file_schema(open_parquet_file(path));
+}
+
 auto ParquetStatsFileReader::record_type() const noexcept -> RecordType { return _type; }
 
 std::string_view ParquetStatsFileReader::metadata() const noexcept { return _metadata; }

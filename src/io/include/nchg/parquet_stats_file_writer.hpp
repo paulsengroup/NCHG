@@ -23,7 +23,6 @@
 #include <arrow/io/file.h>
 #include <arrow/record_batch.h>
 #include <arrow/util/key_value_metadata.h>
-#include <parallel_hashmap/btree.h>
 #include <parquet/arrow/writer.h>
 #include <parquet/properties.h>
 
@@ -50,6 +49,8 @@ class ParquetStatsFileWriter {
 
   hictk::Reference _chroms;
 
+  // NOLINTBEGIN(*-template-virtual-member-function)
+  // There's not much we can do about this warning, as it occurs in Arrow's headers
   arrow::StringDictionary32Builder _chrom1{};
   arrow::UInt32Builder _start1;
   arrow::UInt32Builder _end1;

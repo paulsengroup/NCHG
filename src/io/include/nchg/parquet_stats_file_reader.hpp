@@ -56,6 +56,9 @@ class ParquetStatsFileReader {
   ParquetStatsFileReader(const std::filesystem::path &path, RecordType record_type,
                          std::size_t buffer_size = 1'000'000);
 
+  [[nodiscard]] static std::shared_ptr<arrow::Schema> get_file_schema(
+      const std::filesystem::path &path);
+
   [[nodiscard]] auto record_type() const noexcept -> RecordType;
 
   [[nodiscard]] std::shared_ptr<const hictk::Reference> chromosomes() const noexcept;

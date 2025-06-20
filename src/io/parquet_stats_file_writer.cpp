@@ -172,7 +172,8 @@ ParquetStatsFileWriter::ParquetStatsFileWriter(hictk::Reference chroms,
                  ->data_page_version(parquet::ParquetDataPageVersion::V2)
                  ->compression(parse_parquet_compression(compression_method))
                  ->compression_level(compression_lvl)
-                 ->disable_statistics()
+                 ->max_row_group_length(500'000)
+                 ->enable_statistics()
                  ->build()),
       _fp(create_parquet_file(path, force)),
       _metadata(to_arrow_metadata(metadata, format_version)),

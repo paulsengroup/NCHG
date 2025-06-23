@@ -132,6 +132,7 @@ struct ExpectedConfig {
 
 struct MergeConfig {
   std::filesystem::path input_prefix;
+  std::vector<std::filesystem::path> input_files;
   std::filesystem::path output_path;
   bool force{false};
   bool ignore_report_file{false};

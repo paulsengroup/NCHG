@@ -20,7 +20,10 @@
 
 #include <arrow/array/array_base.h>
 #include <arrow/builder.h>
+#include <arrow/io/file.h>
 #include <arrow/record_batch.h>
+#include <arrow/util/base64.h>
+#include <arrow/util/key_value_metadata.h>
 #include <arrow/util/thread_pool.h>
 #include <fmt/format.h>
 #include <parallel_hashmap/btree.h>
@@ -36,6 +39,7 @@
 #include <hictk/reference.hpp>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -121,7 +125,11 @@ static std::shared_ptr<arrow::Array> make_chrom_dict(const hictk::Reference &chr
     throw std::runtime_error(fmt::format("failed to compress metadata using zstd: {}",
                                          ZSTD_getErrorName(compressed_size)));
   }
-  if (compressed_size >= metadata.size()) {
+
+  buffer.resize(compressed_size);
+  const auto buffer64 = arrow::util::base64_encode(buffer);
+
+  if (buffer64.size() >= metadata.size()) {
     // clang-format off
     return arrow::KeyValueMetadata::Make(
         {
@@ -140,8 +148,6 @@ static std::shared_ptr<arrow::Array> make_chrom_dict(const hictk::Reference &chr
     // clang-format on
   }
 
-  buffer.resize(compressed_size);
-
   // clang-format off
   return arrow::KeyValueMetadata::Make(
       {
@@ -152,11 +158,24 @@ static std::shared_ptr<arrow::Array> make_chrom_dict(const hictk::Reference &chr
       },
       {
         fmt::to_string(format_version),
-        buffer,
+        buffer64,
         "zstd",
         fmt::to_string(metadata.size())
       }
   );
+  // clang-format on
+}
+
+static std::vector<parquet::SortingColumn> generate_sorting_columns() {
+  // clang-format off
+  return {
+    {.column_idx=0, .descending=false, .nulls_first=false},  // chrom1
+    {.column_idx=1, .descending=false, .nulls_first=false},  // start1
+    {.column_idx=2, .descending=false, .nulls_first=false},  // end1
+    {.column_idx=3, .descending=false, .nulls_first=false},  // chrom2
+    {.column_idx=4, .descending=false, .nulls_first=false},  // start2
+    {.column_idx=5, .descending=false, .nulls_first=false},  // end2
+  };
   // clang-format on
 }
 
@@ -172,7 +191,9 @@ ParquetStatsFileWriter::ParquetStatsFileWriter(hictk::Reference chroms,
                  ->data_page_version(parquet::ParquetDataPageVersion::V2)
                  ->compression(parse_parquet_compression(compression_method))
                  ->compression_level(compression_lvl)
-                 ->disable_statistics()
+                 ->max_row_group_length(500'000)
+                 ->set_sorting_columns(generate_sorting_columns())
+                 ->enable_statistics()
                  ->build()),
       _fp(create_parquet_file(path, force)),
       _metadata(to_arrow_metadata(metadata, format_version)),

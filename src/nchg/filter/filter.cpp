@@ -312,8 +312,7 @@ using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
                                                           const hictk::Reference& chroms,
                                                           std::string_view input_metadata) {
   auto input_metadata_parsed = parse_json_string(input_metadata);
-  auto& map = std::get<glz::json_t::object_t>(input_metadata_parsed.data);
-  map.erase("chromosomes");
+  input_metadata_parsed.get_object().erase("chromosomes");
 
   const glz::json_t metadata{
       {"chromosomes", parse_json_string(to_json_string(chroms))},

@@ -19,6 +19,8 @@
 #pragma once
 
 #include <arrow/array/array_base.h>
+#include <arrow/builder.h>
+#include <arrow/io/file.h>
 #include <arrow/util/thread_pool.h>
 #include <fmt/format.h>
 #include <parquet/arrow/writer.h>

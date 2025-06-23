@@ -18,14 +18,10 @@
 
 #pragma once
 
-#include <arrow/array/array_base.h>
 #include <arrow/builder.h>
-#include <arrow/io/file.h>
-#include <arrow/record_batch.h>
-#include <arrow/util/key_value_metadata.h>
-#include <parallel_hashmap/btree.h>
-#include <parquet/arrow/writer.h>
-#include <parquet/properties.h>
+#include <arrow/io/type_fwd.h>
+#include <arrow/type_fwd.h>
+#include <parquet/type_fwd.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -33,6 +29,7 @@
 #include <hictk/reference.hpp>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 
 namespace nchg {
@@ -50,6 +47,8 @@ class ParquetStatsFileWriter {
 
   hictk::Reference _chroms;
 
+  // NOLINTBEGIN(*-template-virtual-member-function)
+  // There's not much we can do about this warning, as it occurs in Arrow's headers
   arrow::StringDictionary32Builder _chrom1{};
   arrow::UInt32Builder _start1;
   arrow::UInt32Builder _end1;
@@ -65,6 +64,7 @@ class ParquetStatsFileWriter {
   arrow::DoubleBuilder _log_ratio;
   arrow::DoubleBuilder _odds;
   arrow::DoubleBuilder _omega;
+  // NOLINTEND(*-template-virtual-member-function)
 
  public:
   static constexpr std::uint8_t format_version{2};

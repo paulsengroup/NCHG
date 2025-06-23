@@ -18,8 +18,8 @@
 
 #pragma once
 
-#include <arrow/io/file.h>
-#include <parquet/stream_reader.h>
+#include <arrow/io/type_fwd.h>
+#include <arrow/type_fwd.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -27,6 +27,11 @@
 #include <hictk/reference.hpp>
 #include <memory>
 #include <string>
+#include <vector>
+
+namespace parquet {
+class StreamReader;
+}
 
 namespace nchg {
 
@@ -37,17 +42,18 @@ class ParquetStatsFileReader {
   class iterator;
 
  private:
+  std::filesystem::path _path;
+  std::shared_ptr<arrow::Schema> _schema;
   RecordType _type{RecordType::NCHGCompute};
   std::shared_ptr<const hictk::Reference> _chroms;
   std::uint8_t _format_version{1};
   std::string _metadata;
   std::shared_ptr<parquet::StreamReader> _sr;
 
-  ParquetStatsFileReader(const std::filesystem::path &path,
+  ParquetStatsFileReader(std::filesystem::path path,
                          const std::shared_ptr<arrow::io::ReadableFile> &fp, RecordType record_type,
                          std::size_t buffer_size);
-  ParquetStatsFileReader(const std::filesystem::path &path,
-                         std::shared_ptr<arrow::io::ReadableFile> fp,
+  ParquetStatsFileReader(std::filesystem::path path, std::shared_ptr<arrow::io::ReadableFile> fp,
                          std::shared_ptr<const hictk::Reference> chromosomes,
                          RecordType record_type, std::size_t buffer_size);
 
@@ -55,6 +61,10 @@ class ParquetStatsFileReader {
   ParquetStatsFileReader() = default;
   ParquetStatsFileReader(const std::filesystem::path &path, RecordType record_type,
                          std::size_t buffer_size = 1'000'000);
+
+  [[nodiscard]] const std::filesystem::path &path() const noexcept;
+
+  [[nodiscard]] std::shared_ptr<arrow::Schema> file_schema() const noexcept;
 
   [[nodiscard]] auto record_type() const noexcept -> RecordType;
 

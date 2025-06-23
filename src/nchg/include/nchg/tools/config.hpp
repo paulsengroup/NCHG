@@ -132,6 +132,7 @@ struct ExpectedConfig {
 
 struct MergeConfig {
   std::filesystem::path input_prefix;
+  std::vector<std::filesystem::path> input_files;
   std::filesystem::path output_path;
   bool force{false};
   bool ignore_report_file{false};
@@ -139,6 +140,8 @@ struct MergeConfig {
   std::size_t threads{2};
   std::string compression_method{"zstd"};
   std::uint8_t compression_lvl{9};
+  std::optional<std::uint64_t> memory_limit;
+  std::uint64_t memory_per_thread{1ULL << 30ULL};  // 1 GB
 
   std::uint8_t verbosity{3};
 };

@@ -21,6 +21,7 @@
 #include <arrow/io/file.h>
 #include <arrow/record_batch.h>
 #include <arrow/type.h>
+#include <arrow/util/base64.h>
 #include <arrow/util/key_value_metadata.h>
 #include <fmt/format.h>
 #include <parquet/arrow/reader.h>
@@ -35,10 +36,12 @@
 #include <cstdint>
 #include <exception>
 #include <filesystem>
+#include <glaze/json/json_t.hpp>
 #include <hictk/numeric_utils.hpp>
 #include <hictk/reference.hpp>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -143,6 +146,7 @@ template <typename N>
       const auto buffer_size =
           parse_numeric<std::size_t>(read_attribute_or_throw(schema, "NCHG:metadata-size"));
       std::string buffer(buffer_size, '\0');
+      metadata = arrow::util::base64_decode(std::string{metadata});
       const auto decompressed_size =
           ZSTD_decompress(static_cast<void *>(buffer.data()), buffer.size(),
                           static_cast<const void *>(metadata.data()), metadata.size());
@@ -229,10 +233,10 @@ template <typename N>
   return std::make_shared<parquet::StreamReader>(std::move(reader));
 }
 
-[[nodiscard]] static auto validate_record_type(const std::filesystem::path &path,
-                                               const std::shared_ptr<arrow::io::ReadableFile> &fp,
-                                               ParquetStatsFileReader::RecordType expected_type)
-    -> ParquetStatsFileReader::RecordType {
+[[nodiscard]] static auto validate_record_type(
+    const std::filesystem::path &path, const std::shared_ptr<arrow::io::ReadableFile> &fp,
+    ParquetStatsFileReader::RecordType expected_type,
+    const std::shared_ptr<arrow::Schema> &schema = nullptr) -> ParquetStatsFileReader::RecordType {
   static constexpr auto expected_columns_nchg_compute = std::to_array<std::string_view>({
       "chrom1",
       "start1",
@@ -265,7 +269,7 @@ template <typename N>
   });
 
   try {
-    const auto col_names = get_file_schema(fp)->field_names();
+    const auto col_names = (!!schema ? schema : get_file_schema(fp))->field_names();
 
     auto file_has_nchg_compute_records = [&] {
       return std::ranges::equal(expected_columns_nchg_compute, col_names);
@@ -319,26 +323,34 @@ template <typename N>
   }
 }
 
-ParquetStatsFileReader::ParquetStatsFileReader(const std::filesystem::path &path,
+ParquetStatsFileReader::ParquetStatsFileReader(std::filesystem::path path,
                                                const std::shared_ptr<arrow::io::ReadableFile> &fp,
                                                RecordType record_type, std::size_t buffer_size)
-    : ParquetStatsFileReader(path, fp, import_chromosomes_from_parquet(fp), record_type,
+    : ParquetStatsFileReader(std::move(path), fp, import_chromosomes_from_parquet(fp), record_type,
                              buffer_size) {}
 
-ParquetStatsFileReader::ParquetStatsFileReader(const std::filesystem::path &path,
+ParquetStatsFileReader::ParquetStatsFileReader(std::filesystem::path path,
                                                std::shared_ptr<arrow::io::ReadableFile> fp,
                                                std::shared_ptr<const hictk::Reference> chromosomes,
                                                RecordType record_type, std::size_t buffer_size)
-    : _type(validate_record_type(path, fp, record_type)),
+    : _path(std::move(path)),
+      _schema(get_file_schema(fp)),
+      _type(validate_record_type(_path, fp, record_type, _schema)),
       _chroms(std::move(chromosomes)),
       // It's important that we parse the format version before attempting to read the file metadata
-      _format_version(parse_and_validate_format_version(path, fp)),
+      _format_version(parse_and_validate_format_version(_path, fp)),
       _metadata(import_metadata_from_parquet(fp, {})),
       _sr(init_parquet_stream_reader(std::move(fp), buffer_size)) {}
 
 ParquetStatsFileReader::ParquetStatsFileReader(const std::filesystem::path &path,
                                                RecordType record_type, std::size_t buffer_size)
     : ParquetStatsFileReader(path, open_parquet_file(path), record_type, buffer_size) {}
+
+const std::filesystem::path &ParquetStatsFileReader::path() const noexcept { return _path; }
+
+std::shared_ptr<arrow::Schema> ParquetStatsFileReader::file_schema() const noexcept {
+  return _schema;
+}
 
 auto ParquetStatsFileReader::record_type() const noexcept -> RecordType { return _type; }
 

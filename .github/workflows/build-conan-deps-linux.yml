@@ -156,6 +156,26 @@ jobs:
              -s compiler.cppstd=${{ inputs.cppstd }}  \
              --output-folder cmake-prefix-dbg
 
+          conan install conanfile.py                  \
+             --build='missing'                        \
+             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -s build_type=Debug                      \
+             -s compiler.libcxx=libstdc++11           \
+             -s compiler.cppstd=23                    \
+             --options 'NCHG/*:with_glaze_only=True'  \
+             --output-folder cmake-prefix-dbg
+
+          conan install conanfile.py                  \
+             --build='missing'                        \
+             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -s build_type=Debug                      \
+             -s compiler.libcxx=libstdc++11           \
+             -s compiler.cppstd=20                    \
+             --options 'NCHG/*:with_duckdb_only=True' \
+             --output-folder cmake-prefix-dbg
+
           tar -cf /tmp/cmake-prefix-dbg.tar cmake-prefix-dbg
           rm -r cmake-prefix-dbg
 
@@ -171,6 +191,27 @@ jobs:
              -s compiler.cppstd=${{ inputs.cppstd }}  \
              --output-folder cmake-prefix-rel
 
+          conan install conanfile.py                  \
+             --build='missing'                        \
+             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -s build_type=Release                    \
+             -s compiler.libcxx=libstdc++11           \
+             -s compiler.cppstd=23                    \
+             --options 'NCHG/*:with_glaze_only=True'  \
+             --output-folder cmake-prefix-rel
+
+          conan install conanfile.py                  \
+             --build='missing'                        \
+             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -s build_type=Release                    \
+             -s compiler.libcxx=libstdc++11           \
+             -s compiler.cppstd=20                    \
+             --options 'NCHG/*:with_duckdb_only=True' \
+             --output-folder cmake-prefix-rel
+
+
           tar -cf /tmp/cmake-prefix-rel.tar cmake-prefix-rel
           rm -r cmake-prefix-rel
 
@@ -185,6 +226,27 @@ jobs:
              -s compiler.libcxx=libstdc++11           \
              -s compiler.cppstd=${{ inputs.cppstd }}  \
              --output-folder cmake-prefix-rwdi
+
+          conan install conanfile.py                  \
+             --build='missing'                        \
+             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -s build_type=RelWithDebInfo             \
+             -s compiler.libcxx=libstdc++11           \
+             -s compiler.cppstd=23                    \
+             --options 'NCHG/*:with_glaze_only=True'  \
+             --output-folder cmake-prefix-rwdi
+
+          conan install conanfile.py                  \
+             --build='missing'                        \
+             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -s build_type=RelWithDebInfo             \
+             -s compiler.libcxx=libstdc++11           \
+             -s compiler.cppstd=20                    \
+             --options 'NCHG/*:with_duckdb_only=True' \
+             --output-folder cmake-prefix-rwdi
+
 
           tar -cf /tmp/cmake-prefix-rwdi.tar cmake-prefix-rwdi
           rm -r cmake-prefix-rwdi

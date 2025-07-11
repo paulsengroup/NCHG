@@ -141,6 +141,26 @@ jobs:
              -s compiler.cppstd=${{ inputs.cppstd }}  \
              --output-folder cmake-prefix-dbg
 
+          conan install conanfile.py                  \
+             --build='missing'                        \
+             -pr:b=default                            \
+             -pr:h=default                            \
+             -s build_type=Debug                      \
+             -s compiler.libcxx=libc++                \
+             -s compiler.cppstd=23                    \
+             --options 'NCHG/*:with_glaze_only=True'  \
+             --output-folder cmake-prefix-dbg
+
+          conan install conanfile.py                  \
+             --build='missing'                        \
+             -pr:b=default                            \
+             -pr:h=default                            \
+             -s build_type=Debug                      \
+             -s compiler.libcxx=libc++                \
+             -s compiler.cppstd=20                    \
+             --options 'NCHG/*:with_duckdb_only=True' \
+             --output-folder cmake-prefix-dbg
+
           gtar -cf /tmp/cmake-prefix-dbg.tar cmake-prefix-dbg
           rm -r cmake-prefix-dbg
 
@@ -154,6 +174,26 @@ jobs:
              -s build_type=Release                    \
              -s compiler.libcxx=libc++                \
              -s compiler.cppstd=${{ inputs.cppstd }}  \
+             --output-folder cmake-prefix-rel
+
+          conan install conanfile.py                  \
+             --build='missing'                        \
+             -pr:b=default                            \
+             -pr:h=default                            \
+             -s build_type=Release                    \
+             -s compiler.libcxx=libc++                \
+             -s compiler.cppstd=23                    \
+             --options 'NCHG/*:with_glaze_only=True'  \
+             --output-folder cmake-prefix-rel
+
+          conan install conanfile.py                  \
+             --build='missing'                        \
+             -pr:b=default                            \
+             -pr:h=default                            \
+             -s build_type=Release                    \
+             -s compiler.libcxx=libc++                \
+             -s compiler.cppstd=20                    \
+             --options 'NCHG/*:with_duckdb_only=True' \
              --output-folder cmake-prefix-rel
 
           gtar -cf /tmp/cmake-prefix-rel.tar cmake-prefix-rel

@@ -307,20 +307,20 @@ static std::string fetch_chrom1_from_file_metadata(std::string_view metadata_str
 
   auto files = enumerate_parquet_tables(chroms, c);
   std::vector<glz::json_t> old_metadata;
-  std::ranges::transform(
-      files | std::ranges::views::values | std::ranges::views::join,
-      std::back_inserter(old_metadata), [&](const auto &path) {
-        try {
-          const auto metadata = ParquetStatsFileReader::read_metadata(path, {"chromosomes"});
-          return parse_json_string(metadata);
-        } catch (const std::exception &e) {
-          throw std::runtime_error(
-              fmt::format("failed to read NCHG metadata from file \"{}\": {}", path, e.what()));
-        } catch (...) {
-          throw std::runtime_error(
-              fmt::format("failed to read NCHG metadata from file \"{}\": unknown error", path));
-        }
-      });
+  for (const auto &chunk : files | std::ranges::views::values) {
+    for (const auto &file : chunk) {
+      try {
+        const auto metadata = ParquetStatsFileReader::read_metadata(file, {"chromosomes"});
+        old_metadata.emplace_back(parse_json_string(metadata));
+      } catch (const std::exception &e) {
+        throw std::runtime_error(
+            fmt::format("failed to read NCHG metadata from file \"{}\": {}", file, e.what()));
+      } catch (...) {
+        throw std::runtime_error(
+            fmt::format("failed to read NCHG metadata from file \"{}\": unknown error", file));
+      }
+    }
+  }
 
   return Result{.files = std::move(files), .metadata = generate_metadata(chroms, old_metadata)};
 }
@@ -332,7 +332,14 @@ using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
                                              RecordQueue &queue, std::atomic<bool> &early_return) {
   try {
     std::size_t records_enqueued{};
-    const auto flat_files = parquet_files | std::ranges::views::values | std::ranges::views::join;
+
+    std::vector<std::filesystem::path> flat_files;
+    for (const auto &chunk : parquet_files | std::ranges::views::values) {
+      for (const auto &file : chunk) {
+        flat_files.emplace_back(file);
+      }
+    }
+
     ParquetFileMerger file_merger(chroms, {flat_files.begin(), flat_files.end()});
 
     while (true) {

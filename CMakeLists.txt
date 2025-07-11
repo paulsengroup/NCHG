@@ -167,11 +167,6 @@ if(MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
 endif()
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang")
-  # Required to use std::ranges on older libc++
-  target_compile_options(nchg_project_options INTERFACE -fexperimental-library)
-endif()
-
 option(BUILD_SHARED_LIBS "Build shared library" OFF)
 option(NCHG_ENABLE_GIT_VERSION_TRACKING "Retrieve project version and metadata from git" ON)
 option(NCHG_ENABLE_TESTING "Build unit tests" ON)

@@ -424,8 +424,10 @@ TO '{}' (
   auto pstmt = db.prepare_statement(stmt);
 
   std::size_t idx = 1;
-  for (const auto& file : files | std::ranges::views::join) {
-    duckdb_bind_varchar(*pstmt, idx++, file.c_str());
+  for (const auto& chunk : files) {
+    for (const auto& file : chunk) {
+      duckdb_bind_varchar(*pstmt, idx++, file.c_str());
+    }
   }
 
   return pstmt;
@@ -489,8 +491,10 @@ TO '{}' (
   auto pstmt = db.prepare_statement(stmt);
 
   i = 1;
-  for (const auto& file : files | std::ranges::views::join) {
-    duckdb_bind_varchar(*pstmt, i++, file.c_str());
+  for (const auto& chunk : files) {
+    for (const auto& file : chunk) {
+      duckdb_bind_varchar(*pstmt, i++, file.c_str());
+    }
   }
 
   return pstmt;
@@ -591,24 +595,26 @@ TO '{}' (
   std::shared_ptr<arrow::Schema> schema;
   hictk::Reference chroms;
   std::vector<glz::json_t> old_metadata;
-  for (const auto& file : files | std::ranges::views::join) {
-    const ParquetStatsFileReader reader{file, ParquetStatsFileReader::RecordType::infer};
-    if (!schema) {
-      schema = reader.file_schema();
-    }
-    if (chroms.empty()) {
-      chroms = *reader.chromosomes();
-    }
+  for (const auto& chunk : files) {
+    for (const auto& file : chunk) {
+      const ParquetStatsFileReader reader{file, ParquetStatsFileReader::RecordType::infer};
+      if (!schema) {
+        schema = reader.file_schema();
+      }
+      if (chroms.empty()) {
+        chroms = *reader.chromosomes();
+      }
 
-    old_metadata.emplace_back(read_metadata_or_throw(reader));
+      old_metadata.emplace_back(read_metadata_or_throw(reader));
 
-    const auto new_schema = reader.file_schema();
-    if (new_schema && schema && *schema != *new_schema) {
-      throw std::runtime_error("caught an attempt to merge files with different schemas");
-    }
+      const auto new_schema = reader.file_schema();
+      if (new_schema && schema && *schema != *new_schema) {
+        throw std::runtime_error("caught an attempt to merge files with different schemas");
+      }
 
-    if (chroms != *reader.chromosomes()) {
-      throw std::runtime_error("caught attempt to merge files using different reference genomes");
+      if (chroms != *reader.chromosomes()) {
+        throw std::runtime_error("caught attempt to merge files using different reference genomes");
+      }
     }
   }
 

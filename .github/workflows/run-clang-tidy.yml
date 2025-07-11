@@ -57,7 +57,7 @@ permissions:
 jobs:
   build-conan-deps:
     name: Build Conan deps
-    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@c598607693dffd8e8babb5f7acb44a8e871aa507
+    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@094aec33f98d075decacbf9f3a13d3d26b9ff001
 
   build-project:
     name: Build project

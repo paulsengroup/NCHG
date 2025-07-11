@@ -474,9 +474,9 @@ TO '{}' (
   // clang-format on
 
   std::ranges::transform(
-      files, partial_queries.begin(), [&i, statement1_template](const auto& files) {
+      files, partial_queries.begin(), [&i, statement1_template](const auto& files_) {
         const auto i0 = i;
-        const auto i1 = i0 + files.size();
+        const auto i1 = i0 + files_.size();
         i = i1;
 
         return fmt::format(statement1_template,

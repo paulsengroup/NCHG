@@ -609,8 +609,8 @@ jobs:
         run: |
           sudo -u devel                                        \
           bin/NCHG merge                                       \
-            "$DATA_DIR/compute/$OUT_PREFIX"                    \
-            "$OUT_PREFIX.parquet"                              \
+            --input-prefix="$DATA_DIR/compute/$OUT_PREFIX"     \
+            --output="$OUT_PREFIX.parquet"                     \
             --use-report-file                                  \
             --threads "$(nproc)"
 
@@ -624,8 +624,8 @@ jobs:
         run: |
           sudo -u devel                                        \
           bin/NCHG merge                                       \
-            "$DATA_DIR/compute/$OUT_PREFIX"                    \
-            "$OUT_PREFIX.parquet"                              \
+            --input-prefix="$DATA_DIR/compute/$OUT_PREFIX"     \
+            --output="$OUT_PREFIX.parquet"                     \
             --ignore-report-file                               \
             --threads "$(nproc)"
 

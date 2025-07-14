@@ -546,8 +546,8 @@ jobs:
       - name: Test NCHG merge w/ input validation
         run: |
           bin/NCHG merge                                       \
-            "$DATA_DIR/compute/$OUT_PREFIX"                    \
-            "$OUT_PREFIX.parquet"                              \
+            --input-prefix="$DATA_DIR/compute/$OUT_PREFIX"     \
+            --output="$OUT_PREFIX.parquet"                     \
             --use-report-file                                  \
             --threads "$NPROC"
 
@@ -560,8 +560,8 @@ jobs:
       - name: Test NCHG merge w/o input validation
         run: |
           bin/NCHG merge                                       \
-            "$DATA_DIR/compute/$OUT_PREFIX"                    \
-            "$OUT_PREFIX.parquet"                              \
+            --input-prefix="$DATA_DIR/compute/$OUT_PREFIX"     \
+            --output="$OUT_PREFIX.parquet"                     \
             --ignore-report-file                               \
             --threads "$NPROC"
 

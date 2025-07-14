@@ -571,6 +571,32 @@ jobs:
 
           rm "$OUT_PREFIX"*
 
+      - name: Test NCHG merge streaming
+        run: |
+          bin/NCHG merge                                       \
+            --input-prefix="$DATA_DIR/compute/$OUT_PREFIX"     \
+            --output="$OUT_PREFIX.parquet"                     \
+            --threads 2
+
+          test/scripts/validate_nchg_output.py merge \
+            "$OUT_PREFIX.parquet"                    \
+            "$DATA_DIR/merge/$OUT_PREFIX.parquet"
+
+          rm "$OUT_PREFIX"*
+
+      - name: Test NCHG merge arbitrary files
+        run: |
+          bin/NCHG merge                                       \
+            --input-files "$DATA_DIR/compute/"*.parquet        \
+            --output="$OUT_PREFIX.parquet"                     \
+            --threads "$NPROC"
+
+          test/scripts/validate_nchg_output.py merge \
+            "$OUT_PREFIX.parquet"                    \
+            "$DATA_DIR/merge/$OUT_PREFIX.parquet"
+
+          rm "$OUT_PREFIX"*
+
       - name: Test NCHG metadata
         run: |
           bin/NCHG metadata                           \

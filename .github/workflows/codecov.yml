@@ -545,6 +545,40 @@ jobs:
 
           rm "$OUT_PREFIX"*
 
+      - name: Test NCHG merge streaming
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.merge.streaming.profraw"
+
+          sudo -u devel                                        \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG merge                            \
+            --input-prefix="$DATA_DIR/compute/$OUT_PREFIX"     \
+            --output="$OUT_PREFIX.parquet"                     \
+            --threads 2
+
+          test/scripts/validate_nchg_output.py merge \
+            "$OUT_PREFIX.parquet"                    \
+            "$DATA_DIR/merge/$OUT_PREFIX.parquet"
+
+          rm "$OUT_PREFIX"*
+
+      - name: Test NCHG merge arbitrary files
+        run: |
+          LLVM_PROFILE_FILE="$PWD/nchg.merge.arbitrary-files.profraw"
+
+          sudo -u devel                                        \
+          -E env "LLVM_PROFILE_FILE=$LLVM_PROFILE_FILE"        \
+          build/src/nchg/NCHG merge                            \
+            --input-files "$DATA_DIR/compute/"*.parquet        \
+            --output="$OUT_PREFIX.parquet"                     \
+            --threads "$(nproc)"
+
+          test/scripts/validate_nchg_output.py merge \
+            "$OUT_PREFIX.parquet"                    \
+            "$DATA_DIR/merge/$OUT_PREFIX.parquet"
+
+          rm "$OUT_PREFIX"*
+
       - name: Test NCHG metadata
         run: |
           LLVM_PROFILE_FILE="$PWD/nchg.metadata.compute.profraw"

@@ -90,17 +90,17 @@ jobs:
 
   cache-test-dataset:
     name: Cache test dataset
-    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@c598607693dffd8e8babb5f7acb44a8e871aa507
+    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@094aec33f98d075decacbf9f3a13d3d26b9ff001
 
   build-conan-deps-x86:
     name: Build Conan deps
-    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-macos.yml@c598607693dffd8e8babb5f7acb44a8e871aa507
+    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-macos.yml@094aec33f98d075decacbf9f3a13d3d26b9ff001
     with:
       os: macos-13
 
   build-conan-deps-arm64:
     name: Build Conan deps
-    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-macos.yml@c598607693dffd8e8babb5f7acb44a8e871aa507
+    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-macos.yml@094aec33f98d075decacbf9f3a13d3d26b9ff001
     with:
       os: macos-14
 
@@ -546,8 +546,8 @@ jobs:
       - name: Test NCHG merge w/ input validation
         run: |
           bin/NCHG merge                                       \
-            "$DATA_DIR/compute/$OUT_PREFIX"                    \
-            "$OUT_PREFIX.parquet"                              \
+            --input-prefix="$DATA_DIR/compute/$OUT_PREFIX"     \
+            --output="$OUT_PREFIX.parquet"                     \
             --use-report-file                                  \
             --threads "$NPROC"
 
@@ -560,9 +560,35 @@ jobs:
       - name: Test NCHG merge w/o input validation
         run: |
           bin/NCHG merge                                       \
-            "$DATA_DIR/compute/$OUT_PREFIX"                    \
-            "$OUT_PREFIX.parquet"                              \
+            --input-prefix="$DATA_DIR/compute/$OUT_PREFIX"     \
+            --output="$OUT_PREFIX.parquet"                     \
             --ignore-report-file                               \
+            --threads "$NPROC"
+
+          test/scripts/validate_nchg_output.py merge \
+            "$OUT_PREFIX.parquet"                    \
+            "$DATA_DIR/merge/$OUT_PREFIX.parquet"
+
+          rm "$OUT_PREFIX"*
+
+      - name: Test NCHG merge streaming
+        run: |
+          bin/NCHG merge                                       \
+            --input-prefix="$DATA_DIR/compute/$OUT_PREFIX"     \
+            --output="$OUT_PREFIX.parquet"                     \
+            --threads 2
+
+          test/scripts/validate_nchg_output.py merge \
+            "$OUT_PREFIX.parquet"                    \
+            "$DATA_DIR/merge/$OUT_PREFIX.parquet"
+
+          rm "$OUT_PREFIX"*
+
+      - name: Test NCHG merge arbitrary files
+        run: |
+          bin/NCHG merge                                       \
+            --input-files "$DATA_DIR/compute/"*.parquet        \
+            --output="$OUT_PREFIX.parquet"                     \
             --threads "$NPROC"
 
           test/scripts/validate_nchg_output.py merge \

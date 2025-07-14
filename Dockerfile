@@ -45,7 +45,7 @@ ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
 
 # Install b2 using Conan
 RUN printf '[requires]\nb2/5.2.1\n[options]\nb2*:toolset=%s' \
-           "$(basename "$(which "$CC")")" | cut -f 1 -d - > /tmp/conanfile.txt
+           "$(basename "$(which "$CC")" | cut -f 1 -d -)" > /tmp/conanfile.txt
 
 RUN conan install /tmp/conanfile.txt                 \
                  --build=missing                     \
@@ -56,16 +56,34 @@ RUN conan install /tmp/conanfile.txt                 \
 RUN mkdir -p "$src_dir"
 
 COPY conanfile.py "$src_dir"
-RUN conan install "$src_dir/conanfile.py"        \
-             --build=missing                     \
-             -pr:b="$CONAN_DEFAULT_PROFILE_PATH" \
-             -pr:h="$CONAN_DEFAULT_PROFILE_PATH" \
-             -s build_type=Release               \
-             -s compiler.libcxx=libstdc++11      \
-             -s compiler.cppstd=23               \
-             --output-folder="$build_dir"        \
-&& conan cache clean "*" --build                 \
-&& conan cache clean "*" --download              \
+RUN conan install "$src_dir/conanfile.py"             \
+             --build=missing                          \
+             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -s build_type=Release                    \
+             -s compiler.libcxx=libstdc++11           \
+             -s compiler.cppstd=23                    \
+             --output-folder="$build_dir"             \
+&& conan install "$src_dir/conanfile.py"              \
+             --build=missing                          \
+             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -s build_type=Release                    \
+             -s compiler.libcxx=libstdc++11           \
+             -s compiler.cppstd=23                    \
+             --options 'NCHG/*:with_glaze_only=True'  \
+             --output-folder="$build_dir"             \
+&& conan install "$src_dir/conanfile.py"              \
+             --build=missing                          \
+             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
+             -s build_type=Release                    \
+             -s compiler.libcxx=libstdc++11           \
+             -s compiler.cppstd=20                    \
+             --options 'NCHG/*:with_duckdb_only=True' \
+             --output-folder="$build_dir"             \
+&& conan cache clean "*" --build                      \
+&& conan cache clean "*" --download                   \
 && conan cache clean "*" --source
 
 # Copy source files

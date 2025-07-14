@@ -264,6 +264,7 @@ void FileStore::finalize() {
     _report_fs.seekp(0, std::ios::beg);
     _report_fs.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
     _report_fs.flush();
+    // NOLINTNEXTLINE(*-use-integer-sign-comparison)
     assert(_report_fs.tellp() ==
            static_cast<std::streamsize>(std::filesystem::file_size(report_path())));
 

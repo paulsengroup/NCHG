@@ -18,6 +18,7 @@
 
 find_package(Arrow REQUIRED)
 find_package(bshoshany-thread-pool REQUIRED)
+find_package(duckdb REQUIRED)
 find_package(FMT REQUIRED)
 find_package(glaze REQUIRED)
 find_package(hictk REQUIRED)
@@ -39,6 +40,7 @@ target_sources(
     "${CMAKE_CURRENT_SOURCE_DIR}/k_merger_impl.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/metadata_impl.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_helpers.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_merger.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_reader.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_reader_impl.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/parquet_stats_file_writer.cpp"
@@ -60,6 +62,7 @@ target_link_libraries(
     nchg_project_options
     nchg_project_warnings
     nchg::version
+    duckdb::duckdb
     fmt::fmt-header-only
     spdlog::spdlog_header_only
     zstd::libzstd_$<IF:$<BOOL:${BUILD_SHARED_LIBS}>,shared,static>

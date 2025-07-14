@@ -18,7 +18,10 @@
 
 #include "nchg/tools/cli.hpp"
 
+#include <arrow/io/file.h>
 #include <fmt/format.h>
+#include <parquet/arrow/reader.h>
+#include <parquet/file_reader.h>
 #include <spdlog/spdlog.h>
 
 #include <CLI/CLI.hpp>
@@ -26,6 +29,7 @@
 #include <exception>
 #include <hictk/cooler/validation.hpp>
 #include <hictk/hic/validation.hpp>
+#include <hictk/numeric_utils.hpp>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -48,6 +52,146 @@
 #include "nchg/version.hpp"
 
 namespace nchg {
+
+template <typename N>
+[[nodiscard]] static N parse_numeric(std::string_view tok) {
+  return hictk::internal::parse_numeric_or_throw<N>(tok);
+}
+
+[[nodiscard]] static std::string pretty_format_memory(std::uint64_t mem, bool no_space = false) {
+  // format memory with the appropriate unit and without uninformative decimal digits
+  constexpr std::uint64_t kb = 1ULL << 10U;
+  constexpr std::uint64_t mb = 1ULL << 20U;
+  constexpr std::uint64_t gb = 1ULL << 30U;
+  constexpr std::uint64_t tb = 1ULL << 40U;
+
+  constexpr std::string_view kb_suffix_w_space = " KB";
+  constexpr std::string_view mb_suffix_w_space = " MB";
+  constexpr std::string_view gb_suffix_w_space = " GB";
+  constexpr std::string_view tb_suffix_w_space = " TB";
+
+  constexpr std::string_view kb_suffix_wo_space = "KB";
+  constexpr std::string_view mb_suffix_wo_space = "MB";
+  constexpr std::string_view gb_suffix_wo_space = "GB";
+  constexpr std::string_view tb_suffix_wo_space = "TB";
+
+  if (mem < kb) {
+    return fmt::format("{} B", mem);
+  }
+
+  auto suffix = no_space ? tb_suffix_wo_space : tb_suffix_w_space;
+  auto div = tb;
+
+  if (mem < mb) {
+    suffix = no_space ? kb_suffix_wo_space : kb_suffix_w_space;
+    div = kb;
+  } else if (mem < gb) {
+    suffix = no_space ? mb_suffix_wo_space : mb_suffix_w_space;
+    div = mb;
+  } else if (mem < tb) {
+    suffix = no_space ? gb_suffix_wo_space : gb_suffix_w_space;
+    div = gb;
+  }
+
+  auto s = fmt::format("{:.3f}", static_cast<double>(mem) / static_cast<double>(div));
+  while (!s.empty() && s.back() == '0') {
+    s.resize(s.size() - 1);
+  }
+
+  if (!s.empty() && s.back() == '.') {
+    s.resize(s.size() - 1);
+  }
+
+  if (s.empty()) [[unlikely]] {
+    // this should never happen
+    s = "0";
+  }
+
+  s.append(suffix);
+  return s;
+}
+
+class MemoryValidator : public CLI::AsSizeValue {
+  std::uint64_t _lb{};
+  std::uint64_t _ub{std::numeric_limits<std::uint64_t>::max()};
+
+ public:
+  explicit MemoryValidator(std::uint64_t lb,
+                           std::uint64_t ub = std::numeric_limits<std::uint64_t>::max())
+      : AsSizeValue(false) {
+    assert(lb <= ub);
+
+    _lb = lb;
+    _ub = ub;
+
+    auto as_size_value_func = func_;
+
+    func_ = [this, as_size_value_func](std::string &input) -> std::string {
+      const auto original_input = input;
+      if (const auto res = as_size_value_func(input); !res.empty()) {
+        return res;
+      }
+
+      try {
+        const auto mem = parse_numeric<std::uint64_t>(input);
+        if (mem < _lb) {
+          input = original_input;
+          throw CLI::ValidationError(fmt::format("Memory cannot be less than {} (found {})",
+                                                 pretty_format_memory(_lb),
+                                                 pretty_format_memory(mem)));
+        }
+
+        if (mem > _ub) {
+          input = original_input;
+          throw CLI::ValidationError(fmt::format("Memory cannot be more than {} (found {})",
+                                                 pretty_format_memory(_ub),
+                                                 pretty_format_memory(mem)));
+        }
+
+        input = fmt::to_string(mem);
+        return {};
+      } catch (const CLI::ValidationError &) {
+        throw;
+      } catch (const std::exception &e) {
+        throw CLI::ValidationError(
+            fmt::format("Value \"{}\" is not a valid number: {}", input, e.what()));
+      }
+    };
+  }
+
+  [[nodiscard]] std::uint64_t lb() const noexcept { return _lb; }
+  [[nodiscard]] std::uint64_t ub() const noexcept { return _ub; }
+};
+
+class ParquetFileValidator : public CLI::detail::ExistingFileValidator {
+ public:
+  ParquetFileValidator() {
+    auto existing_file_func = func_;
+    func_ = [existing_file_func](std::string &input) -> std::string {
+      try {
+        if (const auto res = existing_file_func(input); !res.empty()) {
+          return res;
+        }
+        std::shared_ptr<arrow::io::ReadableFile> fp;
+        PARQUET_ASSIGN_OR_THROW(fp, arrow::io::ReadableFile::Open(input))
+        const auto result = parquet::arrow::OpenFile(fp, arrow::default_memory_pool());
+        if (!result.ok()) {
+          throw std::runtime_error(result.status().ToString());
+        }
+        return {};
+      } catch (const std::exception &e) {
+        throw CLI::ValidationError(
+            fmt::format("failed to open file \"{}\" for reading: {}", input, e.what()));
+      }
+    };
+  }
+};
+
+// NOLINTBEGIN(cert-err58-cpp)
+// https://duckdb.org/docs/stable/guides/performance/environment.html#minimum-required-memory
+static const auto IsValidMemoryDuckDB = MemoryValidator(125ULL << 20U);
+static const auto IsValidParquet = ParquetFileValidator();
+// NOLINTEND(cert-err58-cpp)
 
 Cli::Cli(int argc, char **argv) : _argc(argc), _argv(argv), _exec_name(*argv) { make_cli(); }
 
@@ -162,6 +306,7 @@ void Cli::make_cli() {
 
   auto *grp = _cli.add_option_group("help");
   grp->require_option(0, 1);
+  grp->set_help_flag();
 
   /*
   grp->add_flag_callback(
@@ -636,7 +781,7 @@ void Cli::make_filter_subcommand() {
     "input-parquet",
     c.input_path,
     "Path to a parquet file produced by NCHG merge or compute.")
-    ->check(CLI::ExistingFile)
+    ->check(IsValidParquet)
     ->required();
   sc.add_option(
     "output-parquet",
@@ -721,53 +866,79 @@ void Cli::make_merge_subcommand() {
   _config = MergeConfig{};
   auto &c = std::get<MergeConfig>(_config);
 
+  auto *inputs_grp = sc.add_option_group("inputs");
+  inputs_grp->require_option(1);
+  auto *params_grp = sc.add_option_group("parameters");
+  inputs_grp->set_help_flag();
+  params_grp->set_help_flag();
+
   // clang-format off
-  sc.add_option(
-    "input-prefix",
+  inputs_grp->add_option(
+    "--input-prefix",
     c.input_prefix,
-    "Path prefix where the files produced by NCHG compute are located.")
-    ->required();
+    "Path prefix where the files produced by NCHG compute are located.");
+  inputs_grp->add_option(
+    "--input-files",
+    c.input_files,
+    "Two or more paths to .parquet files generated by NCHG.")
+    ->check(IsValidParquet);
   sc.add_option(
-    "output-path",
+    "-o,--output",
     c.output_path,
     "Output path.")
     ->required();
-  sc.add_flag(
+  params_grp->add_flag(
     "--force",
     c.force,
     "Force overwrite existing output file(s).")
     ->capture_default_str();
-  sc.add_flag(
+  params_grp->add_flag(
     "--ignore-report-file,!--use-report-file",
     c.ignore_report_file,
     "Control whether the report file generated by NCHG compute should be\n"
     "used to validate the input files before merging.")
     ->capture_default_str();
-  sc.add_option(
+  params_grp->add_option(
     "--compression-level",
     c.compression_lvl,
     "Compression level used to compress columns in the output .parquet file.")
     ->check(CLI::Bound(1, 22))
     ->capture_default_str();
-  sc.add_option(
+  params_grp->add_option(
     "--compression-method",
     c.compression_method,
     "Method used to compress individual columns in the .parquet file.")
     ->check(CLI::IsMember({"zstd", "lz4"}))
     ->capture_default_str();
-  sc.add_option(
+  params_grp->add_option(
     "--threads",
     c.threads,
     "Number of worker threads.")
     ->check(CLI::Range(2U, std::max(2U, std::thread::hardware_concurrency())))
     ->capture_default_str();
-  sc.add_option(
+  params_grp->add_option(
+    "--max-memory-per-thread",
+    c.memory_per_thread,
+    "Memory budget for each processing thread.")
+    ->transform(IsValidMemoryDuckDB)  // NOLINT(cppcoreguidelines-slicing)
+    ->default_str(pretty_format_memory(c.memory_per_thread, true));
+  params_grp->add_option(
+    "--max-memory",
+    c.memory_limit,
+    "Memory budget for the whole process.")
+    ->transform(IsValidMemoryDuckDB)  // NOLINT(cppcoreguidelines-slicing)
+    ->capture_default_str();
+  params_grp->add_option(
     "-v,--verbosity",
     c.verbosity,
     "Set verbosity of output to the console.")
     ->check(CLI::Range(1, 5))
     ->capture_default_str();
   // clang-format on
+
+  inputs_grp->get_option("--input-prefix")->excludes(inputs_grp->get_option("--input-files"));
+  params_grp->get_option("--max-memory")
+      ->excludes(params_grp->get_option("--max-memory-per-thread"));
 
   _config = std::monostate{};
 }
@@ -790,6 +961,7 @@ void Cli::make_metadata_subcommand() {
     "parquet",
     c.input_path,
     "Path a .parquet file generated by NCHG.")
+    ->check(IsValidParquet)
     ->required();
   sc.add_flag(
     "--raw",
@@ -818,7 +990,7 @@ void Cli::make_view_subcommand() {
     "parquet",
     c.input_path,
     "Path to the .parquet file to be viewed.")
-    ->check(CLI::ExistingFile)
+    ->check(IsValidParquet)
     ->required();
   sc.add_option(
     "--range",
@@ -984,9 +1156,35 @@ void Cli::validate_filter_subcommand() const {
 
 void Cli::validate_merge_subcommand() const {
   const auto &c = std::get<MergeConfig>(_config);
+  const auto &sc = *_cli.get_subcommand("merge");
+
+  std::vector<std::string> errors;
+
+  const auto min_memory = IsValidMemoryDuckDB.lb() * c.threads;
+  if (c.memory_limit.value_or(min_memory) < min_memory) {
+    // NOLINTBEGIN(*-unchecked-optional-access)
+    errors.emplace_back(fmt::format(
+        "--max-memory should be at least {} per thread, found {} ({} per thread)",
+        pretty_format_memory(IsValidMemoryDuckDB.lb()), pretty_format_memory(*c.memory_limit),
+        pretty_format_memory(*c.memory_limit / c.threads)));
+    // NOLINTEND(*-unchecked-optional-access)
+  }
+
+  if (!sc.get_option("--input-files")->empty() && !sc.get_option("--ignore-report-file")->empty()) {
+    _warnings.emplace_back(
+        "--ignore-report-file is ignored when files are specified through the --input-files "
+        "option");
+  }
 
   if (c.compression_method == "lz4" && c.compression_lvl > 9) {
     _warnings.emplace_back("compression method lz4 supports compression levels up to 9");
+  }
+
+  if (!errors.empty()) {
+    throw std::runtime_error(
+        fmt::format("the following error(s) where encountered while validating CLI "
+                    "arguments and input file(s):\n - {}",
+                    fmt::join(errors, "\n - ")));
   }
 }
 
@@ -1133,6 +1331,10 @@ void Cli::transform_args_filter_subcommand() {
 
 void Cli::transform_args_merge_subcommand() {
   auto &c = std::get<MergeConfig>(_config);
+
+  if (!c.memory_limit.has_value()) {
+    c.memory_limit = c.memory_per_thread * c.threads;
+  }
 
   if (c.compression_method == "lz4") {
     c.compression_lvl = std::min(c.compression_lvl, std::uint8_t{9});

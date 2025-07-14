@@ -19,12 +19,13 @@
 #pragma once
 
 #include <filesystem>
-#include <hictk/tmpdir.hpp>
+
+#include "nchg/tmpdir.hpp"
 
 namespace nchg::test {
 
 // NOLINTBEGIN(cert-err58-cpp)
-inline const hictk::internal::TmpDir testdir{true};
+inline const TmpDir testdir{true};
 inline const std::filesystem::path datadir{"test/data"};
 // NOLINTEND(cert-err58-cpp)
 

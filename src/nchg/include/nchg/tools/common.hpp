@@ -21,6 +21,7 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 
+#include <cassert>
 #include <chrono>
 #include <string>
 
@@ -32,6 +33,7 @@ namespace internal {
 #else
 [[nodiscard]] inline std::string strip_leading_zero(std::string s) {
 #endif
+  assert(!s.empty());
   if (s.front() != '0') {
     return s;
   }

@@ -16,7 +16,9 @@
 # with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
+find_package(FMT REQUIRED)
 find_package(hictk REQUIRED)
+find_package(spdlog REQUIRED)
 
 add_library(nchg_common INTERFACE)
 add_library(nchg::common ALIAS nchg_common)
@@ -43,5 +45,7 @@ target_link_libraries(
   INTERFACE
     nchg_project_options
     nchg_project_warnings
+    fmt::fmt-header-only
     hictk::libhictk
+    spdlog::spdlog_header_only
 )

@@ -19,6 +19,7 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <moodycamel/blockingconcurrentqueue.h>
+#include <parallel_hashmap/btree.h>
 #include <spdlog/spdlog.h>
 
 #include <BS_thread_pool.hpp>
@@ -30,13 +31,18 @@
 #include <cstdint>
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <future>
+#include <glaze/json/json_t.hpp>
 #include <hictk/chromosome.hpp>
 #include <hictk/reference.hpp>
 #include <nchg/version.hpp>
+#include <optional>
+#include <queue>
+#include <ranges>
 #include <stdexcept>
 #include <string>
-#include <tuple>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -44,6 +50,7 @@
 #include "nchg/k_merger.hpp"
 #include "nchg/metadata.hpp"
 #include "nchg/nchg.hpp"
+#include "nchg/parquet_stats_file_merger.hpp"
 #include "nchg/parquet_stats_file_reader.hpp"
 #include "nchg/parquet_stats_file_writer.hpp"
 #include "nchg/tools/common.hpp"
@@ -52,9 +59,16 @@
 
 namespace nchg {
 
+using ParquetFileMap = phmap::btree_map<hictk::Chromosome, std::vector<std::filesystem::path>>;
+
 class ParquetFileMerger {
   using RecordIterator = ParquetStatsFileReader::iterator<NCHGResult>;
-  using Record = std::tuple<hictk::Chromosome, hictk::Chromosome, std::filesystem::path>;
+
+  struct Record {
+    hictk::Chromosome chrom1;
+    hictk::Chromosome chrom2;
+    std::filesystem::path path;
+  };
 
   std::queue<Record> _files;
   hictk::Chromosome _chrom1;
@@ -69,13 +83,13 @@ class ParquetFileMerger {
       return {};
     }
 
-    _chrom1 = std::get<0>(_files.front());
+    _chrom1 = _files.front().chrom1;
     std::vector<std::string_view> chroms{};
     SPDLOG_DEBUG("ParquetFileMerger: processing chunk for {}", _chrom1.name());
 
     std::vector<RecordIterator> heads{};
     std::vector<RecordIterator> tails{};
-    while (!_files.empty() && std::get<0>(_files.front()) == _chrom1) {
+    while (!_files.empty() && _files.front().chrom1 == _chrom1) {
       const auto &[_, chrom2, path] = _files.front();
       chroms.emplace_back(chrom2.name());
       auto [first, last] = get_iterators_from_file(path);
@@ -89,7 +103,7 @@ class ParquetFileMerger {
   }
 
  private:
-  [[nodiscard]] static std::size_t find_dot_or_throw(std::string_view str, std::size_t offset) {
+  [[nodiscard]] static std::size_t rfind_dot_or_throw(std::string_view str, std::size_t offset) {
     const auto pos = str.rfind('.', offset);
     if (pos != std::string::npos) {
       return pos;
@@ -111,22 +125,44 @@ class ParquetFileMerger {
     }
   }
 
+  [[nodiscard]] static Record init_record(const hictk::Reference &chroms,
+                                          std::filesystem::path path) {
+    try {
+      const auto json = parse_json_string(ParquetStatsFileReader::read_metadata(path));
+      const auto chrom1 = json.get_object().at("params").get_object().at("chrom1").get_string();
+      const auto chrom2 = json.get_object().at("params").get_object().at("chrom2").get_string();
+      return {.chrom1 = chroms.at(chrom1), .chrom2 = chroms.at(chrom2), .path = std::move(path)};
+    } catch (const std::exception &e) {
+      SPDLOG_WARN(
+          "failed to read chromosome pair from file metadata, falling back to inferring "
+          "chromosomes based on file name: {}",
+          e.what());
+    }
+
+    const auto name = path.stem().string();
+
+    const auto offset2 = rfind_dot_or_throw(name, name.size());
+    const auto offset1 = rfind_dot_or_throw(name, offset2 - 1);
+
+    const auto chrom1 = std::string_view{name}.substr(offset1 + 1, offset2 - (offset1 + 1));
+    const auto chrom2 = std::string_view{name}.substr(offset2 + 1);
+
+    return {.chrom1 = chroms.at(chrom1), .chrom2 = chroms.at(chrom2), .path = std::move(path)};
+  }
+
   static auto init_file_queue(const hictk::Reference &chroms,
                               std::vector<std::filesystem::path> &files) -> std::queue<Record> {
     std::vector<Record> records(files.size());
     std::ranges::transform(
-        std::ranges::views::as_rvalue(files), records.begin(), [&](std::filesystem::path &&file) {
-          const auto name = file.stem().string();
+        std::ranges::views::as_rvalue(files), records.begin(),
+        [&](std::filesystem::path &&file) { return init_record(chroms, std::move(file)); });
 
-          const auto offset2 = find_dot_or_throw(name, name.size());
-          const auto offset1 = find_dot_or_throw(name, offset2 - 1);
-
-          return Record{
-              fetch_chrom_or_throw(chroms, name.substr(offset1 + 1, offset2 - (offset1 + 1))),
-              fetch_chrom_or_throw(chroms, name.substr(offset2 + 1)), std::move(file)};
-        });
-
-    std::ranges::sort(records);
+    std::ranges::sort(records, [&](const Record &r1, const Record &r2) {
+      if (r1.chrom1 == r2.chrom1) {
+        return r1.chrom2 < r2.chrom2;
+      }
+      return r1.chrom1 < r2.chrom1;
+    });
     return {std::make_move_iterator(records.begin()), std::make_move_iterator(records.end())};
   }
 
@@ -154,7 +190,18 @@ class ParquetFileMerger {
   return fmt::format("{}.json", input_prefix);
 }
 
-[[nodiscard]] static std::vector<std::filesystem::path> enumerate_parquet_tables(
+static std::string fetch_chrom1_from_file_metadata(std::string_view metadata_str) {
+  try {
+    const auto file_metadata = parse_json_string(metadata_str).get_object();
+    const auto &params = file_metadata.at("params").get_object();
+
+    return params.at("chrom1").get_string();
+  } catch (const std::out_of_range &) {
+    throw std::runtime_error("unable to infer chrom1");
+  }
+}
+
+[[nodiscard]] static ParquetFileMap enumerate_parquet_tables(
     const NCHGResultMetadata &metadata, const std::filesystem::path &input_prefix) {
   assert(!metadata.records().empty());
 
@@ -164,9 +211,7 @@ class ParquetFileMerger {
   const auto root_folder =
       input_prefix.has_parent_path() ? input_prefix.parent_path() : std::filesystem::current_path();
 
-  std::vector<std::filesystem::path> files;
-  files.reserve(metadata.records().size() - 1);
-
+  ParquetFileMap files;
   for (const auto &record : metadata.records()) {
     if (record.name.extension() != ".parquet") {
       continue;
@@ -175,18 +220,21 @@ class ParquetFileMerger {
     auto path = root_folder / record.name;
     ParquetStatsFileReader f(path, ParquetStatsFileReader::RecordType::NCHGCompute);
     if (f.begin<NCHGResult>() != f.end<NCHGResult>()) {
-      files.emplace_back(std::move(path));
+      const auto chrom1 = fetch_chrom1_from_file_metadata(f.metadata());
+      auto [it, _] =
+          files.try_emplace(f.chromosomes()->at(chrom1), std::vector<std::filesystem::path>{});
+      it->second.emplace_back(std::move(path));
     }
   }
 
   return files;
 }
 
-[[nodiscard]] static std::vector<std::filesystem::path> enumerate_parquet_tables(
+[[nodiscard]] static ParquetFileMap enumerate_parquet_tables(
     const std::filesystem::path &input_prefix, const hictk::Reference &chroms) {
   SPDLOG_INFO("enumerating table based on chromosome(s) listed in \"{}\"...",
               generate_chrom_sizes_name(input_prefix));
-  std::vector<std::filesystem::path> files;
+  ParquetFileMap files;
 
   for (std::uint32_t chrom1_id = 0; chrom1_id < chroms.size(); ++chrom1_id) {
     const auto &chrom1 = chroms.at(chrom1_id);
@@ -204,7 +252,9 @@ class ParquetFileMerger {
       if (std::filesystem::exists(path)) {
         ParquetStatsFileReader f(path, ParquetStatsFileReader::RecordType::NCHGCompute);
         if (f.begin<NCHGResult>() != f.end<NCHGResult>()) {
-          files.emplace_back(std::move(path));
+          assert(fetch_chrom1_from_file_metadata(f.metadata()) == chrom1);
+          auto [it, _] = files.try_emplace(chrom1, std::vector<std::filesystem::path>{});
+          it->second.emplace_back(std::move(path));
         }
       }
     }
@@ -212,8 +262,8 @@ class ParquetFileMerger {
   return files;
 }
 
-[[nodiscard]] static std::vector<std::filesystem::path> enumerate_parquet_tables(
-    const hictk::Reference &chroms, const MergeConfig &c) {
+[[nodiscard]] static ParquetFileMap enumerate_parquet_tables(const hictk::Reference &chroms,
+                                                             const MergeConfig &c) {
   try {
     const auto t0 = std::chrono::steady_clock::now();
 
@@ -251,36 +301,46 @@ class ParquetFileMerger {
 [[nodiscard]] static auto preprocess_parquet_tables(const hictk::Reference &chroms,
                                                     const MergeConfig &c) {
   struct Result {
-    std::vector<std::filesystem::path> files;
+    ParquetFileMap files;
     std::string metadata;
   };
 
   auto files = enumerate_parquet_tables(chroms, c);
-  std::vector<glz::json_t> old_metadata(files.size());
-  std::ranges::transform(files, old_metadata.begin(), [&](const auto &path) {
-    try {
-      const auto metadata = ParquetStatsFileReader::read_metadata(path, {"chromosomes"});
-      return parse_json_string(metadata);
-    } catch (const std::exception &e) {
-      throw std::runtime_error(
-          fmt::format("failed to read NCHG metadata from file \"{}\": {}", path, e.what()));
-    } catch (...) {
-      throw std::runtime_error(
-          fmt::format("failed to read NCHG metadata from file \"{}\": unknown error", path));
+  std::vector<glz::json_t> old_metadata;
+  for (const auto &chunk : files | std::ranges::views::values) {
+    for (const auto &file : chunk) {
+      try {
+        const auto metadata = ParquetStatsFileReader::read_metadata(file, {"chromosomes"});
+        old_metadata.emplace_back(parse_json_string(metadata));
+      } catch (const std::exception &e) {
+        throw std::runtime_error(
+            fmt::format("failed to read NCHG metadata from file \"{}\": {}", file, e.what()));
+      } catch (...) {
+        throw std::runtime_error(
+            fmt::format("failed to read NCHG metadata from file \"{}\": unknown error", file));
+      }
     }
-  });
+  }
 
   return Result{.files = std::move(files), .metadata = generate_metadata(chroms, old_metadata)};
 }
 
 using RecordQueue = moodycamel::BlockingConcurrentQueue<NCHGResult>;
 
-[[nodiscard]] static std::size_t producer_fx(
-    const hictk::Reference &chroms, const std::vector<std::filesystem::path> &parquet_files,
-    RecordQueue &queue, std::atomic<bool> &early_return) {
+[[nodiscard]] static std::size_t producer_fx(const hictk::Reference &chroms,
+                                             const ParquetFileMap &parquet_files,
+                                             RecordQueue &queue, std::atomic<bool> &early_return) {
   try {
     std::size_t records_enqueued{};
-    ParquetFileMerger file_merger(chroms, parquet_files);
+
+    std::vector<std::filesystem::path> flat_files;
+    for (const auto &chunk : parquet_files | std::ranges::views::values) {
+      for (const auto &file : chunk) {
+        flat_files.emplace_back(file);
+      }
+    }
+
+    ParquetFileMerger file_merger(chroms, {flat_files.begin(), flat_files.end()});
 
     while (true) {
       auto chunk_merger = file_merger.next_chunk();
@@ -677,15 +737,10 @@ static void validate_input_files(const std::filesystem::path &input_prefix, std:
   }
 }
 
-int run_command(const MergeConfig &c) {
-  const auto t0 = std::chrono::steady_clock::now();
-
-  if (!c.ignore_report_file) {
-    validate_input_files(c.input_prefix, c.threads);
-  }
-  const auto chroms = import_chromosomes(c.input_prefix);
-  const auto [parquet_files, metadata] = preprocess_parquet_tables(chroms, c);
-
+[[nodiscard]] static std::size_t merge_streaming(const MergeConfig &c,
+                                                 const ParquetFileMap &parquet_files,
+                                                 const hictk::Reference &chroms,
+                                                 const std::string &metadata) {
   moodycamel::BlockingConcurrentQueue<NCHGResult> queue(64UZ * 1024UZ);
   std::atomic early_return{false};
 
@@ -709,8 +764,58 @@ int run_command(const MergeConfig &c) {
                     records_enqueued, records_dequeued));
   }
 
+  return records_dequeued;
+}
+
+[[nodiscard]] static std::size_t merge_with_duckdb(const MergeConfig &c,
+                                                   const ParquetFileMap &parquet_files) {
+  assert(c.memory_limit.has_value());
+
+  ParquetStatsFileMerger merger(parquet_files);
+
+  std::filesystem::remove(c.output_path);
+  return merger.merge(c.output_path, true,
+                      {.threads = c.threads,
+                       .memory_limit_mb = *c.memory_limit / (1ULL << 20U),
+                       .compression_method = c.compression_method,
+                       .compression_level = c.verbosity});
+}
+
+[[nodiscard]] static std::size_t merge(const MergeConfig &c, const ParquetFileMap &parquet_files,
+                                       const hictk::Reference &chroms,
+                                       const std::string &metadata) {
+  if (c.threads > 2) {
+    return merge_with_duckdb(c, parquet_files);
+  }
+
+  return merge_streaming(c, parquet_files, chroms, metadata);
+}
+
+[[nodiscard]] static std::size_t merge_nchg_compute(const MergeConfig &c) {
+  if (!c.ignore_report_file) {
+    validate_input_files(c.input_prefix, c.threads);
+  }
+
+  const auto chroms = import_chromosomes(c.input_prefix);
+  const auto [parquet_files, metadata] = preprocess_parquet_tables(chroms, c);
+
+  return merge(c, parquet_files, chroms, metadata);
+}
+
+[[nodiscard]] static std::size_t merge_arbitrary_files(const MergeConfig &c) {
+  assert(c.input_files.size() > 1);
+  // We can't make any assumptions regarding if/how files are sorted, thus we need to process all
+  // files in one batch
+  const ParquetFileMap input_files{{std::make_pair(hictk::Chromosome{0, "0", 1}, c.input_files)}};
+  return merge_with_duckdb(c, input_files);
+}
+
+int run_command(const MergeConfig &c) {
+  const auto t0 = std::chrono::steady_clock::now();
+  const auto num_records_processed =
+      c.input_files.empty() ? merge_nchg_compute(c) : merge_arbitrary_files(c);
   const auto t1 = std::chrono::steady_clock::now();
-  SPDLOG_INFO("processed {} records in {}!", records_dequeued, format_duration(t1 - t0));
+  SPDLOG_INFO("processed {} records in {}!", num_records_processed, format_duration(t1 - t0));
 
   return 0;
 }

@@ -60,9 +60,9 @@
 #include "nchg/nchg.hpp"
 #include "nchg/parquet_stats_file_writer.hpp"
 #include "nchg/text.hpp"
+#include "nchg/tmpdir.hpp"
 #include "nchg/tools/common.hpp"
 #include "nchg/tools/config.hpp"
-#include "nchg/tools/tmpdir.hpp"
 #include "nchg/version.hpp"
 
 // clang-format off

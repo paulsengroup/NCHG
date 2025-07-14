@@ -158,6 +158,7 @@ class DuckDBHandle {
     return stmt;
   }
 
+  // NOLINTNEXTLINE(*-convert-member-functions-to-static)
   std::size_t query(duckdb_prepared_statement& stmt) {
     auto res = std::make_unique_for_overwrite<duckdb_result>();
     if (duckdb_execute_prepared(stmt, res.get()) != DuckDBSuccess) {
@@ -170,6 +171,7 @@ class DuckDBHandle {
     return conditional_static_cast<std::size_t>(duckdb_rows_changed(res.get()));
   }
 
+  // NOLINTNEXTLINE(*-convert-member-functions-to-static)
   std::size_t query(const std::string& stmt) {
     auto res = std::make_unique_for_overwrite<duckdb_result>();
     if (duckdb_query(*_con, stmt.c_str(), res.get()) != DuckDBSuccess) {
@@ -230,9 +232,11 @@ class DuckDBHandle {
       auto db = std::make_unique_for_overwrite<duckdb_database>();
       if (duckdb_open_ext(nullptr, db.get(), *cfg, &error_msg) != DuckDBSuccess) {
         if (error_msg) {
+          // NOLINTBEGIN(cert-err*-cpp,*-throw-by-value-catch-by-reference)
           std::runtime_error e{error_msg};
           duckdb_free(error_msg);
           throw e;
+          // NOLINTEND(cert-err*-cpp,*-throw-by-value-catch-by-reference)
         }
         throw std::runtime_error("unknown error");
       }

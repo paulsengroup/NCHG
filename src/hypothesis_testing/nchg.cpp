@@ -106,7 +106,8 @@ bool NCHGResult::operator!=(const NCHGResult &other) const noexcept { return !(*
           const auto j4 = static_cast<std::int64_t>(i1) - query_offset2;
 
           bool added = false;
-          if (j1 >= 0 && j1 < query_height && j2 >= 0 && j2 < query_width) {
+          if (j1 >= 0 && std::cmp_less(j1, query_height) && j2 >= 0 &&
+              std::cmp_less(j2, query_width)) {
             obs += observed_count;
             exp += expected_count;
             added = true;
@@ -116,7 +117,8 @@ bool NCHGResult::operator!=(const NCHGResult &other) const noexcept { return !(*
             continue;
           }
 
-          if (j3 >= 0 && j3 < query_height && j4 >= 0 && j4 < query_width) {
+          if (j3 >= 0 && std::cmp_less(j3, query_height) && j4 >= 0 &&
+              std::cmp_less(j4, query_width)) {
             obs += observed_count;
             exp += expected_count;
           }

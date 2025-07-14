@@ -174,7 +174,6 @@ class ParquetFileValidator : public CLI::detail::ExistingFileValidator {
         }
         std::shared_ptr<arrow::io::ReadableFile> fp;
         PARQUET_ASSIGN_OR_THROW(fp, arrow::io::ReadableFile::Open(input))
-        std::unique_ptr<parquet::arrow::FileReader> reader;
         const auto result = parquet::arrow::OpenFile(fp, arrow::default_memory_pool());
         if (!result.ok()) {
           throw std::runtime_error(result.status().ToString());
@@ -921,13 +920,13 @@ void Cli::make_merge_subcommand() {
     "--max-memory-per-thread",
     c.memory_per_thread,
     "Memory budget for each processing thread.")
-    ->transform(IsValidMemoryDuckDB)
+    ->transform(IsValidMemoryDuckDB)  // NOLINT(cppcoreguidelines-slicing)
     ->default_str(pretty_format_memory(c.memory_per_thread, true));
   params_grp->add_option(
     "--max-memory",
     c.memory_limit,
     "Memory budget for the whole process.")
-    ->transform(IsValidMemoryDuckDB)
+    ->transform(IsValidMemoryDuckDB)  // NOLINT(cppcoreguidelines-slicing)
     ->capture_default_str();
   params_grp->add_option(
     "-v,--verbosity",
@@ -1163,10 +1162,12 @@ void Cli::validate_merge_subcommand() const {
 
   const auto min_memory = IsValidMemoryDuckDB.lb() * c.threads;
   if (c.memory_limit.value_or(min_memory) < min_memory) {
+    // NOLINTBEGIN(*-unchecked-optional-access)
     errors.emplace_back(fmt::format(
         "--max-memory should be at least {} per thread, found {} ({} per thread)",
         pretty_format_memory(IsValidMemoryDuckDB.lb()), pretty_format_memory(*c.memory_limit),
         pretty_format_memory(*c.memory_limit / c.threads)));
+    // NOLINTEND(*-unchecked-optional-access)
   }
 
   if (!sc.get_option("--input-files")->empty() && !sc.get_option("--ignore-report-file")->empty()) {

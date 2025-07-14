@@ -136,17 +136,22 @@ template <typename N>
     const auto schema = get_file_schema(fp);
 
     const auto compression = read_attribute_or_throw(schema, "NCHG:metadata-compression");
-    auto metadata = read_attribute_or_throw(schema, "NCHG:metadata");
+    auto raw_metadata = read_attribute_or_throw(schema, "NCHG:metadata");
 
     if (compression == "None") {
-      return metadata;
+      return raw_metadata;
     }
 
     if (compression == "zstd") {
       const auto buffer_size =
           parse_numeric<std::size_t>(read_attribute_or_throw(schema, "NCHG:metadata-size"));
       std::string buffer(buffer_size, '\0');
-      metadata = arrow::util::base64_decode(std::string{metadata});
+      auto metadata = arrow::util::base64_decode(raw_metadata);
+      // arrow::util::base64_decode returns an empty string in case of errors
+      // (e.g., string is not base64 encoded)
+      if (metadata.empty()) {
+        metadata = std::move(raw_metadata);
+      }
       const auto decompressed_size =
           ZSTD_decompress(static_cast<void *>(buffer.data()), buffer.size(),
                           static_cast<const void *>(metadata.data()), metadata.size());

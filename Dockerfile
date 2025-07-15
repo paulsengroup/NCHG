@@ -44,7 +44,7 @@ ENV CXX="$CXX_COMPILER"
 ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
 
 # Install b2 using Conan
-RUN printf '[requires]\nb2/5.2.1\n[options]\nb2*:toolset=%s' \
+RUN printf '[requires]\nb2/5.3.3\n[options]\nb2*:toolset=%s' \
            "$(basename "$(which "$CC")" | cut -f 1 -d -)" > /tmp/conanfile.txt
 
 RUN conan install /tmp/conanfile.txt                 \
@@ -56,12 +56,27 @@ RUN conan install /tmp/conanfile.txt                 \
 RUN mkdir -p "$src_dir"
 
 COPY conanfile.py "$src_dir"
+
+ARG USE_LIBCXX
+
+RUN if [[ "$C_COMPILER" == gcc* ]]; then \
+   sed -i '/^compiler\.libcxx.*$/d' "$CONAN_DEFAULT_PROFILE_PATH" \
+&& echo 'compiler.libcxx=libstdc++11' >> "$CONAN_DEFAULT_PROFILE_PATH"; \
+fi
+
+RUN if [ -z "$USE_LIBCXX" ]; then \
+   sed -i '/^compiler\.libcxx.*$/d' "$CONAN_DEFAULT_PROFILE_PATH" \
+&& echo 'compiler.libcxx=libc++' >> "$CONAN_DEFAULT_PROFILE_PATH"; \
+    else \
+   sed -i '/^compiler\.libcxx.*$/d' "$CONAN_DEFAULT_PROFILE_PATH" \
+&& echo 'compiler.libcxx=libstdc++11' >> "$CONAN_DEFAULT_PROFILE_PATH"; \
+fi
+
 RUN conan install "$src_dir/conanfile.py"             \
              --build=missing                          \
              -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
              -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
              -s build_type=Release                    \
-             -s compiler.libcxx=libstdc++11           \
              -s compiler.cppstd=20                    \
              --output-folder="$build_dir"             \
 && conan install "$src_dir/conanfile.py"              \
@@ -69,7 +84,6 @@ RUN conan install "$src_dir/conanfile.py"             \
              -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
              -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
              -s build_type=Release                    \
-             -s compiler.libcxx=libstdc++11           \
              -s compiler.cppstd=23                    \
              --options 'NCHG/*:with_glaze_only=True'  \
              --output-folder="$build_dir"             \
@@ -78,7 +92,6 @@ RUN conan install "$src_dir/conanfile.py"             \
              -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
              -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
              -s build_type=Release                    \
-             -s compiler.libcxx=libstdc++11           \
              -s compiler.cppstd=20                    \
              --options 'NCHG/*:with_duckdb_only=True' \
              --output-folder="$build_dir"             \
@@ -107,20 +120,39 @@ RUN if [ -z "$NCHG_GIT_HASH" ]; then echo "Missing NCHG_GIT_HASH --build-arg" &&
 ARG CCACHE_DISABLE=1
 
 # Configure project
-RUN cmake -DCMAKE_BUILD_TYPE=Release                 \
-          -DCMAKE_PREFIX_PATH="$build_dir"           \
-          -DENABLE_DEVELOPER_MODE=OFF                \
-          -DCMAKE_INSTALL_PREFIX="$staging_dir"      \
-          -DNCHG_ENABLE_TESTING=OFF                  \
-          -DNCHG_USE_PIDFD_OPEN=OFF                  \
-          -DNCHG_GIT_RETRIEVED_STATE=true            \
-          -DNCHG_GIT_TAG="$NCHG_GIT_TAG"             \
-          -DNCHG_GIT_IS_DIRTY="$NCHG_GIT_IS_DIRTY"   \
-          -DNCHG_GIT_HEAD_SHA1="$NCHG_GIT_HASH"      \
-          -DNCHG_GIT_DESCRIBE="$NCHG_GIT_SHORT_HASH" \
-          -G Ninja                                   \
-          -S "$src_dir"                              \
-          -B "$build_dir"
+RUN if [ -z "$USE_LIBCXX" ]; then \
+  cmake -DCMAKE_BUILD_TYPE=Release                                 \
+        -DCMAKE_CXX_FLAGS='-stdlib=libc++'                         \
+        -DCMAKE_EXE_LINKER_FLAGS='-stdlib=libc++ -lc++ -lc++abi'   \
+        -DCMAKE_PREFIX_PATH="$build_dir"                           \
+        -DENABLE_DEVELOPER_MODE=OFF                                \
+        -DCMAKE_INSTALL_PREFIX="$staging_dir"                      \
+        -DNCHG_ENABLE_TESTING=OFF                                  \
+        -DNCHG_USE_PIDFD_OPEN=OFF                                  \
+        -DNCHG_GIT_RETRIEVED_STATE=true                            \
+        -DNCHG_GIT_TAG="$NCHG_GIT_TAG"                             \
+        -DNCHG_GIT_IS_DIRTY="$NCHG_GIT_IS_DIRTY"                   \
+        -DNCHG_GIT_HEAD_SHA1="$NCHG_GIT_HASH"                      \
+        -DNCHG_GIT_DESCRIBE="$NCHG_GIT_SHORT_HASH"                 \
+        -G Ninja                                                   \
+        -S "$src_dir"                                              \
+        -B "$build_dir";                                           \
+else \
+  cmake -DCMAKE_BUILD_TYPE=Release                                 \
+        -DCMAKE_PREFIX_PATH="$build_dir"                           \
+        -DENABLE_DEVELOPER_MODE=OFF                                \
+        -DCMAKE_INSTALL_PREFIX="$staging_dir"                      \
+        -DNCHG_ENABLE_TESTING=OFF                                  \
+        -DNCHG_USE_PIDFD_OPEN=OFF                                  \
+        -DNCHG_GIT_RETRIEVED_STATE=true                            \
+        -DNCHG_GIT_TAG="$NCHG_GIT_TAG"                             \
+        -DNCHG_GIT_IS_DIRTY="$NCHG_GIT_IS_DIRTY"                   \
+        -DNCHG_GIT_HEAD_SHA1="$NCHG_GIT_HASH"                      \
+        -DNCHG_GIT_DESCRIBE="$NCHG_GIT_SHORT_HASH"                 \
+        -G Ninja                                                   \
+        -S "$src_dir"                                              \
+        -B "$build_dir";                                           \
+fi
 
 # Build and install project
 RUN cmake --build "$build_dir" -t NCHG -j "$(nproc)"  \

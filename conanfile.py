@@ -95,7 +95,11 @@ class NCHGConan(ConanFile):
             raise ConanException("with_duckdb_only and with_glaze_only cannot be True at the same time")
 
     def configure(self):
-        if self.settings.compiler in ["clang", "gcc"] and self.settings.os == "Linux":
+        if (
+            self.settings.compiler in ["clang", "gcc"]
+            and self.settings.os == "Linux"
+            and self.settings.compiler.get_safe("libcxx", "") != "libstdc++11"
+        ):
             self.settings.compiler.libcxx = "libstdc++11"
 
         self.options["arrow"].parquet = True

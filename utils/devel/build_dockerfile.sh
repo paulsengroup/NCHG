@@ -60,7 +60,7 @@ BUILD_BASE_IMAGE='ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-clang-1
 sudo -u "$BUILD_USER" docker pull "$BUILD_BASE_IMAGE"
 
 # sudo -u "$BUILD_USER" docker buildx build --platform linux/amd64,linux/arm64 \
-sudo -u "$BUILD_USER" docker buildx build --platform linux/amd64 \
+sudo -u "$BUILD_USER" docker buildx build \
   --build-arg "BUILD_BASE_IMAGE=$BUILD_BASE_IMAGE" \
   --build-arg "FINAL_BASE_IMAGE=docker.io/library/ubuntu" \
   --build-arg "FINAL_BASE_IMAGE_TAG=24.04" \

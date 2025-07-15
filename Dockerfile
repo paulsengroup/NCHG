@@ -64,12 +64,11 @@ RUN if [[ "$C_COMPILER" == gcc* ]]; then \
 && echo 'compiler.libcxx=libstdc++11' >> "$CONAN_DEFAULT_PROFILE_PATH"; \
 fi
 
-RUN if [ -z "$USE_LIBCXX" ]; then \
-   sed -i '/^compiler\.libcxx.*$/d' "$CONAN_DEFAULT_PROFILE_PATH" \
-&& echo 'compiler.libcxx=libc++' >> "$CONAN_DEFAULT_PROFILE_PATH"; \
+RUN sed -i '/^compiler\.libcxx.*$/d' "$CONAN_DEFAULT_PROFILE_PATH" \
+&&  if [ -z "$USE_LIBCXX" ]; then \
+    echo 'compiler.libcxx=libstdc++11' >> "$CONAN_DEFAULT_PROFILE_PATH"; \
     else \
-   sed -i '/^compiler\.libcxx.*$/d' "$CONAN_DEFAULT_PROFILE_PATH" \
-&& echo 'compiler.libcxx=libstdc++11' >> "$CONAN_DEFAULT_PROFILE_PATH"; \
+    echo 'compiler.libcxx=libc++' >> "$CONAN_DEFAULT_PROFILE_PATH"; \
 fi
 
 RUN conan install "$src_dir/conanfile.py"             \
@@ -122,8 +121,6 @@ ARG CCACHE_DISABLE=1
 # Configure project
 RUN if [ -z "$USE_LIBCXX" ]; then \
   cmake -DCMAKE_BUILD_TYPE=Release                                 \
-        -DCMAKE_CXX_FLAGS='-stdlib=libc++'                         \
-        -DCMAKE_EXE_LINKER_FLAGS='-stdlib=libc++ -lc++ -lc++abi'   \
         -DCMAKE_PREFIX_PATH="$build_dir"                           \
         -DENABLE_DEVELOPER_MODE=OFF                                \
         -DCMAKE_INSTALL_PREFIX="$staging_dir"                      \
@@ -139,6 +136,8 @@ RUN if [ -z "$USE_LIBCXX" ]; then \
         -B "$build_dir";                                           \
 else \
   cmake -DCMAKE_BUILD_TYPE=Release                                 \
+        -DCMAKE_CXX_FLAGS='-stdlib=libc++'                         \
+        -DCMAKE_EXE_LINKER_FLAGS='-stdlib=libc++ -lc++ -lc++abi'   \
         -DCMAKE_PREFIX_PATH="$build_dir"                           \
         -DENABLE_DEVELOPER_MODE=OFF                                \
         -DCMAKE_INSTALL_PREFIX="$staging_dir"                      \

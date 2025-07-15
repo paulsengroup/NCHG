@@ -61,18 +61,18 @@ permissions:
 jobs:
   cache-test-dataset:
     name: Cache test dataset
-    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@094aec33f98d075decacbf9f3a13d3d26b9ff001
+    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@0c1de21c5fe518289148f303f2f436f0f672cf99
 
   build-conan-deps:
     name: Build Conan deps
-    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@094aec33f98d075decacbf9f3a13d3d26b9ff001
+    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@0c1de21c5fe518289148f303f2f436f0f672cf99
 
   build-project:
     name: Build project
     needs: build-conan-deps
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-clang-19
+      image: ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-clang-20
       options: "--user=root"
 
     env:

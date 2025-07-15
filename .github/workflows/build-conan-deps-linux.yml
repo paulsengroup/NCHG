@@ -27,12 +27,12 @@ on:
 
     inputs:
       conan-version:
-        default: "2.15.*"
+        default: "2.18.*"
         type: string
         required: false
         description: "Conan version to be installed with pip."
       cppstd:
-        default: "23"
+        default: "20"
         type: string
         required: false
         description: "Value to pass to compiler.cppstd."

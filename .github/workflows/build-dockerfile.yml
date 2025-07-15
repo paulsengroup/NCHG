@@ -100,10 +100,11 @@ jobs:
 
           OS_NAME='ubuntu'
           OS_VERSION='24.04'
-          C_COMPILER='clang-19'
-          CXX_COMPILER='clang++-19'
+          COMPILER_VERSION='19'
+          C_COMPILER='clang'
+          CXX_COMPILER='clang++'
 
-          BUILD_BASE_IMAGE="ghcr.io/paulsengroup/ci-docker-images/$OS_NAME-$OS_VERSION-cxx-$C_COMPILER:latest"
+          BUILD_BASE_IMAGE="ghcr.io/paulsengroup/ci-docker-images/$OS_NAME-$OS_VERSION-cxx-$C_COMPILER-${COMPILER_VERSION}:latest"
           TEST_BASE_IMAGE="$BUILD_BASE_IMAGE"
 
           FINAL_BASE_IMAGE="docker.io/library/$OS_NAME"
@@ -172,11 +173,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
       - name: Build Docker image (${{ matrix.platform }})
         id: build-image
-        uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: ${{ github.workspace }}
           load: true
@@ -209,7 +210,7 @@ jobs:
       - name: Push image to registries
         id: push-image
         if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: ${{ github.workspace }}
           push: true
@@ -316,7 +317,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
       # - name: Create manifest list and push (DockerHub)
       #   working-directory: ${{ runner.temp }}/digests

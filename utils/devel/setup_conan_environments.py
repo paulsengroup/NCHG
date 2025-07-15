@@ -123,7 +123,9 @@ def run_conan(
     else:
         raise RuntimeError(f'Unrecognized compiler "{profile}". Profiles should be either named "gcc" or "clang"')
 
-    run_or_print(base_args + ["--settings", "compiler.cppstd=23"], env=env, dry_run=dry_run)
+    # Packages are often broken by changes introduced with C++23, so let's stick with C++20 for now
+    # Example: https://github.com/apache/arrow/issues/46998
+    run_or_print(base_args + ["--settings", "compiler.cppstd=20"], env=env, dry_run=dry_run)
     run_or_print(
         base_args + ["--settings", "compiler.cppstd=23", "--options", "NCHG/*:with_glaze_only=True"],
         env=env,

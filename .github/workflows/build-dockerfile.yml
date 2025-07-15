@@ -100,7 +100,7 @@ jobs:
 
           OS_NAME='ubuntu'
           OS_VERSION='24.04'
-          COMPILER_VERSION='20'
+          COMPILER_VERSION='19'
           C_COMPILER='clang'
           CXX_COMPILER='clang++'
 

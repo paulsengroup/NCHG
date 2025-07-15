@@ -55,7 +55,7 @@ fi
 sudo -u "$BUILD_USER" docker pull docker.io/library/ubuntu:24.04
 FINAL_BASE_IMAGE_DIGEST="$(sudo -u "$BUILD_USER" docker inspect --format='{{index .RepoDigests 0}}' docker.io/library/ubuntu:24.04 | grep -o '[[:alnum:]:]\+$')"
 
-BUILD_BASE_IMAGE='ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-clang-20:latest'
+BUILD_BASE_IMAGE='ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-clang-19:latest'
 
 sudo -u "$BUILD_USER" docker pull "$BUILD_BASE_IMAGE"
 

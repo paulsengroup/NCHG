@@ -83,7 +83,7 @@ jobs:
       CONAN_HOME: "/opt/conan/"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Fix permissions
         run: |
@@ -211,7 +211,7 @@ jobs:
 
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         continue-on-error: true
         with:
           pattern: stale-cache-*
@@ -239,7 +239,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Restore test dataset
         uses: actions/cache/restore@v4
@@ -249,7 +249,7 @@ jobs:
           fail-on-cache-miss: true
 
       - name: Download unit tests artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: "build-codecov"
 
@@ -309,7 +309,7 @@ jobs:
             "${binaries[@]}"
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
+        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
         with:
           flags: "tests | unittests"
           fail_ci_if_error: true
@@ -329,7 +329,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Restore test dataset
         uses: actions/cache/restore@v4
@@ -339,7 +339,7 @@ jobs:
           fail-on-cache-miss: true
 
       - name: Download binaries artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: "build-codecov"
 
@@ -694,7 +694,7 @@ jobs:
             build/src/nchg/NCHG
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
+        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
         with:
           flags: "tests | integration"
           fail_ci_if_error: true

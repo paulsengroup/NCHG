@@ -314,7 +314,7 @@ using RecordQueue = moodycamel::BlockingReaderWriterQueue<NCHGFilterResult>;
   auto input_metadata_parsed = parse_json_string(input_metadata);
   input_metadata_parsed.get_object().erase("chromosomes");
 
-  const glz::json_t metadata{
+  const glz::generic metadata{
       {"chromosomes", parse_json_string(to_json_string(chroms))},
       {"command", "filter"},
       {"date", fmt::format("{:%FT%T}", fmt::gmtime(std::chrono::system_clock::now()))},

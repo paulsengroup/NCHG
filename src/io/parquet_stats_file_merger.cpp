@@ -275,17 +275,19 @@ CREATE TYPE chromosomes AS ENUM (
 }
 
 // It's important that this function is pre-declared on top of all the other overloads
-static void escape_json_field_for_sql(glz::json_t::val_t& field);
+static void escape_json_field_for_sql(glz::generic::val_t& field);
 
-static void escape_json_field_for_sql(glz::json_t& field) { escape_json_field_for_sql(field.data); }
+static void escape_json_field_for_sql(glz::generic& field) {
+  escape_json_field_for_sql(field.data);
+}
 
-static void escape_json_field_for_sql(glz::json_t::array_t& field) {
+static void escape_json_field_for_sql(glz::generic::array_t& field) {
   for (auto& f : field) {
     escape_json_field_for_sql(f.data);
   }
 }
 
-static void escape_json_field_for_sql(glz::json_t::object_t& field) {
+static void escape_json_field_for_sql(glz::generic::object_t& field) {
   for (auto& f : field | std::ranges::views::values) {
     escape_json_field_for_sql(f.data);
   }
@@ -314,10 +316,10 @@ static void escape_json_field_for_sql(std::string& s) {
   std::swap(s, buff);
 }
 
-static void escape_json_field_for_sql(glz::json_t::val_t& field) {
+static void escape_json_field_for_sql(glz::generic::val_t& field) {
   std::visit(
       [&]<typename T>(T& field_) {
-        if constexpr (std::is_same_v<glz::json_t::null_t, std::remove_cvref_t<T>>) {
+        if constexpr (std::is_same_v<glz::generic::null_t, std::remove_cvref_t<T>>) {
           field = "NULL";
         } else {
           escape_json_field_for_sql(field_);
@@ -505,8 +507,8 @@ TO '{}' (
 }
 
 [[nodiscard]] static std::string generate_metadata_str(
-    const hictk::Reference& chroms, const std::vector<glz::json_t>& input_metadata) {
-  const glz::json_t metadata{
+    const hictk::Reference& chroms, const std::vector<glz::generic>& input_metadata) {
+  const glz::generic metadata{
       {"chromosomes", parse_json_string(to_json_string(chroms.remove_ALL()))},
       {"command", "merge"},
       {"date", fmt::format("{:%FT%T}", fmt::gmtime(std::chrono::system_clock::now()))},
@@ -515,9 +517,9 @@ TO '{}' (
   return to_json_string(metadata);
 }
 
-[[nodiscard]] static std::string generate_metadata_str(const std::vector<glz::json_t>& old_metadata,
-                                                       const hictk::Reference& chroms,
-                                                       std::string_view arrow_schema) {
+[[nodiscard]] static std::string generate_metadata_str(
+    const std::vector<glz::generic>& old_metadata, const hictk::Reference& chroms,
+    std::string_view arrow_schema) {
   auto metadata = generate_metadata_str(chroms, old_metadata);
   const auto metadata_size = metadata.size();
   const auto metadata_format = try_compress_metadata(metadata);
@@ -552,7 +554,7 @@ TO '{}' (
                      metadata_format, metadata_size, arrow_schema);
 }
 
-[[nodiscard]] static glz::json_t read_metadata_or_throw(
+[[nodiscard]] static glz::generic read_metadata_or_throw(
     const ParquetStatsFileReader& reader,
     const std::vector<std::string>& ignored_keys = {"chromosomes"}) {
   try {
@@ -598,7 +600,7 @@ TO '{}' (
 
   std::shared_ptr<arrow::Schema> schema;
   hictk::Reference chroms;
-  std::vector<glz::json_t> old_metadata;
+  std::vector<glz::generic> old_metadata;
   for (const auto& chunk : files) {
     for (const auto& file : chunk) {
       const ParquetStatsFileReader reader{file, ParquetStatsFileReader::RecordType::infer};

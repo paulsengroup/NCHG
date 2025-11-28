@@ -125,8 +125,8 @@ inline T parse_json_string(std::string_view buff) {
   throw std::runtime_error(glz::format_error(res.error()));
 }
 
-inline glz::json_t parse_json_string(std::string_view buff) {
-  return parse_json_string<glz::json_t>(buff);
+inline glz::generic parse_json_string(std::string_view buff) {
+  return parse_json_string<glz::generic>(buff);
 }
 
 }  // namespace nchg

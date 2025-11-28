@@ -16,6 +16,7 @@
 # with this library.  If not, see
 # <https://www.gnu.org/licenses/>.
 
+find_package(Boost REQUIRED)
 find_package(FMT REQUIRED)
 find_package(hictk REQUIRED)
 
@@ -36,6 +37,7 @@ target_link_libraries(
     nchg_project_options
     nchg_project_warnings
   PUBLIC
+    Boost::headers
     nchg::common
     hictk::libhictk
 )

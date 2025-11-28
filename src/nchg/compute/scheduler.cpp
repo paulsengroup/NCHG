@@ -237,7 +237,7 @@ class ProcessContext {
 
 [[nodiscard]] static std::string generate_metadata_string(const hictk::Reference &chroms,
                                                           const ComputePvalConfig &c) {
-  const glz::json_t metadata{
+  const glz::generic metadata{
       {"chromosomes", parse_json_string(to_json_string(chroms))},
       {"command", "compute"},
       {"date", fmt::format("{:%FT%T}", fmt::gmtime(std::chrono::system_clock::now()))},

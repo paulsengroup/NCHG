@@ -33,7 +33,7 @@
 #include <filesystem>
 #include <fstream>
 #include <future>
-#include <glaze/json/json_t.hpp>
+#include <glaze/json/generic.hpp>
 #include <hictk/chromosome.hpp>
 #include <hictk/reference.hpp>
 #include <nchg/version.hpp>
@@ -286,9 +286,9 @@ static std::string fetch_chrom1_from_file_metadata(std::string_view metadata_str
   }
 }
 
-[[nodiscard]] static std::string generate_metadata(const hictk::Reference &chroms,
-                                                   const std::vector<glz::json_t> &input_metadata) {
-  const glz::json_t metadata{
+[[nodiscard]] static std::string generate_metadata(
+    const hictk::Reference &chroms, const std::vector<glz::generic> &input_metadata) {
+  const glz::generic metadata{
       {"chromosomes", parse_json_string(to_json_string(chroms.remove_ALL()))},
       {"command", "merge"},
       {"date", fmt::format("{:%FT%T}", fmt::gmtime(std::chrono::system_clock::now()))},
@@ -306,7 +306,7 @@ static std::string fetch_chrom1_from_file_metadata(std::string_view metadata_str
   };
 
   auto files = enumerate_parquet_tables(chroms, c);
-  std::vector<glz::json_t> old_metadata;
+  std::vector<glz::generic> old_metadata;
   for (const auto &chunk : files | std::ranges::views::values) {
     for (const auto &file : chunk) {
       try {

@@ -64,52 +64,47 @@ class NCHGConan(ConanFile):
 
     def requirements(self):
         if self.options.get_safe("with_duckdb_only"):
-            self.requires("duckdb/1.1.3#494f338fd19149063cbfad0e2e58baf4")
+            self.requires("duckdb/1.4.3#4296de8dd8966c231c0d9552e9f8ec11")
             return
 
         if self.options.get_safe("with_glaze_only"):
-            self.requires("glaze/5.4.1#95c9ae5148507fb485eb182a479768df")
+            self.requires("glaze/6.4.0#9189aae0b87d629a806d9f35ed98af8a")
             return
 
-        self.requires("arrow/20.0.0#4cee9561dda8adabc8ed329a721ccf38")
-        self.requires("boost/1.88.0#8852c0b72ce8271fb8ff7c53456d4983", force=True)
+        self.requires("arrow/22.0.0#416448b57daf0cbacf58b50032c5fff7")
+        self.requires("boost/1.90.0#d5e8defe7355494953be18524a7f135b", force=True)
         self.requires("bshoshany-thread-pool/5.0.0#d94da300363f0c35b8f41b2c5490c94d")
-        self.requires("catch2/3.8.1#141f4cd552b86c7278436c434473ae2f")
-        self.requires("cli11/2.5.0#1b7c81ea2bff6279eb2150bbe06a200a")
+        self.requires("catch2/3.11.0#a560b55882ff2deb1f4bafad832a1b98")
+        self.requires("cli11/2.6.0#41e625280f9c960e9970c1dc7d2c97b8")
         self.requires("concurrentqueue/1.0.4#1e48e1c712bcfd892087c9c622a51502")
-        self.requires("fast_float/8.0.2#846ad0ebab16bc265c511095c3b490e9")  # hictk
-        self.requires("fmt/11.2.0#579bb2cdf4a7607621beea4eb4651e0f", force=True)
-        self.requires("hdf5/1.14.6#6f1acd01d23d00735fe97300f4d5980c", force=True)
-        self.requires("highfive/2.10.0#c975a16d7fe3655c173f8a9aab16b416")
-        self.requires("libdeflate/1.23#4994bea7cf7e93789da161fac8e26a53")  # hictk
+        self.requires("fast_float/8.1.0#bbf67486bec084d167da0f3e13eee534")  # hictk
+        self.requires("fmt/12.1.0#50abab23274d56bb8f42c94b3b9a40c7", force=True)
+        self.requires("hdf5/1.14.6#035eba94c2e506ee8f97b28e628eb9ec", force=True)
+        self.requires("highfive/3.1.1#d0c724526ebc8ce396ffa1bf7f3c7b64")
+        self.requires("libdeflate/1.25#49fcd3fe6c130c2ec5a01cabb0481ded")  # hictk
         self.requires("parallel-hashmap/2.0.0#82acae64ffe2693fff5fb3f9df8e1746")
         self.requires("readerwriterqueue/1.0.6#aaa5ff6fac60c2aee591e9e51b063b83")
         self.requires("span-lite/0.11.0#519fd49fff711674cfed8cd17d4ed422")  # hictk
-        self.requires("spdlog/1.15.3#3ca0e9e6b83af4d0151e26541d140c86")
-        self.requires("thrift/0.20.0#560fdab2e1636d4d8a0556fcf6470b89", force=True)
+        self.requires("spdlog/1.16.0#942c2c39562ae25ba575d9c8e2bdf3b6")
+        self.requires("thrift/0.21.0#583aa92260c7e01d411abab487c56125", force=True)
         self.requires("xxhash/0.8.3#681d36a0a6111fc56e5e45ea182c19cc")
-        self.requires("zstd/1.5.7#fde461c0d847a22f16d3066774f61b11", force=True)
+        self.requires("zstd/1.5.7#b68ca8e3de04ba5957761751d1d661f4", force=True)
 
     def validate(self):
         if self.options.get_safe("with_duckdb_only", False) and self.options.get_safe("with_glaze_only", False):
             raise ConanException("with_duckdb_only and with_glaze_only cannot be True at the same time")
 
     def configure(self):
-        if (
-            self.settings.compiler in ["clang", "gcc"]
-            and self.settings.os == "Linux"
-            and self.settings.compiler.get_safe("libcxx", "") != "libstdc++11"
-        ):
-            self.settings.compiler.libcxx = "libstdc++11"
-
         self.options["arrow"].parquet = True
         self.options["arrow"].with_boost = True
         self.options["arrow"].with_thrift = True
         self.options["arrow"].with_lz4 = True
         self.options["arrow"].with_zstd = True
+        self.options["boost"].error_code_header_only = True
         self.options["boost"].system_no_deprecated = True
         self.options["boost"].asio_no_deprecated = True
         self.options["boost"].filesystem_no_deprecated = True
+        self.options["boost"].filesystem_use_std_fs = True
         self.options["boost"].filesystem_version = 4
         self.options["boost"].zlib = False
         self.options["boost"].bzip2 = False
@@ -125,7 +120,7 @@ class NCHGConan(ConanFile):
         self.options["boost"].without_coroutine = True
         # without_date_time is set to False to workaround https://github.com/conan-io/conan-center-index/issues/26890
         self.options["boost"].without_date_time = False
-        self.options["boost"].without_exception = False
+        self.options["boost"].without_exception = True
         self.options["boost"].without_fiber = True
         self.options["boost"].without_filesystem = False
         self.options["boost"].without_graph = True
@@ -144,7 +139,7 @@ class NCHGConan(ConanFile):
         self.options["boost"].without_regex = True
         self.options["boost"].without_serialization = True
         self.options["boost"].without_stacktrace = True
-        self.options["boost"].without_system = False
+        self.options["boost"].without_system = True
         self.options["boost"].without_test = True
         self.options["boost"].without_thread = True
         self.options["boost"].without_timer = True

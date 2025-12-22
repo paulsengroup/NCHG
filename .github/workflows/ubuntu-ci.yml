@@ -63,7 +63,7 @@ jobs:
       ci-type: ${{ steps.ci-type.outputs.type }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ github.event.after }}
@@ -78,7 +78,7 @@ jobs:
           fi
 
       - name: Generate matrix
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         id: set-result
         with:
           script: |
@@ -121,11 +121,11 @@ jobs:
 
   cache-test-dataset:
     name: Cache test dataset
-    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@0c1de21c5fe518289148f303f2f436f0f672cf99
+    uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@1efe84c54bc6e66ffb784f6d059abb67ea586621
 
   build-conan-deps:
     name: Build Conan deps
-    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@0c1de21c5fe518289148f303f2f436f0f672cf99
+    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@1efe84c54bc6e66ffb784f6d059abb67ea586621
 
   build-project:
     name: Build project
@@ -149,7 +149,7 @@ jobs:
       CONAN_HOME: "/opt/conan/"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Fix permissions
         run: |
@@ -198,7 +198,7 @@ jobs:
           echo "ccache-restore-key-2=$ccache_key_prefix" | tee -a $GITHUB_OUTPUT
 
       - name: Restore Conan cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: ${{ needs.build-conan-deps.outputs.conan-key }}
           path: |
@@ -222,7 +222,7 @@ jobs:
 
       - name: Restore Ccache folder
         id: cache-ccache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: ${{ steps.cache-key.outputs.ccache-restore-key-1 }}
           restore-keys: ${{ steps.cache-key.outputs.ccache-restore-key-2 }}
@@ -261,7 +261,7 @@ jobs:
           tar --exclude='*.o' -cf - build/ | zstd -T0 -13 -o unit-tests.tar.zst
 
       - name: Upload unit tests
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: "unit-tests-${{ matrix.os }}-\
             ${{ matrix.compiler }}-\
@@ -273,7 +273,7 @@ jobs:
           retention-days: 1
 
       - name: Upload binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: "binaries-${{ matrix.os }}-\
             ${{ matrix.compiler }}-\
@@ -305,7 +305,7 @@ jobs:
                  --verbose
 
       - name: Save Ccache folder
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           key: ${{ steps.cache-key.outputs.ccache-key }}
           path: ${{ env.CCACHE_DIR }}
@@ -323,7 +323,7 @@ jobs:
 
       - name: Upload stale cache entries
         if: steps.cache-ccache.outputs.cache-matched-key != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ steps.stale-cache.outputs.name }}
           path: "${{ steps.stale-cache.outputs.name }}"
@@ -339,7 +339,7 @@ jobs:
 
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         continue-on-error: true
         with:
           pattern: stale-cache-*
@@ -371,17 +371,17 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Restore test dataset
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: ${{ needs.cache-test-dataset.outputs.cache-key }}
           path: test/data/nchg_test_data.tar.zst
           fail-on-cache-miss: true
 
       - name: Download unit tests artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: "unit-tests-${{ matrix.os }}-\
             ${{ matrix.compiler }}-\
@@ -459,17 +459,17 @@ jobs:
           fi
 
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Restore test dataset
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: ${{ needs.cache-test-dataset.outputs.cache-key }}
           path: test/data/nchg_test_data.tar.zst
           fail-on-cache-miss: true
 
       - name: Download binaries artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: "binaries-${{ matrix.os }}-\
             ${{ matrix.compiler }}-\

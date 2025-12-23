@@ -83,7 +83,7 @@ jobs:
       CONAN_HOME: "/opt/conan/"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Fix permissions
         run: |
@@ -104,7 +104,7 @@ jobs:
           echo "ccache-restore-key-2=$ccache_key_prefix" | tee -a "$GITHUB_OUTPUT"
 
       - name: Restore Conan cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: ${{ needs.build-conan-deps.outputs.conan-key }}
           path: |
@@ -135,7 +135,7 @@ jobs:
 
       - name: Restore Ccache folder
         id: cache-ccache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: ${{ steps.cache-key.outputs.ccache-restore-key-1 }}
           restore-keys: ${{ steps.cache-key.outputs.ccache-restore-key-2 }}
@@ -151,7 +151,7 @@ jobs:
         run: tar --exclude='*.o' -cf - build/ | zstd -T0 -13 -o build.tar.zst
 
       - name: Upload build folder
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: "build-codecov"
           path: build.tar.zst
@@ -177,7 +177,7 @@ jobs:
                  --verbose
 
       - name: Save Ccache folder
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           key: ${{ steps.cache-key.outputs.ccache-key }}
           path: ${{ env.CCACHE_DIR }}
@@ -195,7 +195,7 @@ jobs:
 
       - name: Upload stale cache entries
         if: steps.cache-ccache.outputs.cache-matched-key != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ steps.stale-cache.outputs.name }}
           path: "${{ steps.stale-cache.outputs.name }}"
@@ -211,7 +211,7 @@ jobs:
 
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         continue-on-error: true
         with:
           pattern: stale-cache-*
@@ -239,17 +239,17 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Restore test dataset
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: ${{ needs.cache-test-dataset.outputs.cache-key }}
           path: test/data/nchg_test_data.tar.zst
           fail-on-cache-miss: true
 
       - name: Download unit tests artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: "build-codecov"
 
@@ -309,7 +309,7 @@ jobs:
             "${binaries[@]}"
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
         with:
           flags: "tests | unittests"
           fail_ci_if_error: true
@@ -329,17 +329,17 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Restore test dataset
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: ${{ needs.cache-test-dataset.outputs.cache-key }}
           path: test/data/nchg_test_data.tar.zst
           fail-on-cache-miss: true
 
       - name: Download binaries artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: "build-codecov"
 
@@ -694,7 +694,7 @@ jobs:
             build/src/nchg/NCHG
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
         with:
           flags: "tests | integration"
           fail_ci_if_error: true

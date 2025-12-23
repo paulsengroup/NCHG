@@ -22,23 +22,21 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/build-conan-deps-linux.yml"
-      - ".github/workflows/cache-test-dataset.yml"
       - ".github/workflows/ubuntu-ci.yml"
       - "cmake/**"
       - "src/**"
       - "test/**"
+      - "utils/devel/build_dependencies.py"
       - "CMakeLists.txt"
       - "conanfile.py"
 
   pull_request:
     paths:
-      - ".github/workflows/build-conan-deps-linux.yml"
-      - ".github/workflows/cache-test-dataset.yml"
       - ".github/workflows/ubuntu-ci.yml"
       - "cmake/**"
       - "src/**"
       - "test/**"
+      - "utils/devel/build_dependencies.py"
       - "CMakeLists.txt"
       - "conanfile.py"
 
@@ -123,15 +121,30 @@ jobs:
     name: Cache test dataset
     uses: paulsengroup/nchg/.github/workflows/cache-test-dataset.yml@0c1de21c5fe518289148f303f2f436f0f672cf99
 
-  build-conan-deps:
-    name: Build Conan deps
-    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@0c1de21c5fe518289148f303f2f436f0f672cf99
+  build-deps-dbg:
+    name: Build dependencies (Debug)
+    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@555ace51f570a11f56a375579b5900ad3d49562e
+    with:
+      build-type: Debug
+      conan-version: "2.24.*"
+      image: "ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-clang-21"
+      ref: ci/refactor # TODO main
+
+  build-deps-rel:
+    name: Build dependencies (Release)
+    uses: paulsengroup/nchg/.github/workflows/build-conan-deps-linux.yml@555ace51f570a11f56a375579b5900ad3d49562e
+    with:
+      build-type: Release
+      conan-version: "2.24.*"
+      image: "ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-clang-21"
+      ref: ci/refactor # TODO main
 
   build-project:
     name: Build project
     needs:
       - matrix-factory
-      - build-conan-deps
+      - build-deps-dbg
+      - build-deps-rel
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -145,8 +158,8 @@ jobs:
       CCACHE_DIR: "/opt/ccache-cache"
       CCACHE_COMPILERCHECK: "content"
       CCACHE_COMPRESSLEVEL: "1"
-      CCACHE_MAXSIZE: "500M"
-      CONAN_HOME: "/opt/conan/"
+      CCACHE_MAXSIZE: "10G"
+      TMPDIR: "/tmp/"
 
     steps:
       - uses: actions/checkout@v4
@@ -184,41 +197,53 @@ jobs:
           compiler="${{ matrix.compiler }}"
           generator="${{ matrix.generator }}"
           build_type="${{ matrix.build_type }}"
-          dev_mode="${{ matrix.developer_mode }}"
+          if [ '${{ matrix.developer_mode }}' = ON ]; then
+            suffix=-devel
+          else
+            suffix=''
+          fi
 
-          conanfile_hash="${{ hashFiles('conanfile.py') }}"
+          if [[ '${{ matrix.build_type }}' == Debug ]]; then
+            deps_cache_key='${{ needs.build-deps-dbg.outputs.cache-key }}'
+            deps_cache_path='${{ needs.build-deps-dbg.outputs.tar }}'
+          elif [[ '${{ matrix.build_type }}' == Release ]]; then
+            deps_cache_key='${{ needs.build-deps-rel.outputs.cache-key }}'
+            deps_cache_path='${{ needs.build-deps-rel.outputs.tar }}'
+          else
+            1>&2 echo 'Unknown build type "${{ matrix.build_type }}"'
+            exit 1
+          fi
+
+          deps_hash="$(echo "$deps_cache_key" | sha256sum | cut -f 1 -d ' ')"
 
           # This can be used by to always update a cache entry (useful e.g. for ccache)
-          current_date="$(date '+%s')"
+          current_date="$(date '+%Y-%m-%d-%H:%M:%S')"
 
-          ccache_key_prefix="ccache-$os-$compiler-$conanfile_hash-$build_type-$generator-$dev_mode"
+          ccache_key_prefix="ccache-$os-$compiler-$deps_hash-$build_type-$generator$suffix"
+          ccache_key_prefix="$(echo "$ccache_key_prefix" |
+                               tr -c '[:alnum:]._-' '-' |
+                               sed 's/-\+/-/g' |
+                               sed 's/-$//' |
+                               tr '[:upper:]' '[:lower:]'
+                             )"
 
-          echo "ccache-key=${ccache_key_prefix}-$GITHUB_REF-${current_date}" | tee -a $GITHUB_OUTPUT
-          echo "ccache-restore-key-1=$ccache_key_prefix-$GITHUB_REF" | tee -a $GITHUB_OUTPUT
-          echo "ccache-restore-key-2=$ccache_key_prefix" | tee -a $GITHUB_OUTPUT
+          {
+            echo "deps-key=${deps_cache_key}"
+            echo "deps-path=${deps_cache_path}"
+            echo "ccache-key=${ccache_key_prefix}-$GITHUB_REF-${current_date}"
+            echo "ccache-restore-key-1=$ccache_key_prefix-$GITHUB_REF"
+            echo "ccache-restore-key-2=$ccache_key_prefix"
+          } | tee -a "$GITHUB_OUTPUT"
 
-      - name: Restore Conan cache
+      - name: Restore cached dependencies
         uses: actions/cache/restore@v4
         with:
-          key: ${{ needs.build-conan-deps.outputs.conan-key }}
-          path: |
-            ${{ env.CONAN_HOME }}/p
-            /tmp/cmake-prefix-dbg.tar
-            /tmp/cmake-prefix-rel.tar
-            /tmp/cmake-prefix-rwdi.tar
+          key: ${{ steps.cache-key.outputs.deps-key }}
+          path: ${{ steps.cache-key.outputs.deps-path }}
           fail-on-cache-miss: true
 
-      - name: Extract CMake configs (Debug)
-        if: matrix.build_type == 'Debug'
-        run: |
-          mkdir conan-env
-          tar -xf /tmp/cmake-prefix-dbg.tar -C conan-env/ --strip-components=1
-
-      - name: Extract CMake configs (Release)
-        if: matrix.build_type == 'Release'
-        run: |
-          mkdir conan-env
-          tar -xf /tmp/cmake-prefix-rel.tar -C conan-env/ --strip-components=1
+      - name: Unpack dependencies
+        run: tar -C "$TMPDIR" -xf '${{ steps.cache-key.outputs.deps-path }}'
 
       - name: Restore Ccache folder
         id: cache-ccache
@@ -233,21 +258,36 @@ jobs:
 
       - name: Configure project
         run: |
-          cmake -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}          \
-                -DCMAKE_PREFIX_PATH="$PWD/conan-env"                 \
-                -DENABLE_DEVELOPER_MODE=${{ matrix.developer_mode }} \
-                -DOPT_ENABLE_CLANG_TIDY=OFF                          \
-                -DOPT_ENABLE_CPPCHECK=OFF                            \
-                -DNCHG_ENABLE_GIT_VERSION_TRACKING=OFF               \
-                -DNCHG_ENABLE_TESTING=ON                             \
-                -DNCHG_DOWNLOAD_TEST_DATASET=OFF                     \
-                -DCMAKE_INSTALL_PREFIX=dest                          \
-                -G "${{ matrix.generator }}"                         \
-                -S .                                                 \
+          if [[ '${{ matrix.compiler }}' == 'clang' ]]; then
+            LINKER=LLD
+          else
+            LINKER=SYSTEM
+          fi
+          cmake -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}            \
+                -DCMAKE_C_STANDARD=17                                  \
+                -DCMAKE_CXX_STANDARD=17                                \
+                -DCMAKE_LINKER_TYPE="$LINKER"                          \
+                -DCMAKE_PREFIX_PATH="$TMPDIR/deps/cmake/"              \
+                -DENABLE_DEVELOPER_MODE='${{ matrix.developer_mode }}' \
+                -DOPT_ENABLE_CLANG_TIDY=OFF                            \
+                -DOPT_ENABLE_CPPCHECK=OFF                              \
+                -DNCHG_ENABLE_TESTING=ON                               \
+                -DNCHG_DOWNLOAD_TEST_DATASET=OFF                       \
+                -DNCHG_ENABLE_GIT_VERSION_TRACKING=OFF                 \
+                -DCMAKE_INSTALL_PREFIX=dest                            \
+                -G '${{ matrix.generator }}'                           \
+                -S .                                                   \
                 -B build
 
       - name: Build project
-        run: cmake --build build -j $(nproc)
+        id: cmake-build
+        run: |
+          if [[ '${{ needs.matrix-factory.outputs.ci-type }}' != 'short' ]]; then
+            export CCACHE_DISABLE=1
+          fi
+
+          echo "start=$(date +%s)" >> "$GITHUB_OUTPUT"
+          cmake --build build -j "$(nproc)"
 
       - name: Package binaries
         run: |
@@ -293,9 +333,11 @@ jobs:
       - name: Cleanup Ccache folder
         if: needs.matrix-factory.outputs.ci-type == 'short'
         run: |
-          ccache --evict-older-than=14400s # 4h
+          timestamp="$(date +%s)"
+          time_delta="$(( timestamp - ${{ steps.cmake-build.outputs.start }} + 60 ))"
+          ccache --evict-older-than="${time_delta}s"
           ccache --recompress=19 --recompress-threads="$(nproc)"
-          ccache --cleanup
+          ccache --cleanup --max-size 1G
 
       - name: Print Ccache statistics (post-cleanup)
         if: needs.matrix-factory.outputs.ci-type == 'short'

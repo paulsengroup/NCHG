@@ -21,26 +21,30 @@ name: Build dependencies with Conan (Linux)
 on:
   workflow_call:
     outputs:
-      conan-key:
-        description: "Conan packages"
-        value: ${{ jobs.build-deps.outputs.conan-key }}
+      cache-key:
+        description: "Cache key"
+        value: ${{ jobs.build-deps.outputs.cache-key }}
+      tar:
+        description: "Archive path"
+        value: ${{ jobs.build-deps.outputs.tar }}
 
     inputs:
+      build-type:
+        type: string
+        required: true
+        description: "Build type to pass to Conan."
       conan-version:
-        default: "2.18.*"
         type: string
-        required: false
+        required: true
         description: "Conan version to be installed with pip."
-      cppstd:
-        default: "20"
-        type: string
-        required: false
-        description: "Value to pass to compiler.cppstd."
       image:
-        default: ghcr.io/paulsengroup/ci-docker-images/ubuntu-24.04-cxx-clang-20
         type: string
-        required: false
+        required: true
         description: "Docker image used to build Conan deps."
+      ref:
+        type: string
+        required: true
+        description: "Reference used to clone the conanfile.py and build script."
 
 defaults:
   run:
@@ -62,16 +66,17 @@ jobs:
       CCACHE_DISABLE: "1"
       CMAKE_POLICY_VERSION_MINIMUM: 3.5
       CONAN_HOME: "/opt/conan/"
+      TMPDIR: "/tmp/"
 
     outputs:
-      conan-key: ${{ steps.generate-cache-key.outputs.conan-key }}
+      cache-key: ${{ steps.generate-cache-key.outputs.cache-key }}
+      tar: ${{ steps.generate-cache-key.outputs.tar }}
 
     steps:
       - name: Checkout conanfile.py
         uses: actions/checkout@v4
-
-      - name: Update build deps
-        run: pip install "conan==${{ inputs.conan-version }}"
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Generate cache key
         id: generate-cache-key
@@ -79,46 +84,44 @@ jobs:
           set -u
           set -e
 
-          hash="${{ hashFiles('conanfile.py') }}"
+          hash="${{ hashFiles('conanfile.py', 'utils/devel/build_dependencies.py') }}"
 
-          image='${{ inputs.image }}'
+          image="$(echo '${{ inputs.image }}' |
+                   rev |
+                   cut -f 1 -d '/' |
+                   rev
+                )"
+
           compiler="$(cc --version | head -n 1)"
 
-          suffix="$image-$compiler-c++${{ inputs.cppstd }}-$hash"
-          suffix="$(echo "$suffix" | tr -c '[:alnum:]._-' '-' | sed 's/-\+/-/g' | sed 's/-$//')"
+          suffix="$image-$compiler-${{ inputs.build-type }}-$hash"
+          suffix="$(echo "$suffix" |
+                    tr -c '[:alnum:]._-' '-' |
+                    sed 's/-\+/-/g' |
+                    sed 's/-$//' |
+                    tr '[:upper:]' '[:lower:]'
+                  )"
 
-          echo "conan-key=conan-$suffix" | tee -a "$GITHUB_OUTPUT"
+          dest='/tmp/dependencies.conan.${{ inputs.build-type }}.tar.zst'
+
+          echo "cache-key=conan-$suffix" | tee -a "$GITHUB_OUTPUT"
+          echo "tar=$dest" | tee -a "$GITHUB_OUTPUT"
 
       - name: Lookup package cache
         id: lookup-conan-cache
         uses: actions/cache/restore@v4
         with:
-          key: ${{ steps.generate-cache-key.outputs.conan-key }}
-          path: |
-            ${{ env.CONAN_HOME }}/p
-            /tmp/cmake-prefix-dbg.tar
-            /tmp/cmake-prefix-rel.tar
-            /tmp/cmake-prefix-rwdi.tar
+          key: ${{ steps.generate-cache-key.outputs.cache-key }}
+          path: ${{ steps.generate-cache-key.outputs.tar }}
           lookup-only: true
 
-      - name: Restore package cache
-        uses: actions/cache/restore@v4
+      - name: Update build deps
         if: steps.lookup-conan-cache.outputs.cache-hit != 'true'
-        with:
-          key: ${{ steps.generate-cache-key.outputs.conan-key }}
-          path: |
-            ${{ env.CONAN_HOME }}/p
-            /tmp/cmake-prefix-dbg.tar
-            /tmp/cmake-prefix-rel.tar
-            /tmp/cmake-prefix-rwdi.tar
+        run: pip install 'conan==${{ inputs.conan-version }}'
 
       - name: Clean Conan cache (pre-build)
         if: steps.lookup-conan-cache.outputs.cache-hit != 'true'
-        run: |
-          conan cache clean "*" --build
-          conan cache clean "*" --download
-          conan cache clean "*" --source
-          conan remove --confirm "*"
+        run: conan remove --confirm '*'
 
       - name: Install build dependencies
         if: steps.lookup-conan-cache.outputs.cache-hit != 'true'
@@ -144,129 +147,28 @@ jobs:
           boost/*: b2/5.2.1
           EOF
 
-      - name: Install dependencies (Debug)
+      - name: Build and deploy dependencies
         if: steps.lookup-conan-cache.outputs.cache-hit != 'true'
         run: |
-          conan install conanfile.py                  \
-             --build='missing'                        \
-             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -s build_type=Debug                      \
-             -s compiler.libcxx=libstdc++11           \
-             -s compiler.cppstd=${{ inputs.cppstd }}  \
-             --output-folder cmake-prefix-dbg
+          utils/devel/build_dependencies.py \
+            --build-type='${{ inputs.build-type }}' \
+            --ci
 
-          conan install conanfile.py                  \
-             --build='missing'                        \
-             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -s build_type=Debug                      \
-             -s compiler.libcxx=libstdc++11           \
-             -s compiler.cppstd=23                    \
-             --options 'NCHG/*:with_glaze_only=True'  \
-             --output-folder cmake-prefix-dbg
-
-          conan install conanfile.py                  \
-             --build='missing'                        \
-             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -s build_type=Debug                      \
-             -s compiler.libcxx=libstdc++11           \
-             -s compiler.cppstd=20                    \
-             --options 'NCHG/*:with_duckdb_only=True' \
-             --output-folder cmake-prefix-dbg
-
-          tar -cf /tmp/cmake-prefix-dbg.tar cmake-prefix-dbg
-          rm -r cmake-prefix-dbg
-
-      - name: Install dependencies (Release)
+      - name: Archive dependencies
         if: steps.lookup-conan-cache.outputs.cache-hit != 'true'
         run: |
-          conan install conanfile.py                  \
-             --build='missing'                        \
-             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -s build_type=Release                    \
-             -s compiler.libcxx=libstdc++11           \
-             -s compiler.cppstd=${{ inputs.cppstd }}  \
-             --output-folder cmake-prefix-rel
+          src='deps/'
+          dest='${{ steps.generate-cache-key.outputs.tar }}'
+          tar -C "$TMPDIR" -cf - "$src" |
+            zstd -T0 -22 --long --ultra -v -o "$dest"
 
-          conan install conanfile.py                  \
-             --build='missing'                        \
-             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -s build_type=Release                    \
-             -s compiler.libcxx=libstdc++11           \
-             -s compiler.cppstd=23                    \
-             --options 'NCHG/*:with_glaze_only=True'  \
-             --output-folder cmake-prefix-rel
+          echo "tar=$dest" | tee -a "$GITHUB_OUTPUT"
 
-          conan install conanfile.py                  \
-             --build='missing'                        \
-             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -s build_type=Release                    \
-             -s compiler.libcxx=libstdc++11           \
-             -s compiler.cppstd=20                    \
-             --options 'NCHG/*:with_duckdb_only=True' \
-             --output-folder cmake-prefix-rel
-
-
-          tar -cf /tmp/cmake-prefix-rel.tar cmake-prefix-rel
-          rm -r cmake-prefix-rel
-
-      - name: Install dependencies (RelWithDebInfo)
-        if: steps.lookup-conan-cache.outputs.cache-hit != 'true'
-        run: |
-          conan install conanfile.py                  \
-             --build='missing'                        \
-             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -s build_type=RelWithDebInfo             \
-             -s compiler.libcxx=libstdc++11           \
-             -s compiler.cppstd=${{ inputs.cppstd }}  \
-             --output-folder cmake-prefix-rwdi
-
-          conan install conanfile.py                  \
-             --build='missing'                        \
-             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -s build_type=RelWithDebInfo             \
-             -s compiler.libcxx=libstdc++11           \
-             -s compiler.cppstd=23                    \
-             --options 'NCHG/*:with_glaze_only=True'  \
-             --output-folder cmake-prefix-rwdi
-
-          conan install conanfile.py                  \
-             --build='missing'                        \
-             -pr:b="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -pr:h="$CONAN_DEFAULT_PROFILE_PATH"      \
-             -s build_type=RelWithDebInfo             \
-             -s compiler.libcxx=libstdc++11           \
-             -s compiler.cppstd=20                    \
-             --options 'NCHG/*:with_duckdb_only=True' \
-             --output-folder cmake-prefix-rwdi
-
-
-          tar -cf /tmp/cmake-prefix-rwdi.tar cmake-prefix-rwdi
-          rm -r cmake-prefix-rwdi
-
-      - name: Clean Conan cache (post-build)
-        if: steps.lookup-conan-cache.outputs.cache-hit != 'true'
-        run: |
-          conan cache clean "*" --build
-          conan cache clean "*" --download
-          conan cache clean "*" --source
-
-      - name: Save Conan cache
+      - name: Export dependencies
         uses: actions/cache/save@v4
         if: steps.lookup-conan-cache.outputs.cache-hit != 'true'
         with:
-          key: ${{ steps.generate-cache-key.outputs.conan-key }}
-          path: |
-            ${{ env.CONAN_HOME }}/p
-            /tmp/cmake-prefix-dbg.tar
-            /tmp/cmake-prefix-rel.tar
-            /tmp/cmake-prefix-rwdi.tar
+          key: ${{ steps.generate-cache-key.outputs.cache-key }}
+          path: ${{ steps.generate-cache-key.outputs.tar }}
         env:
-          ZSTD_CLEVEL: 19
+          ZSTD_CLEVEL: 0

@@ -36,7 +36,7 @@
 #include <cstdint>
 #include <exception>
 #include <filesystem>
-#include <glaze/json/json_t.hpp>
+#include <glaze/json/generic.hpp>
 #include <hictk/numeric_utils.hpp>
 #include <hictk/reference.hpp>
 #include <memory>
@@ -102,9 +102,9 @@ template <typename N>
   }
 }
 
-[[nodiscard]] static glz::json_t strip_keys_from_json(glz::json_t json,
-                                                      const std::vector<std::string> &keys) {
-  auto &map = json.get<glz::json_t::object_t>();
+[[nodiscard]] static glz::generic strip_keys_from_json(glz::generic json,
+                                                       const std::vector<std::string> &keys) {
+  auto &map = json.get<glz::generic::object_t>();
   for (const auto &k : keys) {
     if (map.contains(k)) {
       map.erase(k);
@@ -171,7 +171,7 @@ template <typename N>
   }
 }
 
-[[nodiscard]] static glz::json_t parse_metadata_or_throw(const std::string &s) {
+[[nodiscard]] static glz::generic parse_metadata_or_throw(const std::string &s) {
   try {
     return parse_json_string(s);
   } catch (const std::exception &e) {

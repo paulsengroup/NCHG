@@ -59,6 +59,6 @@ target_link_libraries(
     nchg::preproc
     hictk::libhictk
     HDF5::HDF5
-    HighFive
+    "HighFive$<$<VERSION_GREATER_EQUAL:${HighFive_VERSION},3>:::HighFive>"
     phmap
 )

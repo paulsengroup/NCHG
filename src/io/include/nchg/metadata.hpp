@@ -18,12 +18,9 @@
 
 #pragma once
 
+#include <glaze/json/generic.hpp>
 #include <string>
 #include <string_view>
-
-namespace glz {
-struct json_t;
-}
 
 namespace nchg {
 
@@ -36,7 +33,7 @@ void to_json_string(const T &value, std::string &buff);
 template <typename T>
 [[nodiscard]] T parse_json_string(std::string_view buff);
 
-[[nodiscard]] glz::json_t parse_json_string(std::string_view buff);
+[[nodiscard]] glz::generic parse_json_string(std::string_view buff);
 
 }  // namespace nchg
 

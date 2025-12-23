@@ -25,6 +25,8 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+    ignore:
+      - dependency-name: "paulsengroup/nchg/.github/workflows/*"
   - package-ecosystem: "pip"
     directory: "/"
     schedule:

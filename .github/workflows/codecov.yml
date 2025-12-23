@@ -205,7 +205,7 @@ jobs:
   clean-stale-cache:
     needs: [build-project]
     name: Evict stale cache entries
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       actions: write
 
@@ -707,7 +707,7 @@ jobs:
   codecov-status-check:
     name: Status Check (Codecov)
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     needs:
       - build-project
       - run-unit-tests

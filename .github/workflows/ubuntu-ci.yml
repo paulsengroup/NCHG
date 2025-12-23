@@ -57,7 +57,7 @@ permissions:
 jobs:
   matrix-factory:
     name: Generate job matrix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       matrix: ${{ steps.set-result.outputs.result }}
       ci-type: ${{ steps.ci-type.outputs.type }}
@@ -333,7 +333,7 @@ jobs:
   clean-stale-cache:
     needs: [build-project]
     name: Evict stale cache entries
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       actions: write
 
@@ -752,7 +752,7 @@ jobs:
   ubuntu-ci-status-check:
     name: Status Check (Ubuntu CI)
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     needs:
       - build-project
       - run-unit-tests

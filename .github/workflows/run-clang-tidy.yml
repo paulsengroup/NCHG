@@ -198,7 +198,7 @@ jobs:
   clean-stale-cache:
     needs: [build-project]
     name: Evict stale cache entries
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       actions: write
 
@@ -225,7 +225,7 @@ jobs:
   clang-tidy-status-check:
     name: Status Check (clang-tidy)
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     needs:
       - build-project
 

@@ -65,7 +65,7 @@ permissions:
 jobs:
   matrix-factory:
     name: Generate job matrix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       matrix: ${{ steps.set-result.outputs.result }}
     steps:
@@ -312,7 +312,7 @@ jobs:
   clean-stale-cache:
     needs: [build-project]
     name: Evict stale cache entries
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       actions: write
 
@@ -675,7 +675,7 @@ jobs:
   macos-ci-status-check:
     name: Status Check (MacOS CI)
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     needs:
       - build-project
       - run-unit-tests

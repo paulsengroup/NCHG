@@ -43,7 +43,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Generate cache key
         id: generate-cache-key
@@ -54,7 +54,7 @@ jobs:
 
       - name: Restore cache
         id: cache-dset
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: ${{ steps.generate-cache-key.outputs.key }}
           path: ${{ env.TEST_DATASET_PATH }}
@@ -86,7 +86,7 @@ jobs:
           shasum -c checksum.sha256
 
       - name: Save cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         if: steps.cache-dset.outputs.cache-hit != 'true'
         with:
           key: ${{ steps.generate-cache-key.outputs.key }}
